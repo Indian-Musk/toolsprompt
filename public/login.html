@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-LS811PSS3V"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-LS811PSS3V');
+</script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login | CorrectPrompt</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="firebase-loader.js"></script>
+<!-- Add this in the <head> section of each HTML file -->
+<link rel="icon" type="image/png" href="/favicon.png">
+      <style>
+        .login-container {
+            display: flex;
+            min-height: 100vh;
+            background: linear-gradient(135deg, #f5f7fa 0%, #e4edf5 100%);
+        }
+        
+        .login-left {
+            flex: 1;
+            background: linear-gradient(135deg, #4e54c8, #8f94fb);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            padding: 2rem;
+            text-align: center;
+        }
+        
+        .login-right {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 2rem;
+            background: white;
+        }
+        
+        .login-logo {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 2rem;
+        }
+        
+        .login-logo i {
+            color: #ff6b6b;
+        }
+        
+        .login-card {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+            padding: 3rem;
+            width: 100%;
+            max-width: 450px;
+        }
+        
+        .login-title {
+            text-align: center;
+            margin-bottom: 2rem;
+            color: #2d334a;
+        }
+        
+        .login-title h1 {
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
+        }
+        
+        .login-title p {
+            color: #777;
+        }
+        
+        .google-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            background: #4285f4;
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            width: 100%;
+        }
+        
+        .google-btn:hover {
+            background: #3367d6;
+            transform: translateY(-2px);
+        }
+        
+        .google-btn img {
+            width: 20px;
+            height: 20px;
+        }
+        
+        .login-footer {
+            margin-top: 2rem;
+            text-align: center;
+            color: #777;
+            font-size: 0.9rem;
+        }
+        
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-top: 3rem;
+        }
+        
+        .feature-card {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            padding: 20px;
+            text-align: center;
+            backdrop-filter: blur(5px);
+        }
+        
+        .feature-card i {
+            font-size: 2rem;
+            margin-bottom: 15px;
+            color: #ff6b6b;
+        }
+        
+        @media (max-width: 768px) {
+            .login-container {
+                flex-direction: column;
+            }
+            
+            .login-left {
+                padding: 3rem 2rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="nav-placeholder"></div>
+    
+    <div class="login-container">
+        <div class="login-left">
+            <div class="login-logo">
+                <i class="fas fa-brain"></i>
+                <span>CorrectPrompt</span>
+            </div>
+            
+            <h1>Master the Art of Perfect AI Prompts</h1>
+            <p>Unlock the full potential of AI with expertly crafted prompts</p>
+            
+            <div class="feature-grid">
+                <div class="feature-card">
+                    <i class="fas fa-lightbulb"></i>
+                    <h3>Intelligent Prompt Crafting</h3>
+                </div>
+                <div class="feature-card">
+                    <i class="fas fa-cogs"></i>
+                    <h3>Context Optimization</h3>
+                </div>
+                <div class="feature-card">
+                    <i class="fas fa-rocket"></i>
+                    <h3>Rapid Iteration</h3>
+                </div>
+            </div>
+        </div>
+        
+        <div class="login-right">
+            <div class="login-card">
+                <div class="login-title">
+                    <h1>Welcome Back</h1>
+                    <p>Sign in to continue to CorrectPrompt</p>
+                </div>
+                
+                <button id="googleSignIn" class="google-btn">
+                    <!-- Google SVG icon -->
+                    Sign in with Google
+                </button>
+                
+                <div class="login-footer">
+                    <p>By signing in, you agree to our Terms of Service and Privacy Policy</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const auth = firebase.auth();
+            const googleProvider = new firebase.auth.GoogleAuthProvider();
+            
+            // Get return URL from query params
+            const urlParams = new URLSearchParams(window.location.search);
+            const returnUrl = urlParams.get('returnUrl') || 'index.html';
+            
+            document.getElementById('googleSignIn').addEventListener('click', async () => {
+                try {
+                    const result = await auth.signInWithPopup(googleProvider);
+                    const user = result.user;
+                    const idToken = await user.getIdToken();
+                    
+                    // Create session
+                    const response = await fetch('/sessionLogin', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ idToken })
+                    });
+                    
+                    if (response.ok) {
+                        window.location.href = returnUrl;
+                    } else {
+                        console.error('Login failed');
+                        alert('Login failed. Please try again.');
+                    }
+                } catch (error) {
+                    console.error('Login error:', error);
+                    alert('Login failed. Please try again.');
+                }
+            });
+        });
+    </script>
+</body>
+</html>
