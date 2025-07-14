@@ -250,11 +250,11 @@
                 <div class="footer-column">
                     <h3>Legal</h3>
                     <ul class="footer-links">
-                        <li><a href="#">Terms of Service</a></li>
-                        <li><a href="#">Privacy Policy</a></li>
-                        <li><a href="#">Copyright</a></li>
-                        <li><a href="#">Cookies</a></li>
-                        <li><a href="#">AI Ethics</a></li>
+                        <li><a href="tos.html">Terms of Service</a></li>
+                        <li><a href="privacy.html">Privacy Policy</a></li>
+                        <li><a href="copyright.html">Copyright</a></li>
+                        <li><a href="cookies-ethics.html">Cookies</a></li>
+                        <li><a href="cookies-ethics.html">AI Ethics</a></li>
                     </ul>
                 </div>
             </div>
@@ -266,5 +266,38 @@
     </footer>
 
     <script src="script.js"></script>
+<!-- Cookie Consent Banner -->
+<div id="cookie-consent" style="display: none; position: fixed; bottom: 0; left: 0; right: 0; background: rgba(45,51,74,0.95); color: white; padding: 20px; z-index: 1000;">
+    <div class="container" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;">
+        <div style="flex: 1; min-width: 300px; padding-right: 20px;">
+            <p>We use cookies to enhance your experience and analyze site usage. By continuing to browse, you agree to our use of cookies. Learn more in our <a href="cookies-ethics.html" style="color: #8f94fb;">Cookies & AI Ethics Policy</a>.</p>
+        </div>
+        <div style="display: flex; gap: 10px;">
+            <button id="accept-cookies" style="background: #20bf6b; color: white; border: none; padding: 10px 20px; border-radius: 30px; cursor: pointer;">Accept All</button>
+            <button id="customize-cookies" style="background: transparent; color: white; border: 1px solid #8f94fb; padding: 10px 20px; border-radius: 30px; cursor: pointer;">Customize</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Cookie consent functionality
+    document.addEventListener('DOMContentLoaded', function() {
+        const consentBanner = document.getElementById('cookie-consent');
+        const accepted = localStorage.getItem('cookiesAccepted');
+        
+        if (!accepted) {
+            consentBanner.style.display = 'block';
+        }
+        
+        document.getElementById('accept-cookies').addEventListener('click', function() {
+            localStorage.setItem('cookiesAccepted', 'true');
+            consentBanner.style.display = 'none';
+        });
+        
+        document.getElementById('customize-cookies').addEventListener('click', function() {
+            window.location.href = 'cookies-ethics.html';
+        });
+    });
+</script>
 </body>
 </html>
