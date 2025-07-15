@@ -1,0 +1,951 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Blog | ToolsPrompt - AI Prompt Engineering Insights</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --primary: #4e54c8;
+            --secondary: #8f94fb;
+            --accent: #ff6b6b;
+            --dark: #2d334a;
+            --light: #f8f9fa;
+            --success: #20bf6b;
+            --transition: all 0.3s ease;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background: linear-gradient(135deg, #f5f7fa 0%, #e4edf5 100%);
+            color: var(--dark);
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+
+        /* Header Styles */
+        header {
+            background: rgba(255, 255, 255, 0.95);
+            box-shadow: 0 2px 15px rgba(0, 0, 0, 0.1);
+            position: fixed;
+            width: 100%;
+            top: 0;
+            z-index: 1000;
+            backdrop-filter: blur(10px);
+        }
+
+        nav {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 0;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: var(--primary);
+        }
+
+        .logo i {
+            color: var(--accent);
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 30px;
+        }
+
+        .nav-links a {
+            text-decoration: none;
+            color: var(--dark);
+            font-weight: 600;
+            transition: var(--transition);
+            position: relative;
+        }
+
+        .nav-links a.active {
+            color: var(--primary);
+        }
+
+        .nav-links a.active::after {
+            content: '';
+            position: absolute;
+            bottom: -5px;
+            left: 0;
+            width: 100%;
+            height: 3px;
+            background: var(--primary);
+            border-radius: 3px;
+        }
+
+        .nav-links a:hover {
+            color: var(--primary);
+        }
+
+        .nav-links a::after {
+            content: '';
+            position: absolute;
+            bottom: -5px;
+            left: 0;
+            width: 0;
+            height: 3px;
+            background: var(--primary);
+            transition: var(--transition);
+            border-radius: 3px;
+        }
+
+        .nav-links a:hover::after {
+            width: 100%;
+        }
+
+        .cta-button {
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            color: white;
+            border: none;
+            padding: 10px 25px;
+            border-radius: 30px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: var(--transition);
+            box-shadow: 0 4px 15px rgba(78, 84, 200, 0.3);
+        }
+
+        .cta-button:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 6px 20px rgba(78, 84, 200, 0.4);
+        }
+
+        /* Blog Hero Section */
+        .blog-hero {
+            padding: 160px 0 80px;
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            color: white;
+            text-align: center;
+        }
+
+        .blog-hero h1 {
+            font-size: 3.5rem;
+            margin-bottom: 20px;
+            line-height: 1.2;
+        }
+
+        .blog-hero p {
+            font-size: 1.2rem;
+            max-width: 700px;
+            margin: 0 auto 30px;
+            opacity: 0.9;
+        }
+
+        .search-bar {
+            max-width: 600px;
+            margin: 30px auto 0;
+            display: flex;
+        }
+
+        .search-bar input {
+            flex: 1;
+            padding: 15px 20px;
+            border: none;
+            border-radius: 50px 0 0 50px;
+            font-size: 1rem;
+        }
+
+        .search-bar button {
+            background: var(--accent);
+            color: white;
+            border: none;
+            padding: 15px 25px;
+            border-radius: 0 50px 50px 0;
+            font-weight: 600;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .search-bar button:hover {
+            background: #ff5252;
+        }
+
+        /* Blog Content */
+        .blog-container {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 40px;
+            padding: 80px 0;
+        }
+
+        /* Blog Posts */
+        .blog-posts {
+            display: grid;
+            gap: 40px;
+        }
+
+        .blog-card {
+            background: white;
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: 0 5px 25px rgba(0, 0, 0, 0.08);
+            transition: var(--transition);
+        }
+
+        .blog-card:hover {
+            transform: translateY(-10px);
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.15);
+        }
+
+        .blog-image {
+            height: 250px;
+            width: 100%;
+            background-size: cover;
+            background-position: center;
+        }
+
+        .blog-content {
+            padding: 30px;
+        }
+
+        .blog-meta {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 15px;
+            color: #777;
+            font-size: 0.9rem;
+        }
+
+        .blog-meta span {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .blog-tag {
+            background: rgba(78, 84, 200, 0.1);
+            color: var(--primary);
+            padding: 5px 15px;
+            border-radius: 30px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            display: inline-block;
+            margin-bottom: 15px;
+        }
+
+        .blog-title {
+            font-size: 1.8rem;
+            margin-bottom: 15px;
+            color: var(--dark);
+        }
+
+        .blog-excerpt {
+            margin-bottom: 20px;
+            color: #555;
+            line-height: 1.7;
+        }
+
+        .read-more {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--primary);
+            font-weight: 600;
+            text-decoration: none;
+            transition: var(--transition);
+        }
+
+        .read-more:hover {
+            gap: 12px;
+        }
+
+        /* Sidebar */
+        .blog-sidebar {
+            display: flex;
+            flex-direction: column;
+            gap: 40px;
+        }
+
+        .sidebar-widget {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 5px 25px rgba(0, 0, 0, 0.08);
+        }
+
+        .widget-title {
+            font-size: 1.5rem;
+            margin-bottom: 20px;
+            color: var(--dark);
+            position: relative;
+            padding-bottom: 10px;
+        }
+
+        .widget-title::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 50px;
+            height: 3px;
+            background: var(--primary);
+        }
+
+        .categories-list {
+            list-style: none;
+        }
+
+        .categories-list li {
+            padding: 12px 0;
+            border-bottom: 1px solid #eee;
+        }
+
+        .categories-list a {
+            text-decoration: none;
+            color: var(--dark);
+            display: flex;
+            justify-content: space-between;
+            transition: var(--transition);
+        }
+
+        .categories-list a:hover {
+            color: var(--primary);
+            padding-left: 5px;
+        }
+
+        .popular-posts {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .popular-post {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+
+        .popular-image {
+            width: 80px;
+            height: 80px;
+            border-radius: 10px;
+            background-size: cover;
+            background-position: center;
+            flex-shrink: 0;
+        }
+
+        .popular-content {
+            flex: 1;
+        }
+
+        .popular-title {
+            font-weight: 600;
+            margin-bottom: 5px;
+            color: var(--dark);
+            text-decoration: none;
+            display: block;
+            transition: var(--transition);
+        }
+
+        .popular-title:hover {
+            color: var(--primary);
+        }
+
+        .popular-date {
+            font-size: 0.85rem;
+            color: #777;
+        }
+
+        .tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .tag {
+            background: rgba(78, 84, 200, 0.1);
+            color: var(--primary);
+            padding: 8px 15px;
+            border-radius: 30px;
+            font-size: 0.9rem;
+            text-decoration: none;
+            transition: var(--transition);
+        }
+
+        .tag:hover {
+            background: var(--primary);
+            color: white;
+        }
+
+        .newsletter-form {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .newsletter-form input {
+            padding: 12px 15px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 1rem;
+        }
+
+        .newsletter-form button {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 12px;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .newsletter-form button:hover {
+            background: #3d43b6;
+        }
+
+        /* Pagination */
+        .pagination {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-top: 50px;
+        }
+
+        .pagination a {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: white;
+            color: var(--dark);
+            text-decoration: none;
+            font-weight: 600;
+            box-shadow: 0 3px 10px rgba(0, 0, 0, 0.08);
+            transition: var(--transition);
+        }
+
+        .pagination a.active, .pagination a:hover {
+            background: var(--primary);
+            color: white;
+        }
+
+        /* Footer */
+        footer {
+            background: var(--dark);
+            color: white;
+            padding: 70px 0 30px;
+        }
+
+        .footer-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 40px;
+            margin-bottom: 50px;
+        }
+
+        .footer-column h3 {
+            margin-bottom: 20px;
+            font-size: 1.3rem;
+            position: relative;
+            padding-bottom: 10px;
+        }
+
+        .footer-column h3::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 50px;
+            height: 3px;
+            background: var(--accent);
+        }
+
+        .footer-links {
+            list-style: none;
+        }
+
+        .footer-links li {
+            margin-bottom: 12px;
+        }
+
+        .footer-links a {
+            color: #bbb;
+            text-decoration: none;
+            transition: var(--transition);
+        }
+
+        .footer-links a:hover {
+            color: white;
+            padding-left: 5px;
+        }
+
+        .social-links {
+            display: flex;
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .social-links a {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 40px;
+            height: 40px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 50%;
+            color: white;
+            transition: var(--transition);
+        }
+
+        .social-links a:hover {
+            background: var(--accent);
+            transform: translateY(-5px);
+        }
+
+        .copyright {
+            text-align: center;
+            padding-top: 30px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            color: #999;
+            font-size: 0.9rem;
+        }
+
+        /* Blog Post Template */
+        .blog-post-container {
+            padding: 150px 0 80px;
+        }
+
+        .blog-post-content {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .post-header {
+            text-align: center;
+            margin-bottom: 50px;
+        }
+
+        .post-date {
+            font-size: 1.1rem;
+            color: var(--primary);
+            margin-bottom: 15px;
+        }
+
+        .post-title {
+            font-size: 2.8rem;
+            margin-bottom: 20px;
+        }
+
+        .post-meta {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            color: #777;
+            font-size: 0.95rem;
+        }
+
+        .post-image {
+            width: 100%;
+            height: 450px;
+            border-radius: 15px;
+            background-size: cover;
+            background-position: center;
+            margin-bottom: 40px;
+        }
+
+        .post-content {
+            background: white;
+            padding: 40px;
+            border-radius: 15px;
+            box-shadow: 0 5px 25px rgba(0, 0, 0, 0.08);
+            line-height: 1.8;
+            font-size: 1.1rem;
+        }
+
+        .post-content h2 {
+            color: var(--primary);
+            margin: 30px 0 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #f0f4f8;
+        }
+
+        .post-content h3 {
+            color: var(--primary);
+            margin: 25px 0 10px;
+        }
+
+        .post-content p {
+            margin-bottom: 20px;
+        }
+
+        .post-content ul, .post-content ol {
+            padding-left: 30px;
+            margin-bottom: 20px;
+        }
+
+        .post-content li {
+            margin-bottom: 10px;
+        }
+
+        .post-content blockquote {
+            border-left: 4px solid var(--primary);
+            background: rgba(78, 84, 200, 0.05);
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 0 8px 8px 0;
+            font-style: italic;
+        }
+
+        .post-tags {
+            display: flex;
+            gap: 10px;
+            margin-top: 40px;
+            flex-wrap: wrap;
+        }
+
+        .post-tags a {
+            background: rgba(78, 84, 200, 0.1);
+            color: var(--primary);
+            padding: 8px 15px;
+            border-radius: 30px;
+            text-decoration: none;
+            font-size: 0.9rem;
+            transition: var(--transition);
+        }
+
+        .post-tags a:hover {
+            background: var(--primary);
+            color: white;
+        }
+
+        /* Responsive */
+        @media (max-width: 992px) {
+            .blog-container {
+                grid-template-columns: 1fr;
+            }
+            
+            .blog-hero h1 {
+                font-size: 2.8rem;
+            }
+            
+            .post-image {
+                height: 350px;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .nav-links {
+                display: none;
+            }
+            
+            .blog-hero {
+                padding: 140px 0 60px;
+            }
+            
+            .blog-hero h1 {
+                font-size: 2.3rem;
+            }
+            
+            .post-title {
+                font-size: 2.2rem;
+            }
+            
+            .post-image {
+                height: 250px;
+            }
+            
+            .post-content {
+                padding: 25px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header>
+        <div class="container">
+            <nav>
+                <div class="logo">
+                    <i class="fas fa-brain"></i>
+                    <span>ToolsPrompt</span>
+                </div>
+                <div class="nav-links">
+                    <a href="index.html">Home</a>
+                    <a href="promptconverter.html">Prompt Converter</a>
+                    <a href="features.html">Features</a>
+                    <a href="showcase.html">Showcase</a>
+                    <a href="blog.html" class="active">Blog</a>
+                    <a href="howitworks.html">How It Works</a>
+                </div>
+                <button class="cta-button">Get Started</button>
+                <div class="mobile-toggle">
+                    <i class="fas fa-bars"></i>
+                </div>
+            </nav>
+        </div>
+    </header>
+
+    <!-- Blog Hero Section -->
+    <section class="blog-hero">
+        <div class="container">
+            <h1>AI Prompt Engineering Insights</h1>
+            <p>Explore the latest trends, techniques, and best practices in prompt engineering and AI content creation.</p>
+            
+            <div class="search-bar">
+                <input type="text" placeholder="Search for topics, techniques, or keywords...">
+                <button><i class="fas fa-search"></i> Search</button>
+            </div>
+        </div>
+    </section>
+
+    <!-- Blog Content -->
+    <div class="container">
+        <div class="blog-container">
+            <!-- Main Content -->
+            <div class="blog-posts">
+             <!-- In your blog.html file -->
+<article class="blog-card">
+    <div class="blog-image" style="background-image: url('https://images.unsplash.com/photo-1611162617213-7d7a39e9b1d7?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1200&q=80')"></div>
+    <div class="blog-content">
+        <div class="blog-meta">
+            <span><i class="far fa-calendar"></i> October 16, 2023</span>
+            <span><i class="far fa-clock"></i> 8 min read</span>
+        </div>
+        <span class="blog-tag">AI Photo Editing</span>
+        <h2 class="blog-title">ChatGPT Celebrity Selfie AI Photo Editing Prompts</h2>
+        <p class="blog-excerpt">Transform your selfies into celebrity-style portraits with AI using these advanced prompt engineering techniques.</p>
+        <a href="blog/celebrity-selfie-prompts.html" class="read-more">Read Full Article <i class="fas fa-arrow-right"></i></a>
+    </div>
+</article>
+                
+                <!-- Blog Post 2 -->
+ 
+                <article class="blog-card">
+                    <div class="blog-image" style="background-image: url('https://images.unsplash.com/photo-1677442135133-33d364e7d5a7?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=MnwxfDB8MXxyYW5kb218MHx8YWl8fHx8fHwxNjkxMjE0NDg0&ixlib=rb-4.0.3&q=80&utm_campaign=api-credit&utm_medium=referral&utm_source=unsplash_source&w=1200')"></div>
+                    <div class="blog-content">
+                        <div class="blog-meta">
+                            <span><i class="far fa-calendar"></i> October 8, 2023</span>
+                            <span><i class="far fa-clock"></i> 6 min read</span>
+                        </div>
+                        <span class="blog-tag">AI Trends</span>
+                        <h2 class="blog-title">The Future of AI-Generated Content: What to Expect in 2024</h2>
+                        <p class="blog-excerpt">Explore the emerging trends in AI content creation and how prompt engineering is evolving. From multimodal models to ethical considerations, we look at what the future holds for AI-generated content.</p>
+                        <a href="blog-post-2.html" class="read-more">Read Full Article <i class="fas fa-arrow-right"></i></a>
+                    </div>
+                </article>
+                
+                <!-- Blog Post 3 -->
+                <article class="blog-card">
+                    <div class="blog-image" style="background-image: url('https://images.unsplash.com/photo-1677442135699-3d09b4e9a1e4?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=MnwxfDB8MXxyYW5kb218MHx8YWl8fHx8fHwxNjkxMjE0NDg0&ixlib=rb-4.0.3&q=80&utm_campaign=api-credit&utm_medium=referral&utm_source=unsplash_source&w=1200')"></div>
+                    <div class="blog-content">
+                        <div class="blog-meta">
+                            <span><i class="far fa-calendar"></i> October 1, 2023</span>
+                            <span><i class="far fa-clock"></i> 10 min read</span>
+                        </div>
+                        <span class="blog-tag">Case Study</span>
+                        <h2 class="blog-title">How Creative Agencies Are Using AI Prompt Engineering</h2>
+                        <p class="blog-excerpt">A deep dive into how leading creative agencies are implementing AI prompt engineering to enhance their workflows, reduce production time, and create innovative content for clients.</p>
+                        <a href="blog-post-3.html" class="read-more">Read Full Article <i class="fas fa-arrow-right"></i></a>
+                    </div>
+                </article>
+                
+                <!-- Blog Post 4 -->
+                <article class="blog-card">
+                    <div class="blog-image" style="background-image: url('https://images.unsplash.com/photo-1677442135723-5a0a1c8d1c1f?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=MnwxfDB8MXxyYW5kb218MHx8YWl8fHx8fHwxNjkxMjE0NDg0&ixlib=rb-4.0.3&q=80&utm_campaign=api-credit&utm_medium=referral&utm_source=unsplash_source&w=1200')"></div>
+                    <div class="blog-content">
+                        <div class="blog-meta">
+                            <span><i class="far fa-calendar"></i> September 24, 2023</span>
+                            <span><i class="far fa-clock"></i> 7 min read</span>
+                        </div>
+                        <span class="blog-tag">Tutorial</span>
+                        <h2 class="blog-title">Step-by-Step Guide to Creating Photorealistic AI Images</h2>
+                        <p class="blog-excerpt">Learn the techniques and prompt structures needed to generate stunning photorealistic images with AI. We break down the key elements that make AI-generated images look more lifelike.</p>
+                        <a href="blog-post-4.html" class="read-more">Read Full Article <i class="fas fa-arrow-right"></i></a>
+                    </div>
+                </article>
+               
+                <!-- Pagination -->
+                <div class="pagination">
+                    <a href="#" class="active">1</a>
+                    <a href="#">2</a>
+                    <a href="#">3</a>
+                    <a href="#"><i class="fas fa-chevron-right"></i></a>
+                </div>
+            </div>
+            
+            <!-- Sidebar -->
+            <aside class="blog-sidebar">
+                <!-- About Widget -->
+                <div class="sidebar-widget">
+                    <h3 class="widget-title">About the Blog</h3>
+                    <p>Welcome to the ToolsPrompt blog, your resource for mastering AI prompt engineering. We share insights, techniques, and case studies to help you get the most from generative AI.</p>
+                </div>
+                
+                <!-- Categories Widget -->
+                <div class="sidebar-widget">
+                    <h3 class="widget-title">Categories</h3>
+                    <ul class="categories-list">
+                        <li><a href="#">Prompt Engineering <span>(24)</span></a></li>
+                        <li><a href="#">AI Image Generation <span>(18)</span></a></li>
+                        <li><a href="#">Text-to-Image AI <span>(15)</span></a></li>
+                        <li><a href="#">Case Studies <span>(12)</span></a></li>
+                        <li><a href="#">Tutorials <span>(28)</span></a></li>
+                        <li><a href="#">AI Ethics <span>(9)</span></a></li>
+                        <li><a href="#">Industry Trends <span>(14)</span></a></li>
+                    </ul>
+                </div>
+                
+                <!-- Popular Posts Widget -->
+                <div class="sidebar-widget">
+                    <h3 class="widget-title">Popular Posts</h3>
+                    <div class="popular-posts">
+                        <div class="popular-post">
+                            <div class="popular-image" style="background-image: url('https://images.unsplash.com/photo-1677442135722-5fbfd44b32f4?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=MnwxfDB8MXxyYW5kb218MHx8YWl8fHx8fHwxNjkxMjE0NDg0&ixlib=rb-4.0.3&q=80&utm_campaign=api-credit&utm_medium=referral&utm_source=unsplash_source&w=1200')"></div>
+                            <div class="popular-content">
+                                <a href="#" class="popular-title">10 Prompt Engineering Mistakes to Avoid</a>
+                                <div class="popular-date">Sep 12, 2023</div>
+                            </div>
+                        </div>
+                        <div class="popular-post">
+                            <div class="popular-image" style="background-image: url('https://images.unsplash.com/photo-1677442135133-33d364e7d5a7?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=MnwxfDB8MXxyYW5kb218MHx8YWl8fHx8fHwxNjkxMjE0NDg0&ixlib=rb-4.0.3&q=80&utm_campaign=api-credit&utm_medium=referral&utm_source=unsplash_source&w=1200')"></div>
+                            <div class="popular-content">
+                                <a href="#" class="popular-title">The Art of Iterative Prompt Refinement</a>
+                                <div class="popular-date">Aug 28, 2023</div>
+                            </div>
+                        </div>
+                        <div class="popular-post">
+                            <div class="popular-image" style="background-image: url('https://images.unsplash.com/photo-1677442135699-3d09b4e9a1e4?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=MnwxfDB8MXxyYW5kb218MHx8YWl8fHx8fHwxNjkxMjE0NDg0&ixlib=rb-4.0.3&q=80&utm_campaign=api-credit&utm_medium=referral&utm_source=unsplash_source&w=1200')"></div>
+                            <div class="popular-content">
+                                <a href="#" class="popular-title">How to Train Your Own Prompt Templates</a>
+                                <div class="popular-date">Aug 15, 2023</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Tags Widget -->
+                <div class="sidebar-widget">
+                    <h3 class="widget-title">Popular Tags</h3>
+                    <div class="tags">
+                        <a href="#" class="tag">Midjourney</a>
+                        <a href="#" class="tag">DALL-E</a>
+                        <a href="#" class="tag">Stable Diffusion</a>
+                        <a href="#" class="tag">ChatGPT</a>
+                        <a href="#" class="tag">AI Art</a>
+                        <a href="#" class="tag">Prompt Design</a>
+                        <a href="#" class="tag">AI Photography</a>
+                        <a href="#" class="tag">Generative AI</a>
+                        <a href="#" class="tag">Creative AI</a>
+                        <a href="#" class="tag">AI Workflow</a>
+                    </div>
+                </div>
+                
+                <!-- Newsletter Widget -->
+                <div class="sidebar-widget">
+                    <h3 class="widget-title">Stay Updated</h3>
+                    <p>Subscribe to our newsletter for the latest articles on prompt engineering and AI content creation.</p>
+                    <form class="newsletter-form">
+                        <input type="email" placeholder="Your email address" required>
+                        <button type="submit">Subscribe</button>
+                    </form>
+                </div>
+            </aside>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer>
+        <div class="container">
+            <div class="footer-grid">
+                <div class="footer-column">
+                    <h3>ToolsPrompt</h3>
+                    <p>Master the art of AI communication with our advanced prompt engineering platform.</p>
+                    <div class="social-links">
+                        <a href="#"><i class="fab fa-twitter"></i></a>
+                        <a href="#"><i class="fab fa-instagram"></i></a>
+                        <a href="#"><i class="fab fa-discord"></i></a>
+                        <a href="#"><i class="fab fa-linkedin"></i></a>
+                    </div>
+                </div>
+                
+                <div class="footer-column">
+                    <h3>Resources</h3>
+                    <ul class="footer-links">
+                        <li><a href="#">Prompt Library</a></li>
+                        <li><a href="#">Tutorials</a></li>
+                        <li><a href="blog.html">Blog</a></li>
+                        <li><a href="#">API Documentation</a></li>
+                        <li><a href="#">Community Forum</a></li>
+                    </ul>
+                </div>
+                
+                <div class="footer-column">
+                    <h3>Company</h3>
+                    <ul class="footer-links">
+                        <li><a href="#">About Us</a></li>
+                        <li><a href="#">Careers</a></li>
+                        <li><a href="#">Press</a></li>
+                        <li><a href="#">Contact</a></li>
+                        <li><a href="#">Partnerships</a></li>
+                    </ul>
+                </div>
+                
+                <div class="footer-column">
+                    <h3>Legal</h3>
+                    <ul class="footer-links">
+                        <li><a href="tos.html">Terms of Service</a></li>
+                        <li><a href="privacy.html">Privacy Policy</a></li>
+                        <li><a href="copyright.html">Copyright</a></li>
+                        <li><a href="cookies-ethics.html">Cookies & AI Ethics</a></li>
+                    </ul>
+                </div>
+            </div>
+            
+            <div class="copyright">
+                &copy; 2023 ToolsPrompt.com. All rights reserved. AI-generated content is subject to respective platform terms.
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // Simple search functionality
+        document.querySelector('.search-bar button').addEventListener('click', function() {
+            const searchTerm = document.querySelector('.search-bar input').value;
+            if(searchTerm.trim() !== '') {
+                alert(`Searching for: ${searchTerm}`);
+                // In a real implementation, this would trigger a search
+            }
+        });
+        
+        // Newsletter form submission
+        document.querySelector('.newsletter-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const email = this.querySelector('input[type="email"]').value;
+            alert(`Thank you for subscribing with: ${email}`);
+            this.reset();
+        });
+        
+        // Mobile navigation toggle
+        document.querySelector('.mobile-toggle').addEventListener('click', function() {
+            document.querySelector('.nav-links').classList.toggle('active');
+        });
+    </script>
+</body>
+</html>

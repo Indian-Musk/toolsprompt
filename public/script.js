@@ -46,24 +46,41 @@ document.addEventListener('DOMContentLoaded', () => {
     history.replaceState(null, null, redirect);
   }
 });
+
 // Prompt Enhancement Functionality
 const userPrompt = document.getElementById('userPrompt');
 const enhancedPrompt = document.getElementById('enhancedPrompt');
 const convertBtn = document.getElementById('convertBtn');
 
 if (userPrompt && enhancedPrompt && convertBtn) {
-    // Sample enhancements
+    // Safe enhancements that follow content policies
     const enhancements = {
-        styles: ['cinematic', 'photorealistic', 'oil painting', 'watercolor', 'anime', 'pixel art', 'concept art', 'impressionist'],
+        styles: ['cinematic', 'photorealistic', 'oil painting', 'watercolor', 'anime', 'pixel art', 'concept art', 'impressionist', 'illustration', 'digital art'],
         details: ['intricate details', 'highly detailed', 'sharp focus', '8k resolution', 'ultra HD'],
         lighting: ['dramatic lighting', 'soft natural light', 'volumetric lighting', 'golden hour', 'neon glow', 'moody ambiance'],
-        artists: ['by Studio Ghibli', 'in the style of Van Gogh', 'photography by Ansel Adams', 'art by Beeple', 'concept art by Craig Mullins'],
         compositions: ['rule of thirds', 'centered composition', 'shallow depth of field', 'wide angle view', 'macro shot'],
         technical: ['--ar 16:9', '--v 5', '--style raw', '--no blur', '--s 750']
     };
     
-    // Function to enhance prompt
+    // Content policy filter
+    const forbiddenKeywords = [
+        'nude', 'naked', 'sexual', 'violence', 'blood', 'gore', 'hate', 'racist',
+        'offensive', 'illegal', 'weapon', 'drug', 'alcohol', 'tobacco', 'explicit'
+    ];
+    
+    // Function to check prompt safety
+    function isPromptSafe(prompt) {
+        const lowerPrompt = prompt.toLowerCase();
+        return !forbiddenKeywords.some(keyword => lowerPrompt.includes(keyword));
+    }
+    
+    // Function to enhance prompt safely
     function enhancePrompt(prompt) {
+        // Check content policy compliance
+        if (!isPromptSafe(prompt)) {
+            return "This prompt could not be enhanced due to content policy restrictions. Please try a different prompt.";
+        }
+        
         // Basic enhancements
         let enhanced = prompt.trim();
         
@@ -83,14 +100,9 @@ if (userPrompt && enhancedPrompt && convertBtn) {
             enhanced += `, ${getRandomItem(enhancements.details)}, expressive eyes`;
         }
         
-        // Add random enhancements
+        // Add safe enhancements
         enhanced += `, ${getRandomItem(enhancements.styles)} style`;
         enhanced += `, ${getRandomItem(enhancements.lighting)}`;
-        
-        // Add artist/style 50% of the time
-        if (Math.random() > 0.5) {
-            enhanced += `, ${getRandomItem(enhancements.artists)}`;
-        }
         
         // Add composition 40% of the time
         if (Math.random() > 0.6) {
@@ -110,7 +122,9 @@ if (userPrompt && enhancedPrompt && convertBtn) {
     
     // Convert button event
     convertBtn.addEventListener('click', () => {
-        if (userPrompt.value.trim() === '') {
+        const rawPrompt = userPrompt.value.trim();
+        
+        if (rawPrompt === '') {
             enhancedPrompt.value = 'Please enter a prompt to enhance!';
             return;
         }
@@ -121,7 +135,7 @@ if (userPrompt && enhancedPrompt && convertBtn) {
         
         // Simulate processing time
         setTimeout(() => {
-            const result = enhancePrompt(userPrompt.value);
+            const result = enhancePrompt(rawPrompt);
             enhancedPrompt.value = result;
             
             // Restore button
