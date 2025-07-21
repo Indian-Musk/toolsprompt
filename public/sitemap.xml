@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+    <!-- Homepage -->
+    <url>
+        <loc>https://toolsprompt.com/</loc>
+        <lastmod>2025-07-15</lastmod>
+        <changefreq>daily</changefreq>
+        <priority>1.0</priority>
+    </url>
+    
+    <!-- Core Features -->
+    <url>
+        <loc>https://toolsprompt.com/promptconverter.html</loc>
+        <lastmod>2025-07-15</lastmod>
+        <changefreq>weekly</changefreq>
+        <priority>0.9</priority>
+    </url>
+    <url>
+        <loc>https://toolsprompt.com/features.html</loc>
+        <lastmod>2025-07-15</lastmod>
+        <changefreq>monthly</changefreq>
+        <priority>0.8</priority>
+    </url>
+    
+    <!-- Content Sections -->
+    <url>
+        <loc>https://toolsprompt.com/showcase.html</loc>
+        <lastmod>2025-07-15</lastmod>
+        <changefreq>daily</changefreq>
+        <priority>0.9</priority>
+    </url>
+    <url>
+        <loc>https://toolsprompt.com/howitworks.html</loc>
+        <lastmod>2025-07-15</lastmod>
+        <changefreq>monthly</changefreq>
+        <priority>0.8</priority>
+    </url>
+    <url>
+        <loc>https://toolsprompt.com/prompt-library.html</loc>
+        <lastmod>2025-07-15</lastmod>
+        <changefreq>daily</changefreq>
+        <priority>0.9</priority>
+    </url>
+    
+    <!-- Support & Legal -->
+    <url>
+        <loc>https://toolsprompt.com/faq.html</loc>
+        <lastmod>2025-07-15</lastmod>
+        <changefreq>monthly</changefreq>
+        <priority>0.6</priority>
+    </url>
+    <url>
+        <loc>https://toolsprompt.com/terms.html</loc>
+        <lastmod>2025-07-15</lastmod>
+        <changefreq>yearly</changefreq>
+        <priority>0.3</priority>
+    </url>
+    <url>
+        <loc>https://toolsprompt.com/privacy.html</loc>
+        <lastmod>2025-07-15</lastmod>
+        <changefreq>yearly</changefreq>
+        <priority>0.3</priority>
+    </url>
+    
+    <!-- Blog & Resources -->
+    <url>
+        <loc>https://toolsprompt.com/blog/</loc>
+        <lastmod>2025-07-15</lastmod>
+        <changefreq>daily</changefreq>
+        <priority>0.7</priority>
+    </url>
+    <url>
+        <loc>https://toolsprompt.com/blog/mastering-prompt-engineering</loc>
+        <lastmod>2025-07-15</lastmod>
+        <changefreq>monthly</changefreq>
+        <priority>0.7</priority>
+    </url>
+    <url>
+        <loc>https://toolsprompt.com/blog/ai-trends-2025</loc>
+        <lastmod>2025-07- 15</lastmod>
+        <changefreq>monthly</changefreq>
+        <priority>0.7</priority>
+    </url>
+    
+    <!-- Community -->
+    <url>
+        <loc>https://toolsprompt.com/community/</loc>
+        <lastmod>2025-07-15</lastmod>
+        <changefreq>daily</changefreq>
+        <priority>0.7</priority>
+    </url>
+    <url>
+        <loc>https://toolsprompt.com/community/contribute</loc>
+        <lastmod>2025-07-15</lastmod>
+        <changefreq>monthly</changefreq>
+        <priority>0.6</priority>
+    </url>
+</urlset>

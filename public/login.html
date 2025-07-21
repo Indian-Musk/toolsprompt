@@ -1,24 +1,16 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- Google tag (gtag.js) -->
-<script async src="https://www.googletagmanager.com/gtag/js?id=G-LS811PSS3V"></script>
-<script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag(){dataLayer.push(arguments);}
-  gtag('js', new Date());
-
-  gtag('config', 'G-LS811PSS3V');
-</script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login | CorrectPrompt</title>
-    <link rel="stylesheet" href="styles.css">
+    <title>Login | ToolsPrompt</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <script src="firebase-loader.js"></script>
-<!-- Add this in the <head> section of each HTML file -->
-<link rel="icon" type="image/png" href="/favicon.png">
-      <style>
+    <link rel="stylesheet" href="styles.css">
+<!-- Add to <head> section -->
+<script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
+    
+<style>
         .login-container {
             display: flex;
             min-height: 100vh;
@@ -151,13 +143,11 @@
     </style>
 </head>
 <body>
-    <div id="nav-placeholder"></div>
-    
     <div class="login-container">
         <div class="login-left">
             <div class="login-logo">
-                <i class="fas fa-brain"></i>
-                <span>CorrectPrompt</span>
+                <img src="logo.png" alt="Logo" style="width:100px;height:60px;">
+                <span>ToolsPrompt</span>
             </div>
             
             <h1>Master the Art of Perfect AI Prompts</h1>
@@ -183,12 +173,11 @@
             <div class="login-card">
                 <div class="login-title">
                     <h1>Welcome Back</h1>
-                    <p>Sign in to continue to CorrectPrompt</p>
+                    <p>Sign in to continue to ToolsPrompt</p>
                 </div>
                 
                 <button id="googleSignIn" class="google-btn">
-                    <!-- Google SVG icon -->
-                    Sign in with Google
+                    <i class="fab fa-google"></i> Sign in with Google
                 </button>
                 
                 <div class="login-footer">
@@ -198,40 +187,64 @@
         </div>
     </div>
 
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
+    
     <script>
+// Firebase configuration
+const firebaseConfig = {
+  apiKey: "AIzaSyAzbWLTCm_FMCEHoqGhIZ1xKQmuTej9rjo",
+  authDomain: "aicloude-63cab.firebaseapp.com",
+  databaseURL: "https://aicloude-63cab-default-rtdb.firebaseio.com",
+  projectId: "aicloude-63cab",
+  storageBucket: "aicloude-63cab.firebasestorage.app",
+  messagingSenderId: "165516825130",
+  appId: "1:165516825130:web:b79d21b218d72869436953",
+  measurementId: "G-LS811PSS3V"
+};
+
+// Rest of your script.js code...
+
+        
+        // Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        
         document.addEventListener('DOMContentLoaded', () => {
-            const auth = firebase.auth();
-            const googleProvider = new firebase.auth.GoogleAuthProvider();
+            const googleSignInBtn = document.getElementById('googleSignIn');
             
-            // Get return URL from query params
-            const urlParams = new URLSearchParams(window.location.search);
-            const returnUrl = urlParams.get('returnUrl') || 'index.html';
-            
-            document.getElementById('googleSignIn').addEventListener('click', async () => {
+            googleSignInBtn.addEventListener('click', async () => {
                 try {
-                    const result = await auth.signInWithPopup(googleProvider);
+                    const provider = new firebase.auth.GoogleAuthProvider();
+                    const result = await auth.signInWithPopup(provider);
+                    
+                    // User signed in
                     const user = result.user;
-                    const idToken = await user.getIdToken();
+                    const userData = {
+                        id: user.uid,
+                        name: user.displayName,
+                        email: user.email,
+                        avatar: user.photoURL
+                    };
                     
-                    // Create session
-                    const response = await fetch('/sessionLogin', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ idToken })
-                    });
+                    // Store user in localStorage
+                    localStorage.setItem('user', JSON.stringify(userData));
                     
-                    if (response.ok) {
-                        window.location.href = returnUrl;
-                    } else {
-                        console.error('Login failed');
-                        alert('Login failed. Please try again.');
-                    }
+                    // Get the return URL from query params or default to index.html
+                    const urlParams = new URLSearchParams(window.location.search);
+                    const returnUrl = urlParams.get('returnUrl') || 'index.html';
+                    
+                    // Redirect to the return URL
+                    window.location.href = returnUrl;
                 } catch (error) {
                     console.error('Login error:', error);
-                    alert('Login failed. Please try again.');
+                    alert(`Login failed: ${error.message}`);
                 }
             });
         });
     </script>
+<!-- Add to end of <body> in login.html -->
+<script src="script.js"></script>
 </body>
 </html>
