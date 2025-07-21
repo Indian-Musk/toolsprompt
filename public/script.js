@@ -82,7 +82,7 @@ function showAuthElements() {
     } else {
       authSection.innerHTML = `
         <a href="login.html" class="login-btn">Login</a>
-        <a href="login.html" class="cta-button">Get Started</a>
+       
       `;
     }
   }
