@@ -65,7 +65,7 @@
     <!-- Blog & Resources -->
     <url>
         <loc>https://toolsprompt.com/blog/</loc>
-        <lastmod>2025-07-15</lastmod>
+        <lastmod>2025-07-23</lastmod>
         <changefreq>daily</changefreq>
         <priority>0.7</priority>
     </url>
@@ -78,6 +78,12 @@
     <url>
         <loc>https://toolsprompt.com/blog/ai-trends-2025</loc>
         <lastmod>2025-07- 15</lastmod>
+        <changefreq>monthly</changefreq>
+        <priority>0.7</priority>
+    </url>
+ <url>
+        <loc>https://toolsprompt.com/blog/editingprompt</loc>
+        <lastmod>2025-07- 23</lastmod>
         <changefreq>monthly</changefreq>
         <priority>0.7</priority>
     </url>
