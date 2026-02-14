@@ -1,0 +1,613 @@
+﻿<!DOCTYPE html>
+<html lang="en" itemscope itemtype="https://schema.org/WebSite">
+<head>
+<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5992381116749724"
+     crossorigin="anonymous"></script>
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-K4KXR4FZCP"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-K4KXR4FZCP');
+</script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
+    <!-- SEO Meta Tags -->
+    <title>AI News & Updates - Tools prompt</title>
+    <meta name="description" content="Stay updated with the latest AI news, prompt engineering techniques, and industry updates from Tools prompt.">
+    <meta name="keywords" content="AI news, prompt engineering, artificial intelligence, machine learning, AI updates, prompt tips">
+    <meta name="robots" content="index, follow, max-image-preview:large">
+    <meta name="googlebot" content="index, follow">
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <meta name="language" content="English">
+    <meta name="author" content="Tools prompt">
+    
+    <!-- Open Graph Meta Tags -->
+    <meta property="og:title" content="AI News & Updates - Tools prompt">
+    <meta property="og:description" content="Stay updated with the latest AI news, prompt engineering techniques, and industry updates from Tools prompt.">
+    <meta property="og:image" content="https://www.toolsprompt.com/logo.png">
+    <meta property="og:url" content="https://www.toolsprompt.com/news.html">
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="Tools prompt">
+    
+    <!-- Twitter Card Meta Tags -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="AI News & Updates - Tools prompt">
+    <meta name="twitter:description" content="Stay updated with the latest AI news, prompt engineering techniques, and industry updates from Tools prompt.">
+    <meta name="twitter:image" content="https://www.toolsprompt.com/logo.png">
+    <meta name="twitter:site" content="@toolsprompt">
+    
+    <!-- Canonical URL -->
+    <link rel="canonical" href="https://www.toolsprompt.com/news.html">
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="/favicon.png">
+    
+    <!-- Stylesheets -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="styles.css">
+    
+    <!-- Preload critical resources -->
+    <link rel="preload" href="styles.css" as="style">
+    <link rel="preload" href="script.js" as="script">
+    
+    <!-- Structured Data -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "CollectionPage",
+      "name": "AI News & Updates - Tools prompt",
+      "description": "Latest AI news, prompt engineering techniques, and industry updates",
+      "url": "https://www.toolsprompt.com/news.html",
+      "publisher": {
+        "@type": "Organization",
+        "name": "Tools prompt",
+        "logo": "https://www.toolsprompt.com/logo.png"
+      }
+    }
+    </script>
+
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
+</head>
+<body>
+    <header>
+        <div class="container">
+            <nav>
+                <div class="nav-left">
+                    <a href="index.html" class="logo">
+                        <img src="logo.png" alt="Tools prompt Logo - AI Prompt Engineering" style="width:50px;height:50px;">
+                        <span>Tools prompt</span>
+                    </a>
+                </div>
+                
+                <!-- YouTube-style Search Bar -->
+                <div class="search-container">
+                    <div class="search-box">
+                        <input type="text" id="searchInput" placeholder="Search news...">
+                        <button class="search-btn" id="searchButton">
+                            <i class="fas fa-search"></i>
+                        </button>
+                    </div>
+                    <div class="search-suggestions" id="searchSuggestions"></div>
+                </div>
+
+             
+                </div>
+            </nav>
+        </div>
+    </header>
+
+    <!-- News Section -->
+    <section class="news-section">
+        <div class="container">
+            <div class="section-header">
+                <h2>AI News & Updates</h2>
+                <p>Stay informed with the latest developments in AI, prompt engineering, and creative technologies</p>
+            </div>
+            
+            <!-- News Filters -->
+            <div class="news-filters">
+                <div class="filter-controls">
+                    <button class="filter-btn active" data-category="all">All News</button>
+                    <button class="filter-btn" data-category="ai-news">AI News</button>
+                    <button class="filter-btn" data-category="prompt-tips">Prompt Tips</button>
+                    <button class="filter-btn" data-category="industry-updates">Industry Updates</button>
+                    <button class="filter-btn" data-category="tutorials">Tutorials</button>
+                    <button class="upload-btn" id="openNewsModal">
+                        <i class="fas fa-plus"></i> Publish News
+                    </button>
+                </div>
+            </div>
+            
+            <!-- News Grid -->
+            <div class="news-grid" id="newsContainer">
+                <!-- News articles will be loaded here -->
+            </div>
+            
+            <!-- Load More Button -->
+            <div class="load-more-container" id="loadMoreContainer">
+                <button class="load-more-btn" id="loadMoreBtn">
+                    <i class="fas fa-redo"></i> Load More News
+                </button>
+            </div>
+        </div>
+    </section>
+
+    <!-- News Upload Modal -->
+<div class="modal-overlay" id="newsUploadModal">
+    <div class="upload-modal">
+        <div class="modal-header">
+            <h2><i class="fas fa-newspaper"></i> Publish News Article</h2>
+            <button class="close-modal" id="closeNewsModal">&times;</button>
+        </div>
+        <form class="upload-form" id="newsForm">
+            <div class="form-group">
+                <label for="newsTitle">News Title *</label>
+                <input type="text" id="newsTitle" placeholder="Enter compelling news headline" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="newsExcerpt">Excerpt</label>
+                <textarea id="newsExcerpt" placeholder="Brief summary of the news (appears in listings)" rows="3"></textarea>
+            </div>
+            
+            <div class="form-group">
+                <label for="newsContent">News Content *</label>
+                <textarea id="newsContent" placeholder="Write your news article here..." rows="10" required></textarea>
+            </div>
+            
+            <div class="form-group">
+                <label for="newsImageUpload">News Image</label>
+                <div class="file-upload">
+                    <i class="fas fa-image"></i>
+                    <p>Click to upload or drag and drop</p>
+                    <p style="font-size: 0.9rem; color: #777;">JPG, PNG or WebP (Max. 5MB)</p>
+                    <input type="file" id="newsImageUpload" accept="image/*">
+                    <!-- Add this image preview element -->
+                    <img id="newsImagePreview" class="preview-image" alt="News image preview" style="display: none; max-width: 100%; max-height: 200px; margin-top: 15px; border-radius: 8px;">
+                </div>
+            </div>
+            
+            <!-- Rest of your form remains the same -->
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="newsCategory">Category</label>
+                    <select id="newsCategory">
+                        <option value="ai-news">AI News</option>
+                        <option value="prompt-tips">Prompt Tips</option>
+                        <option value="industry-updates">Industry Updates</option>
+                        <option value="tutorials">Tutorials</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="newsTags">Tags</label>
+                    <input type="text" id="newsTags" placeholder="ai, prompts, news, technology">
+                    <small>Separate tags with commas</small>
+                </div>
+            </div>
+            
+            <div class="form-row">
+                <div class="form-check">
+                    <input type="checkbox" id="isBreaking">
+                    <label for="isBreaking">Breaking News</label>
+                </div>
+                
+                <div class="form-check">
+                    <input type="checkbox" id="isFeatured">
+                    <label for="isFeatured">Featured Article</label>
+                </div>
+            </div>
+            
+            <button type="submit" class="submit-btn">
+                <i class="fas fa-newspaper"></i> Publish News
+            </button>
+        </form>
+    </div>
+</div>
+
+    <!-- Mobile Navigation -->
+    <div class="mobile-nav">
+        <a href="index.html" class="nav-item">
+            <i class="fas fa-home"></i>
+            <span>Home</span>
+        </a>
+        <a href="news.html" class="nav-item active">
+            <i class="fas fa-newspaper"></i>
+            <span>News</span>
+        </a>
+        <button class="nav-item" id="mobileUploadBtn">
+            <i class="fas fa-plus-circle"></i>
+            <span>Upload</span>
+        </button>
+        <a href="chatbot.html" class="nav-item">
+            <i class="fas fa-exchange-alt"></i>
+            <span>Create</span>
+        </a>
+        <a href="login.html" class="nav-item">
+            <i class="fas fa-user"></i>
+            <span>Login</span>
+        </a>
+    </div>
+
+    <!-- Scripts -->
+    <script src="script.js"></script>
+    
+    <!-- News-specific JavaScript -->
+    <script>
+        // News Manager for news.html
+        class NewsPageManager {
+            constructor() {
+                this.currentPage = 1;
+                this.hasMore = true;
+                this.isLoading = false;
+                this.currentCategory = 'all';
+                this.init();
+            }
+            
+            init() {
+                this.setupEventListeners();
+                this.loadNews();
+                this.setupNewsSearch();
+            }
+            
+            setupEventListeners() {
+                // Filter buttons
+                const filterBtns = document.querySelectorAll('.filter-btn');
+                filterBtns.forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        filterBtns.forEach(b => b.classList.remove('active'));
+                        btn.classList.add('active');
+                        this.currentCategory = btn.dataset.category;
+                        this.currentPage = 1;
+                        this.loadNews();
+                    });
+                });
+                
+                // Load more button
+                const loadMoreBtn = document.getElementById('loadMoreBtn');
+                if (loadMoreBtn) {
+                    loadMoreBtn.addEventListener('click', () => {
+                        this.loadMoreNews();
+                    });
+                }
+                
+                // News upload modal
+                const openNewsBtn = document.getElementById('openNewsModal');
+                const closeNewsModalBtn = document.getElementById('closeNewsModal');
+                const newsForm = document.getElementById('newsForm');
+                
+                if (openNewsBtn) {
+                    openNewsBtn.addEventListener('click', () => {
+                        const user = checkAuth();
+                        if (!user) {
+                            showNotification('Please login to publish news', 'error');
+                            window.location.href = 'login.html?returnUrl=' + encodeURIComponent(window.location.href);
+                            return;
+                        }
+                        
+                        document.getElementById('newsUploadModal').classList.add('active');
+                        document.body.style.overflow = 'hidden';
+                    });
+                }
+                
+                if (closeNewsModalBtn) {
+                    closeNewsModalBtn.addEventListener('click', () => {
+                        document.getElementById('newsUploadModal').classList.remove('active');
+                        document.body.style.overflow = '';
+                    });
+                }
+                
+                if (newsForm) {
+                    newsForm.addEventListener('submit', this.handleNewsSubmit.bind(this));
+                }
+                
+                // Mobile upload button
+                const mobileUploadBtn = document.getElementById('mobileUploadBtn');
+                if (mobileUploadBtn) {
+                    mobileUploadBtn.addEventListener('click', () => {
+                        document.getElementById('openNewsModal').click();
+                    });
+                }
+            }
+            
+            setupNewsSearch() {
+                const searchInput = document.getElementById('searchInput');
+                const searchButton = document.getElementById('searchButton');
+                
+                if (searchInput && searchButton) {
+                    searchButton.addEventListener('click', () => {
+                        this.performNewsSearch(searchInput.value);
+                    });
+                    
+                    searchInput.addEventListener('keypress', (e) => {
+                        if (e.key === 'Enter') {
+                            this.performNewsSearch(searchInput.value);
+                        }
+                    });
+                }
+            }
+            
+            async loadNews() {
+                try {
+                    this.showLoading();
+                    const response = await fetch(`/api/news?page=${this.currentPage}&limit=9&category=${this.currentCategory}`);
+                    const data = await response.json();
+                    
+                    if (this.currentPage === 1) {
+                        this.displayNews(data.news);
+                    } else {
+                        this.appendNews(data.news);
+                    }
+                    
+                    this.hasMore = data.hasMore;
+                    this.updateLoadMoreButton();
+                } catch (error) {
+                    console.error('Error loading news:', error);
+                    this.showError();
+                }
+            }
+            
+            async loadMoreNews() {
+                if (this.isLoading || !this.hasMore) return;
+                
+                this.isLoading = true;
+                this.currentPage++;
+                
+                try {
+                    const response = await fetch(`/api/news?page=${this.currentPage}&limit=9&category=${this.currentCategory}`);
+                    const data = await response.json();
+                    
+                    this.appendNews(data.news);
+                    this.hasMore = data.hasMore;
+                    this.updateLoadMoreButton();
+                } catch (error) {
+                    console.error('Error loading more news:', error);
+                    showNotification('Failed to load more news', 'error');
+                    this.currentPage--;
+                } finally {
+                    this.isLoading = false;
+                }
+            }
+            
+            displayNews(news) {
+                const newsContainer = document.getElementById('newsContainer');
+                if (!newsContainer) return;
+                
+                if (news.length === 0) {
+                    newsContainer.innerHTML = `
+                        <div class="no-news" style="grid-column: 1 / -1; text-align: center; padding: 60px; color: #666;">
+                            <i class="fas fa-newspaper" style="font-size: 4rem; margin-bottom: 20px; opacity: 0.5;"></i>
+                            <h3>No News Yet</h3>
+                            <p>Be the first to publish AI news and updates!</p>
+                            <button class="upload-btn" id="emptyStateUploadBtn" style="margin-top: 20px;">
+                                <i class="fas fa-plus"></i> Publish First Article
+                            </button>
+                        </div>
+                    `;
+                    
+                    const emptyStateBtn = document.getElementById('emptyStateUploadBtn');
+                    if (emptyStateBtn) {
+                        emptyStateBtn.addEventListener('click', () => {
+                            document.getElementById('openNewsModal').click();
+                        });
+                    }
+                    return;
+                }
+                
+                newsContainer.innerHTML = news.map(item => this.createNewsCard(item)).join('');
+            }
+            
+            appendNews(news) {
+                const newsContainer = document.getElementById('newsContainer');
+                if (!newsContainer) return;
+                
+                news.forEach(item => {
+                    const newsCard = this.createNewsCard(item);
+                    newsContainer.insertAdjacentHTML('beforeend', newsCard);
+                });
+            }
+            
+            createNewsCard(item) {
+                return `
+                    <div class="news-card" data-news-id="${item.id}">
+                        ${item.isBreaking ? '<span class="breaking-badge">BREAKING</span>' : ''}
+                        ${item.isFeatured ? '<span class="featured-badge">FEATURED</span>' : ''}
+                        <img src="${item.imageUrl}" alt="${item.title}" class="news-image" loading="lazy">
+                        <div class="news-content">
+                            <h3 class="news-title">${item.title}</h3>
+                            <p class="news-excerpt">${item.excerpt}</p>
+                            <div class="news-meta">
+                                <span class="news-author">By ${item.author}</span>
+                                <span class="news-date">${new Date(item.publishedAt).toLocaleDateString()}</span>
+                            </div>
+                            <div class="news-stats">
+                                <span class="news-views"><i class="fas fa-eye"></i> ${this.formatCount(item.views)}</span>
+                                <a href="/news/${item.id}" class="read-more">Read More <i class="fas fa-arrow-right"></i></a>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            showLoading() {
+                const newsContainer = document.getElementById('newsContainer');
+                if (!newsContainer) return;
+                
+                newsContainer.innerHTML = `
+                    <div class="news-loading" style="grid-column: 1 / -1; text-align: center; padding: 60px;">
+                        <div class="spinner"></div>
+                        <p>Loading latest news...</p>
+                    </div>
+                `;
+            }
+            
+            showError() {
+                const newsContainer = document.getElementById('newsContainer');
+                if (!newsContainer) return;
+                
+                newsContainer.innerHTML = `
+                    <div class="news-error" style="grid-column: 1 / -1; text-align: center; padding: 60px; color: #666;">
+                        <i class="fas fa-exclamation-triangle" style="font-size: 4rem; margin-bottom: 20px;"></i>
+                        <h3>Failed to load news</h3>
+                        <p>Please try again later</p>
+                        <button onclick="newsPageManager.loadNews()" class="retry-btn" style="margin-top: 15px;">
+                            <i class="fas fa-redo"></i> Retry
+                        </button>
+                    </div>
+                `;
+            }
+            
+            updateLoadMoreButton() {
+                const loadMoreContainer = document.getElementById('loadMoreContainer');
+                if (!loadMoreContainer) return;
+                
+                if (!this.hasMore) {
+                    loadMoreContainer.innerHTML = `
+                        <p style="text-align: center; color: #666; padding: 20px;">
+                            You've reached the end of our news feed
+                        </p>
+                    `;
+                }
+            }
+            
+            async performNewsSearch(query) {
+                if (!query.trim()) {
+                    this.loadNews();
+                    return;
+                }
+                
+                try {
+                    this.showLoading();
+                    const response = await fetch(`/api/news?q=${encodeURIComponent(query)}`);
+                    const data = await response.json();
+                    
+                    this.displayNews(data.news);
+                    
+                    // Update search input
+                    const searchInput = document.getElementById('searchInput');
+                    if (searchInput) {
+                        searchInput.value = query;
+                    }
+                    
+                    showNotification(`Found ${data.news.length} news articles for "${query}"`, 'info');
+                } catch (error) {
+                    console.error('Search error:', error);
+                    showNotification('Search failed. Please try again.', 'error');
+                }
+            }
+            
+            async handleNewsSubmit(e) {
+                e.preventDefault();
+                
+                const user = checkAuth();
+                if (!user) {
+                    showNotification('Please login to publish news', 'error');
+                    return;
+                }
+                
+                const title = document.getElementById('newsTitle').value;
+                const content = document.getElementById('newsContent').value;
+                const excerpt = document.getElementById('newsExcerpt').value;
+                const category = document.getElementById('newsCategory').value;
+                const tags = document.getElementById('newsTags').value;
+                const isBreaking = document.getElementById('isBreaking').checked;
+                const isFeatured = document.getElementById('isFeatured').checked;
+                const file = document.getElementById('newsImageUpload').files[0];
+                
+                if (!title || !content) {
+                    showNotification('Please fill in title and content', 'error');
+                    return;
+                }
+                
+                try {
+                    const submitBtn = document.querySelector('#newsForm .submit-btn');
+                    const originalBtnText = submitBtn.innerHTML;
+                    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Publishing...';
+                    submitBtn.disabled = true;
+                    
+                    await initializeFirebase();
+                    const firebaseUser = await getCurrentUser();
+                    
+                    if (!firebaseUser) {
+                        throw new Error('User not authenticated');
+                    }
+                    
+                    const formData = new FormData();
+                    formData.append('title', title);
+                    formData.append('content', content);
+                    formData.append('excerpt', excerpt);
+                    formData.append('category', category);
+                    formData.append('tags', tags);
+                    formData.append('isBreaking', isBreaking);
+                    formData.append('isFeatured', isFeatured);
+                    formData.append('author', user.name);
+                    if (file) formData.append('image', file);
+                    
+                    const response = await fetch('/api/upload-news', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    
+                    if (!response.ok) {
+                        throw new Error(`News publication failed with status ${response.status}`);
+                    }
+                    
+                    const result = await response.json();
+                    
+                    if (result.success) {
+                        const newsModal = document.getElementById('newsUploadModal');
+                        const newsForm = document.getElementById('newsForm');
+                        
+                        newsModal.classList.remove('active');
+                        document.body.style.overflow = '';
+                        newsForm.reset();
+                        
+                        showNotification('News published successfully!', 'success');
+                        
+                        // Refresh news section
+                        this.currentPage = 1;
+                        this.loadNews();
+                    }
+                } catch (error) {
+                    console.error('News publication error:', error);
+                    showNotification(`News publication failed: ${error.message}`, 'error');
+                } finally {
+                    const submitBtn = document.querySelector('#newsForm .submit-btn');
+                    if (submitBtn) {
+                        submitBtn.innerHTML = '<i class="fas fa-newspaper"></i> Publish News';
+                        submitBtn.disabled = false;
+                    }
+                }
+            }
+            
+            formatCount(count) {
+                if (count >= 1000000) {
+                    return (count / 1000000).toFixed(1) + 'M';
+                } else if (count >= 1000) {
+                    return (count / 1000).toFixed(1) + 'K';
+                }
+                return count.toString();
+            }
+        }
+        
+        // Initialize when DOM is loaded
+        document.addEventListener('DOMContentLoaded', async () => {
+            // Initialize Firebase
+            await initializeFirebase();
+            showAuthElements();
+            
+            // Initialize news page manager
+            window.newsPageManager = new NewsPageManager();
+            
+            // Initialize mobile navigation
+            initMobileNavigation();
+        });
+    </script>
+</body>
+</html>
