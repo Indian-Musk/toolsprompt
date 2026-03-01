@@ -1,975 +1,1265 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5992381116749724"
-     crossorigin="anonymous"></script>
-<!-- Google tag (gtag.js) -->
-<script async src="https://www.googletagmanager.com/gtag/js?id=G-K4KXR4FZCP"></script>
-<script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag(){dataLayer.push(arguments);}
-  gtag('js', new Date());
-
-  gtag('config', 'G-K4KXR4FZCP');
-</script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="title" content="Editing prompt for photo editing | EditingPrompt">
-<meta name="description" content="Imagine taking a selfie and transforming it into a celebrity-style portrait with just a text prompt. Thanks to AI image generation tools like Midjourney and DALL-E combined with ChatGPT's prompt engineering capabilities, this futuristic concept is now a reality">
-<meta name="keywords" content="editing prompt,chatgpt photo editing prompt,chatgpt photo editing prompt copy,hypic photo editing prompt,photo editing prompt,ai photo editing prompt,ai editing prompt,cinematic photo editing prompt,chatgpt ai photo editing prompt,viral chatgpt photo editing prompt,image editing prompt for chatgpt,prompt editing ai,prompt editing app,prompt editing automatic1111,prompt editing a1111,prompt editor ai,prompt editor app,">
-<meta name="robots" content="index, follow">
-<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-<meta name="language" content="English">
-
-    <title>Blog | EditingPrompt-Editing prompt for photo editing</title>
+    
+    <!-- SEO Meta Tags -->
+    <title>Tools Prompt Blog - Latest AI Photo Editing Prompts</title>
+    <meta name="description" content="Discover the latest AI photo editing prompts for Google Gemini, ChatGPT, and Midjourney. Browse our collection of viral prompts for couples, religious themes, festivals and more.">
+    <meta name="keywords" content="AI prompts, photo editing, Google Gemini prompts, ChatGPT prompts, Midjourney prompts, viral prompts, couple prompts, religious prompts">
+    <meta name="robots" content="index, follow, max-image-preview:large">
+    
+    <!-- Open Graph Meta Tags -->
+    <meta property="og:title" content="Tools Prompt Blog - Latest AI Photo Editing Prompts">
+    <meta property="og:description" content="Discover the latest AI photo editing prompts for Google Gemini, ChatGPT, and Midjourney.">
+    <meta property="og:image" content="https://www.toolsprompt.com/logo.png">
+    <meta property="og:url" content="https://www.toolsprompt.com/blog.html">
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="Tools Prompt">
+    
+    <!-- Twitter Card Meta Tags -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Tools Prompt Blog - Latest AI Photo Editing Prompts">
+    <meta name="twitter:description" content="Discover the latest AI photo editing prompts for Google Gemini, ChatGPT, and Midjourney.">
+    <meta name="twitter:image" content="https://www.toolsprompt.com/logo.png">
+    
+    <!-- Canonical URL -->
+    <link rel="canonical" href="https://www.toolsprompt.com/blog.html" />
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="/favicon.png">
+    
+    <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-<!-- Add to <head> section -->
-<script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>    
-<style>
-        :root {
-            --primary: #4e54c8;
-            --secondary: #8f94fb;
-            --accent: #ff6b6b;
-            --dark: #2d334a;
-            --light: #f8f9fa;
-            --success: #20bf6b;
-            --transition: all 0.3s ease;
-        }
-
+    
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
+    
+    <style>
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
         }
 
         body {
-            background: linear-gradient(135deg, #f5f7fa 0%, #e4edf5 100%);
-            color: var(--dark);
-            line-height: 1.6;
-            overflow-x: hidden;
+            background-color: #f8fafc;
+            color: #1e293b;
+            min-height: 100vh;
         }
 
-        .container {
-            width: 100%;
-            max-width: 1200px;
+        /* Header */
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 3rem 1rem;
+            text-align: center;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+            font-weight: 700;
+        }
+
+        .header p {
+            font-size: 1.2rem;
+            opacity: 0.95;
+            max-width: 600px;
             margin: 0 auto;
-            padding: 0 20px;
         }
 
-        /* Header Styles */
-        header {
-            background: rgba(255, 255, 255, 0.95);
-            box-shadow: 0 2px 15px rgba(0, 0, 0, 0.1);
-            position: fixed;
-            width: 100%;
+        /* Navigation */
+        .nav-bar {
+            background: white;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            position: sticky;
             top: 0;
             z-index: 1000;
-            backdrop-filter: blur(10px);
         }
 
-        nav {
+        .nav-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0.75rem 2rem;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 20px 0;
         }
 
         .logo {
             display: flex;
             align-items: center;
             gap: 10px;
-            font-size: 1.8rem;
+            text-decoration: none;
+            color: #1e293b;
             font-weight: 700;
-            color: var(--primary);
+            font-size: 1.2rem;
         }
 
-        .logo i {
-            color: var(--accent);
+        .logo img {
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
         }
 
         .nav-links {
             display: flex;
-            gap: 30px;
+            gap: 2rem;
+            list-style: none;
         }
 
         .nav-links a {
             text-decoration: none;
-            color: var(--dark);
-            font-weight: 600;
-            transition: var(--transition);
-            position: relative;
-        }
-
-        .nav-links a.active {
-            color: var(--primary);
-        }
-
-        .nav-links a.active::after {
-            content: '';
-            position: absolute;
-            bottom: -5px;
-            left: 0;
-            width: 100%;
-            height: 3px;
-            background: var(--primary);
-            border-radius: 3px;
-        }
-
-        .nav-links a:hover {
-            color: var(--primary);
-        }
-
-        .nav-links a::after {
-            content: '';
-            position: absolute;
-            bottom: -5px;
-            left: 0;
-            width: 0;
-            height: 3px;
-            background: var(--primary);
-            transition: var(--transition);
-            border-radius: 3px;
-        }
-
-        .nav-links a:hover::after {
-            width: 100%;
-        }
-
-        .cta-button {
-            background: linear-gradient(135deg, var(--primary), var(--secondary));
-            color: white;
-            border: none;
-            padding: 10px 25px;
-            border-radius: 30px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: var(--transition);
-            box-shadow: 0 4px 15px rgba(78, 84, 200, 0.3);
-        }
-
-        .cta-button:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 6px 20px rgba(78, 84, 200, 0.4);
-        }
-
-        /* Blog Hero Section */
-        .blog-hero {
-            padding: 160px 0 80px;
-            background: linear-gradient(135deg, var(--primary), var(--secondary));
-            color: white;
-            text-align: center;
-        }
-
-        .blog-hero h1 {
-            font-size: 3.5rem;
-            margin-bottom: 20px;
-            line-height: 1.2;
-        }
-
-        .blog-hero p {
-            font-size: 1.2rem;
-            max-width: 700px;
-            margin: 0 auto 30px;
-            opacity: 0.9;
-        }
-
-        .search-bar {
-            max-width: 600px;
-            margin: 30px auto 0;
+            color: #64748b;
+            font-weight: 500;
+            transition: color 0.3s ease;
             display: flex;
+            align-items: center;
+            gap: 6px;
         }
 
-        .search-bar input {
-            flex: 1;
-            padding: 15px 20px;
-            border: none;
-            border-radius: 50px 0 0 50px;
-            font-size: 1rem;
+        .nav-links a:hover,
+        .nav-links a.active {
+            color: #667eea;
         }
 
-        .search-bar button {
-            background: var(--accent);
-            color: white;
-            border: none;
-            padding: 15px 25px;
-            border-radius: 0 50px 50px 0;
+        /* Main Container */
+        .container {
+            max-width: 1200px;
+            margin: 2rem auto;
+            padding: 0 2rem;
+        }
+
+        /* Blog Header */
+        .blog-header {
+            margin-bottom: 2rem;
+        }
+
+        .blog-header h2 {
+            font-size: 2rem;
+            color: #1e293b;
             font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .post-count {
+            background: #667eea;
+            color: white;
+            padding: 0.25rem 0.75rem;
+            border-radius: 50px;
+            font-size: 0.9rem;
+            font-weight: 500;
+        }
+
+        /* Filter Bar */
+        .filter-bar {
+            display: flex;
+            gap: 1rem;
+            margin: 2rem 0;
+            flex-wrap: wrap;
+            background: white;
+            padding: 1rem;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        }
+
+        .search-box {
+            flex: 1;
+            padding: 0.75rem 1rem;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+            min-width: 250px;
+        }
+
+        .search-box:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .category-filter {
+            padding: 0.75rem 1.5rem;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 1rem;
+            background: white;
             cursor: pointer;
-            transition: var(--transition);
+            outline: none;
         }
 
-        .search-bar button:hover {
-            background: #ff5252;
+        .category-filter:focus {
+            border-color: #667eea;
         }
 
-        /* Blog Content */
-        .blog-container {
+        .sort-select {
+            padding: 0.75rem 1.5rem;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 1rem;
+            background: white;
+            cursor: pointer;
+            outline: none;
+        }
+
+        /* Category Pills */
+        .category-pills {
+            display: flex;
+            gap: 0.75rem;
+            flex-wrap: wrap;
+            margin-bottom: 2rem;
+        }
+
+        .category-pill {
+            padding: 0.5rem 1.25rem;
+            background: white;
+            border: 2px solid #e2e8f0;
+            border-radius: 50px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            color: #64748b;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .category-pill:hover {
+            border-color: #667eea;
+            color: #667eea;
+        }
+
+        .category-pill.active {
+            background: #667eea;
+            border-color: #667eea;
+            color: white;
+        }
+
+        /* Loading State */
+        .loading {
+            text-align: center;
+            padding: 4rem;
+            color: #64748b;
+        }
+
+        .loading i {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            color: #667eea;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Blog Grid */
+        .blog-grid {
             display: grid;
-            grid-template-columns: 2fr 1fr;
-            gap: 40px;
-            padding: 80px 0;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 2rem;
+            margin-top: 2rem;
         }
 
-        /* Blog Posts */
-        .blog-posts {
-            display: grid;
-            gap: 40px;
-        }
-
+        /* Blog Card with Image */
         .blog-card {
             background: white;
-            border-radius: 15px;
+            border-radius: 12px;
             overflow: hidden;
-            box-shadow: 0 5px 25px rgba(0, 0, 0, 0.08);
-            transition: var(--transition);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            display: flex;
+            flex-direction: column;
+            border: 1px solid #e2e8f0;
+            opacity: 0;
+            transform: translateY(20px);
+            animation: fadeInUp 0.5s ease forwards;
+        }
+
+        @keyframes fadeInUp {
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
 
         .blog-card:hover {
-            transform: translateY(-10px);
-            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.15);
+            transform: translateY(-4px);
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
         }
 
-        .blog-image {
-            height: 250px;
+        /* Blog Card Image */
+        .blog-card-image {
             width: 100%;
-            background-size: cover;
-            background-position: center;
+            height: 200px;
+            overflow: hidden;
+            position: relative;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         }
 
-        .blog-content {
-            padding: 30px;
+        .blog-card-image img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transition: transform 0.5s ease;
+        }
+
+        .blog-card:hover .blog-card-image img {
+            transform: scale(1.05);
+        }
+
+        .blog-card-image-placeholder {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 1rem;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            text-align: center;
+            padding: 1rem;
+        }
+
+        .blog-card-image-placeholder i {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+        }
+
+        .blog-card-category-badge {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(255, 255, 255, 0.95);
+            color: #667eea;
+            padding: 0.5rem 1rem;
+            border-radius: 50px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            z-index: 1;
+        }
+
+        .blog-card-content {
+            padding: 1.5rem;
+            flex: 1;
         }
 
         .blog-meta {
             display: flex;
-            gap: 15px;
-            margin-bottom: 15px;
-            color: #777;
-            font-size: 0.9rem;
+            gap: 1rem;
+            margin-bottom: 0.75rem;
+            font-size: 0.85rem;
+            color: #64748b;
+            flex-wrap: wrap;
         }
 
-        .blog-meta span {
+        .blog-category {
+            background: #e9d5ff;
+            color: #6b21a8;
+            padding: 0.25rem 0.75rem;
+            border-radius: 50px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+
+        .blog-date {
             display: flex;
             align-items: center;
-            gap: 5px;
+            gap: 4px;
         }
 
-        .blog-tag {
-            background: rgba(78, 84, 200, 0.1);
-            color: var(--primary);
-            padding: 5px 15px;
-            border-radius: 30px;
-            font-size: 0.85rem;
-            font-weight: 600;
-            display: inline-block;
-            margin-bottom: 15px;
+        .blog-author {
+            display: flex;
+            align-items: center;
+            gap: 4px;
         }
 
         .blog-title {
-            font-size: 1.8rem;
-            margin-bottom: 15px;
-            color: var(--dark);
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: #1e293b;
+            line-height: 1.4;
+            margin-bottom: 1rem;
+        }
+
+        .blog-title a {
+            color: inherit;
+            text-decoration: none;
+        }
+
+        .blog-title a:hover {
+            color: #667eea;
         }
 
         .blog-excerpt {
-            margin-bottom: 20px;
-            color: #555;
-            line-height: 1.7;
+            color: #64748b;
+            font-size: 0.95rem;
+            line-height: 1.6;
+            margin-bottom: 1.5rem;
+            display: -webkit-box;
+            -webkit-line-clamp: 3;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        .blog-footer {
+            padding: 1rem 1.5rem 1.5rem;
+            background: white;
+            border-top: 1px solid #e2e8f0;
         }
 
         .read-more {
             display: inline-flex;
             align-items: center;
             gap: 8px;
-            color: var(--primary);
-            font-weight: 600;
+            color: #667eea;
             text-decoration: none;
-            transition: var(--transition);
+            font-weight: 600;
+            transition: gap 0.3s ease;
         }
 
         .read-more:hover {
             gap: 12px;
         }
 
-        /* Sidebar */
-        .blog-sidebar {
-            display: flex;
-            flex-direction: column;
-            gap: 40px;
-        }
-
-        .sidebar-widget {
+        /* No Results */
+        .no-results {
+            grid-column: 1 / -1;
+            text-align: center;
+            padding: 4rem 2rem;
             background: white;
-            border-radius: 15px;
-            padding: 30px;
-            box-shadow: 0 5px 25px rgba(0, 0, 0, 0.08);
+            border-radius: 16px;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
         }
 
-        .widget-title {
+        .no-results i {
+            font-size: 4rem;
+            color: #cbd5e0;
+            margin-bottom: 1rem;
+        }
+
+        .no-results h3 {
             font-size: 1.5rem;
-            margin-bottom: 20px;
-            color: var(--dark);
-            position: relative;
-            padding-bottom: 10px;
+            color: #2d3748;
+            margin-bottom: 0.5rem;
         }
 
-        .widget-title::after {
-            content: '';
-            position: absolute;
-            bottom: 0;
-            left: 0;
-            width: 50px;
-            height: 3px;
-            background: var(--primary);
+        .no-results p {
+            color: #718096;
+            margin-bottom: 1.5rem;
         }
 
-        .categories-list {
-            list-style: none;
-        }
-
-        .categories-list li {
-            padding: 12px 0;
-            border-bottom: 1px solid #eee;
-        }
-
-        .categories-list a {
-            text-decoration: none;
-            color: var(--dark);
-            display: flex;
-            justify-content: space-between;
-            transition: var(--transition);
-        }
-
-        .categories-list a:hover {
-            color: var(--primary);
-            padding-left: 5px;
-        }
-
-        .popular-posts {
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
-        }
-
-        .popular-post {
-            display: flex;
-            gap: 15px;
-            align-items: center;
-        }
-
-        .popular-image {
-            width: 80px;
-            height: 80px;
-            border-radius: 10px;
-            background-size: cover;
-            background-position: center;
-            flex-shrink: 0;
-        }
-
-        .popular-content {
-            flex: 1;
-        }
-
-        .popular-title {
-            font-weight: 600;
-            margin-bottom: 5px;
-            color: var(--dark);
-            text-decoration: none;
-            display: block;
-            transition: var(--transition);
-        }
-
-        .popular-title:hover {
-            color: var(--primary);
-        }
-
-        .popular-date {
-            font-size: 0.85rem;
-            color: #777;
-        }
-
-        .tags {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 10px;
-        }
-
-        .tag {
-            background: rgba(78, 84, 200, 0.1);
-            color: var(--primary);
-            padding: 8px 15px;
-            border-radius: 30px;
-            font-size: 0.9rem;
-            text-decoration: none;
-            transition: var(--transition);
-        }
-
-        .tag:hover {
-            background: var(--primary);
-            color: white;
-        }
-
-        .newsletter-form {
-            display: flex;
-            flex-direction: column;
-            gap: 15px;
-        }
-
-        .newsletter-form input {
-            padding: 12px 15px;
-            border: 1px solid #ddd;
-            border-radius: 8px;
-            font-size: 1rem;
-        }
-
-        .newsletter-form button {
-            background: var(--primary);
+        .reset-btn {
+            padding: 0.75rem 2rem;
+            background: #667eea;
             color: white;
             border: none;
-            padding: 12px;
-            border-radius: 8px;
+            border-radius: 50px;
             font-weight: 600;
             cursor: pointer;
-            transition: var(--transition);
+            transition: background 0.3s ease;
         }
 
-        .newsletter-form button:hover {
-            background: #3d43b6;
+        .reset-btn:hover {
+            background: #5a67d8;
         }
 
         /* Pagination */
         .pagination {
             display: flex;
             justify-content: center;
-            gap: 10px;
-            margin-top: 50px;
+            gap: 0.5rem;
+            margin-top: 3rem;
+            flex-wrap: wrap;
         }
 
-        .pagination a {
+        .page-item {
+            width: 40px;
+            height: 40px;
             display: flex;
             align-items: center;
             justify-content: center;
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
+            border-radius: 8px;
             background: white;
-            color: var(--dark);
-            text-decoration: none;
-            font-weight: 600;
-            box-shadow: 0 3px 10px rgba(0, 0, 0, 0.08);
-            transition: var(--transition);
+            border: 1px solid #e2e8f0;
+            color: #64748b;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-weight: 500;
         }
 
-        .pagination a.active, .pagination a:hover {
-            background: var(--primary);
+        .page-item:hover:not(.disabled) {
+            border-color: #667eea;
+            color: #667eea;
+            transform: translateY(-2px);
+        }
+
+        .page-item.active {
+            background: #667eea;
+            border-color: #667eea;
             color: white;
+        }
+
+        .page-item.disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
         }
 
         /* Footer */
-        footer {
-            background: var(--dark);
+        .footer {
+            background: #1e293b;
             color: white;
-            padding: 70px 0 30px;
+            padding: 3rem 2rem;
+            margin-top: 4rem;
         }
 
-        .footer-grid {
+        .footer-content {
+            max-width: 1200px;
+            margin: 0 auto;
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 40px;
-            margin-bottom: 50px;
+            gap: 2rem;
         }
 
-        .footer-column h3 {
-            margin-bottom: 20px;
-            font-size: 1.3rem;
-            position: relative;
-            padding-bottom: 10px;
+        .footer-section h4 {
+            margin-bottom: 1rem;
+            font-size: 1.2rem;
+            color: #667eea;
         }
 
-        .footer-column h3::after {
-            content: '';
-            position: absolute;
-            bottom: 0;
-            left: 0;
-            width: 50px;
-            height: 3px;
-            background: var(--accent);
+        .footer-section p {
+            color: #94a3b8;
+            line-height: 1.6;
         }
 
-        .footer-links {
+        .footer-section ul {
             list-style: none;
         }
 
-        .footer-links li {
-            margin-bottom: 12px;
+        .footer-section ul li {
+            margin-bottom: 0.5rem;
         }
 
-        .footer-links a {
-            color: #bbb;
+        .footer-section ul li a {
+            color: #94a3b8;
             text-decoration: none;
-            transition: var(--transition);
+            transition: color 0.2s ease;
         }
 
-        .footer-links a:hover {
+        .footer-section ul li a:hover {
             color: white;
-            padding-left: 5px;
-        }
-
-        .social-links {
-            display: flex;
-            gap: 15px;
-            margin-top: 20px;
-        }
-
-        .social-links a {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            width: 40px;
-            height: 40px;
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 50%;
-            color: white;
-            transition: var(--transition);
-        }
-
-        .social-links a:hover {
-            background: var(--accent);
-            transform: translateY(-5px);
         }
 
         .copyright {
             text-align: center;
-            padding-top: 30px;
-            border-top: 1px solid rgba(255, 255, 255, 0.1);
-            color: #999;
-            font-size: 0.9rem;
-        }
-
-        /* Blog Post Template */
-        .blog-post-container {
-            padding: 150px 0 80px;
-        }
-
-        .blog-post-content {
-            max-width: 800px;
-            margin: 0 auto;
-        }
-
-        .post-header {
-            text-align: center;
-            margin-bottom: 50px;
-        }
-
-        .post-date {
-            font-size: 1.1rem;
-            color: var(--primary);
-            margin-bottom: 15px;
-        }
-
-        .post-title {
-            font-size: 2.8rem;
-            margin-bottom: 20px;
-        }
-
-        .post-meta {
-            display: flex;
-            justify-content: center;
-            gap: 20px;
-            color: #777;
-            font-size: 0.95rem;
-        }
-
-        .post-image {
-            width: 100%;
-            height: 450px;
-            border-radius: 15px;
-            background-size: cover;
-            background-position: center;
-            margin-bottom: 40px;
-        }
-
-        .post-content {
-            background: white;
-            padding: 40px;
-            border-radius: 15px;
-            box-shadow: 0 5px 25px rgba(0, 0, 0, 0.08);
-            line-height: 1.8;
-            font-size: 1.1rem;
-        }
-
-        .post-content h2 {
-            color: var(--primary);
-            margin: 30px 0 15px;
-            padding-bottom: 10px;
-            border-bottom: 2px solid #f0f4f8;
-        }
-
-        .post-content h3 {
-            color: var(--primary);
-            margin: 25px 0 10px;
-        }
-
-        .post-content p {
-            margin-bottom: 20px;
-        }
-
-        .post-content ul, .post-content ol {
-            padding-left: 30px;
-            margin-bottom: 20px;
-        }
-
-        .post-content li {
-            margin-bottom: 10px;
-        }
-
-        .post-content blockquote {
-            border-left: 4px solid var(--primary);
-            background: rgba(78, 84, 200, 0.05);
-            padding: 20px;
-            margin: 20px 0;
-            border-radius: 0 8px 8px 0;
-            font-style: italic;
-        }
-
-        .post-tags {
-            display: flex;
-            gap: 10px;
-            margin-top: 40px;
-            flex-wrap: wrap;
-        }
-
-        .post-tags a {
-            background: rgba(78, 84, 200, 0.1);
-            color: var(--primary);
-            padding: 8px 15px;
-            border-radius: 30px;
-            text-decoration: none;
-            font-size: 0.9rem;
-            transition: var(--transition);
-        }
-
-        .post-tags a:hover {
-            background: var(--primary);
-            color: white;
+            margin-top: 2rem;
+            padding-top: 2rem;
+            border-top: 1px solid #334155;
+            color: #94a3b8;
         }
 
         /* Responsive */
-        @media (max-width: 992px) {
-            .blog-container {
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 2rem;
+            }
+            
+            .nav-container {
+                flex-direction: column;
+                gap: 1rem;
+            }
+            
+            .nav-links {
+                width: 100%;
+                justify-content: center;
+                gap: 1rem;
+            }
+            
+            .container {
+                padding: 0 1rem;
+            }
+            
+            .filter-bar {
+                flex-direction: column;
+            }
+            
+            .search-box {
+                width: 100%;
+            }
+            
+            .blog-grid {
                 grid-template-columns: 1fr;
             }
             
-            .blog-hero h1 {
-                font-size: 2.8rem;
-            }
-            
-            .post-image {
-                height: 350px;
+            .blog-card-image {
+                height: 180px;
             }
         }
 
-        @media (max-width: 768px) {
-            .nav-links {
-                display: none;
+        @media (max-width: 480px) {
+            .header h1 {
+                font-size: 1.8rem;
             }
             
-            .blog-hero {
-                padding: 140px 0 60px;
+            .blog-meta {
+                flex-direction: column;
+                gap: 0.5rem;
             }
             
-            .blog-hero h1 {
-                font-size: 2.3rem;
+            .footer {
+                padding: 2rem 1rem;
             }
             
-            .post-title {
-                font-size: 2.2rem;
-            }
-            
-            .post-image {
-                height: 250px;
-            }
-            
-            .post-content {
-                padding: 25px;
+            .blog-card-image {
+                height: 160px;
             }
         }
     </style>
 </head>
 <body>
-    <!-- Header -->
-    <header>
-        <div class="container">
-            <nav>
-                <div class="logo">
-                   <img src="logo.png" alt="Logo" style="width:100px;height:60px;">
-                    <span>ToolsPrompt</span>
-                </div>
-                <div class="nav-links">
-                    <a href="index.html">Home</a>
-                    <a href="promptconverter.html">Prompt Converter</a>
-                    <a href="features.html">Features</a>
-                    <a href="showcase.html">Showcase</a>
-                    <a href="blog.html" class="active">Blog</a>
-                    <a href="howitworks.html">How It Works</a>
-                </div>
-                <button class="cta-button">Get Started</button>
-                <div class="mobile-toggle">
-                    <i class="fas fa-bars"></i>
-                </div>
-            </nav>
+    <!-- Navigation -->
+    <nav class="nav-bar">
+        <div class="nav-container">
+            <a href="/" class="logo">
+                <img src="logo.png" alt="Tools Prompt Logo" onerror="this.src='https://via.placeholder.com/40x40/667eea/white?text=TP'">
+                <span>Tools Prompt</span>
+            </a>
+            
+            <ul class="nav-links">
+                <li><a href="/"><i class="fas fa-home"></i> Home</a></li>
+                <li><a href="/blog.html" class="active"><i class="fas fa-blog"></i> Blog</a></li>
+                <li><a href="/news.html"><i class="fas fa-newspaper"></i> News</a></li>
+                <li><a href="/promptconverter.html"><i class="fas fa-tools"></i> Tools</a></li>
+            </ul>
         </div>
+    </nav>
+
+    <!-- Header -->
+    <header class="header">
+        <h1>Tools Prompt Blog</h1>
+        <p>Read our latest articles, guides, and tutorials about AI photo editing prompts</p>
     </header>
 
-    <!-- Blog Hero Section -->
-    <section class="blog-hero">
-        <div class="container">
-            <h1>AI Prompt Engineering Insights</h1>
-            <p>Explore the latest trends, techniques, and best practices in prompt engineering and AI content creation.</p>
+    <!-- Main Content -->
+    <main class="container">
+        <!-- Blog Header -->
+        <div class="blog-header">
+            <h2>
+                All Blog Posts
+                <span class="post-count" id="postCount">0</span>
+            </h2>
+        </div>
+
+        <!-- Filter Bar -->
+        <div class="filter-bar">
+            <input type="text" class="search-box" id="searchInput" placeholder="Search blog posts...">
             
-            <div class="search-bar">
-                <input type="text" placeholder="Search for topics, techniques, or keywords...">
-                <button><i class="fas fa-search"></i> Search</button>
-            </div>
-        </div>
-    </section>
-
-    <!-- Blog Content -->
-    <div class="container">
-        <div class="blog-container">
-            <!-- Main Content -->
-            <div class="blog-posts">
-
-        <article class="blog-card">
-                    <div class="blog-image" style="background-image: url('https://storage.googleapis.com/aicloude-63cab.firebasestorage.app/uploads/1753097747906-131479719.png?GoogleAccessId=firebase-adminsdk-fbsvc%40aicloude-63cab.iam.gserviceaccount.com&Expires=16447017600&Signature=v198YxXP4vW%2Bh6JUAZp5G3V%2FMPXxL8OD8bjWYCjWtXOjjceZLMb%2FEA629u%2Bnp4do6Q0k3A1Sj7fs3%2BBQzj9yDl3uOGkPej%2Bb7QaF%2FWiHQj677C1Q6IFp%2BZKvkiA7ZxiC3Liy%2B3tpo3eDkzpEqTGDqQ6%2FqMRQll45c%2BM3QdULNVqEZAxmC521ceJKADYbu%2FyDP%2FHn7MfORvJSmgyIgyu15mlcONvyWvxFhMhGhVQ60jFlsooHyEQx9spOovvsKVOhQ0F51lsFYj7KVrQ%2BmkmfltT46NbVaynzgPLUL1MDDqVjRcIKwBsaczAPirbcpVAw68xXUK7mxIVR7CgvesV8hg%3D%3D')"></div>
-                    <div class="blog-content">
-                        <div class="blog-meta">
-                            <span><i class="far fa-calendar"></i> July 23, 2025</span>
-                            <span><i class="far fa-clock"></i> 6 min read</span>
-                        </div>
-                        <span class="blog-tag">AI Trends</span>
-                        <h2 class="blog-title">The Future of AI-Generated Content: What to Expect in 2025</h2>
-                        <p class="blog-excerpt">Explore the emerging trends in AI content creation and how prompt engineering is evolving. From multimodal models to ethical considerations, we look at what the future holds for AI-generated content.</p>
-                        <a href="blog/editingprompt.html" class="read-more">Read Full Article <i class="fas fa-arrow-right"></i></a>
-                    </div>
-                </article>
-
-             <!-- In your blog.html file -->
-<article class="blog-card">
-    <div class="blog-image" style="background-image: url('https://images.unsplash.com/photo-1611162617213-7d7a39e9b1d7?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1200&q=80')"></div>
-    <div class="blog-content">
-        <div class="blog-meta">
-            <span><i class="far fa-calendar"></i> October 16, 2023</span>
-            <span><i class="far fa-clock"></i> 8 min read</span>
-        </div>
-        <span class="blog-tag">AI Photo Editing</span>
-        <h2 class="blog-title">ChatGPT Celebrity Selfie AI Photo Editing Prompts</h2>
-        <p class="blog-excerpt">Transform your selfies into celebrity-style portraits with AI using these advanced prompt engineering techniques.</p>
-        <a href="blog/celebrity-selfie-prompts.html" class="read-more">Read Full Article <i class="fas fa-arrow-right"></i></a>
-    </div>
-</article>
-                
-                <!-- Blog Post 2 -->
- 
-        
-                
-                <!-- Blog Post 3 -->
-                <article class="blog-card">
-                    <div class="blog-image" style="background-image: url('https://images.unsplash.com/photo-1677442135699-3d09b4e9a1e4?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=MnwxfDB8MXxyYW5kb218MHx8YWl8fHx8fHwxNjkxMjE0NDg0&ixlib=rb-4.0.3&q=80&utm_campaign=api-credit&utm_medium=referral&utm_source=unsplash_source&w=1200')"></div>
-                    <div class="blog-content">
-                        <div class="blog-meta">
-                            <span><i class="far fa-calendar"></i> October 1, 2023</span>
-                            <span><i class="far fa-clock"></i> 10 min read</span>
-                        </div>
-                        <span class="blog-tag">Case Study</span>
-                        <h2 class="blog-title">How Creative Agencies Are Using AI Prompt Engineering</h2>
-                        <p class="blog-excerpt">A deep dive into how leading creative agencies are implementing AI prompt engineering to enhance their workflows, reduce production time, and create innovative content for clients.</p>
-                        <a href="blog-post-3.html" class="read-more">Read Full Article <i class="fas fa-arrow-right"></i></a>
-                    </div>
-                </article>
-                
-                <!-- Blog Post 4 -->
-                <article class="blog-card">
-                    <div class="blog-image" style="background-image: url('https://images.unsplash.com/photo-1677442135723-5a0a1c8d1c1f?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=MnwxfDB8MXxyYW5kb218MHx8YWl8fHx8fHwxNjkxMjE0NDg0&ixlib=rb-4.0.3&q=80&utm_campaign=api-credit&utm_medium=referral&utm_source=unsplash_source&w=1200')"></div>
-                    <div class="blog-content">
-                        <div class="blog-meta">
-                            <span><i class="far fa-calendar"></i> September 24, 2023</span>
-                            <span><i class="far fa-clock"></i> 7 min read</span>
-                        </div>
-                        <span class="blog-tag">Tutorial</span>
-                        <h2 class="blog-title">Step-by-Step Guide to Creating Photorealistic AI Images</h2>
-                        <p class="blog-excerpt">Learn the techniques and prompt structures needed to generate stunning photorealistic images with AI. We break down the key elements that make AI-generated images look more lifelike.</p>
-                        <a href="blog-post-4.html" class="read-more">Read Full Article <i class="fas fa-arrow-right"></i></a>
-                    </div>
-                </article>
-               
-                <!-- Pagination -->
-                <div class="pagination">
-                    <a href="#" class="active">1</a>
-                    <a href="#">2</a>
-                    <a href="#">3</a>
-                    <a href="#"><i class="fas fa-chevron-right"></i></a>
-                </div>
-            </div>
+            <select class="category-filter" id="categoryFilter">
+                <option value="all">All Categories</option>
+                <option value="Tutorial">Tutorials</option>
+                <option value="Prompts">Prompts</option>
+                <option value="Guide">Guides</option>
+                <option value="Tips">Tips & Tricks</option>
+                <option value="News">News</option>
+                <option value="General">General</option>
+            </select>
             
-            <!-- Sidebar -->
-            <aside class="blog-sidebar">
-                <!-- About Widget -->
-                <div class="sidebar-widget">
-                    <h3 class="widget-title">About the Blog</h3>
-                    <p>Welcome to the ToolsPrompt blog, your resource for mastering AI prompt engineering. We share insights, techniques, and case studies to help you get the most from generative AI.</p>
-                </div>
-                
-                <!-- Categories Widget -->
-                <div class="sidebar-widget">
-                    <h3 class="widget-title">Categories</h3>
-                    <ul class="categories-list">
-                        <li><a href="#">Prompt Engineering <span>(24)</span></a></li>
-                        <li><a href="#">AI Image Generation <span>(18)</span></a></li>
-                        <li><a href="#">Text-to-Image AI <span>(15)</span></a></li>
-                        <li><a href="#">Case Studies <span>(12)</span></a></li>
-                        <li><a href="#">Tutorials <span>(28)</span></a></li>
-                        <li><a href="#">AI Ethics <span>(9)</span></a></li>
-                        <li><a href="#">Industry Trends <span>(14)</span></a></li>
-                    </ul>
-                </div>
-                
-                <!-- Popular Posts Widget -->
-                <div class="sidebar-widget">
-                    <h3 class="widget-title">Popular Posts</h3>
-                    <div class="popular-posts">
-                        <div class="popular-post">
-                            <div class="popular-image" style="background-image: url('https://images.unsplash.com/photo-1677442135722-5fbfd44b32f4?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=MnwxfDB8MXxyYW5kb218MHx8YWl8fHx8fHwxNjkxMjE0NDg0&ixlib=rb-4.0.3&q=80&utm_campaign=api-credit&utm_medium=referral&utm_source=unsplash_source&w=1200')"></div>
-                            <div class="popular-content">
-                                <a href="#" class="popular-title">10 Prompt Engineering Mistakes to Avoid</a>
-                                <div class="popular-date">Sep 12, 2023</div>
-                            </div>
-                        </div>
-                        <div class="popular-post">
-                            <div class="popular-image" style="background-image: url('https://images.unsplash.com/photo-1677442135133-33d364e7d5a7?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=MnwxfDB8MXxyYW5kb218MHx8YWl8fHx8fHwxNjkxMjE0NDg0&ixlib=rb-4.0.3&q=80&utm_campaign=api-credit&utm_medium=referral&utm_source=unsplash_source&w=1200')"></div>
-                            <div class="popular-content">
-                                <a href="#" class="popular-title">The Art of Iterative Prompt Refinement</a>
-                                <div class="popular-date">Aug 28, 2023</div>
-                            </div>
-                        </div>
-                        <div class="popular-post">
-                            <div class="popular-image" style="background-image: url('https://images.unsplash.com/photo-1677442135699-3d09b4e9a1e4?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=MnwxfDB8MXxyYW5kb218MHx8YWl8fHx8fHwxNjkxMjE0NDg0&ixlib=rb-4.0.3&q=80&utm_campaign=api-credit&utm_medium=referral&utm_source=unsplash_source&w=1200')"></div>
-                            <div class="popular-content">
-                                <a href="#" class="popular-title">How to Train Your Own Prompt Templates</a>
-                                <div class="popular-date">Aug 15, 2023</div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Tags Widget -->
-                <div class="sidebar-widget">
-                    <h3 class="widget-title">Popular Tags</h3>
-                    <div class="tags">
-                        <a href="#" class="tag">Midjourney</a>
-                        <a href="#" class="tag">DALL-E</a>
-                        <a href="#" class="tag">Stable Diffusion</a>
-                        <a href="#" class="tag">ChatGPT</a>
-                        <a href="#" class="tag">AI Art</a>
-                        <a href="#" class="tag">Prompt Design</a>
-                        <a href="#" class="tag">AI Photography</a>
-                        <a href="#" class="tag">Generative AI</a>
-                        <a href="#" class="tag">Creative AI</a>
-                        <a href="#" class="tag">AI Workflow</a>
-                    </div>
-                </div>
-                
-                <!-- Newsletter Widget -->
-                <div class="sidebar-widget">
-                    <h3 class="widget-title">Stay Updated</h3>
-                    <p>Subscribe to our newsletter for the latest articles on prompt engineering and AI content creation.</p>
-                    <form class="newsletter-form">
-                        <input type="email" placeholder="Your email address" required>
-                        <button type="submit">Subscribe</button>
-                    </form>
-                </div>
-            </aside>
+            <select class="sort-select" id="sortSelect">
+                <option value="newest">Newest First</option>
+                <option value="oldest">Oldest First</option>
+                <option value="title">Title A-Z</option>
+                <option value="title-desc">Title Z-A</option>
+            </select>
         </div>
-    </div>
+
+        <!-- Category Pills -->
+        <div class="category-pills" id="categoryPills"></div>
+
+        <!-- Loading State -->
+        <div class="loading" id="loading">
+            <i class="fas fa-spinner fa-spin"></i>
+            <p>Loading blog posts...</p>
+        </div>
+
+        <!-- Blog Grid -->
+        <div class="blog-grid" id="blogGrid"></div>
+
+        <!-- Pagination -->
+        <div class="pagination" id="pagination"></div>
+    </main>
 
     <!-- Footer -->
-    <footer>
-        <div class="container">
-            <div class="footer-grid">
-                <div class="footer-column">
-                    <h3>ToolsPrompt</h3>
-                    <p>Master the art of AI communication with our advanced prompt engineering platform.</p>
-                    <div class="social-links">
-                        <a href="#"><i class="fab fa-twitter"></i></a>
-                        <a href="#"><i class="fab fa-instagram"></i></a>
-                        <a href="#"><i class="fab fa-discord"></i></a>
-                        <a href="#"><i class="fab fa-linkedin"></i></a>
-                    </div>
-                </div>
-                
-                <div class="footer-column">
-                    <h3>Resources</h3>
-                    <ul class="footer-links">
-                        <li><a href="#">Prompt Library</a></li>
-                        <li><a href="#">Tutorials</a></li>
-                        <li><a href="blog.html">Blog</a></li>
-                        <li><a href="#">API Documentation</a></li>
-                        <li><a href="#">Community Forum</a></li>
-                    </ul>
-                </div>
-                
-                <div class="footer-column">
-                    <h3>Company</h3>
-                    <ul class="footer-links">
-                        <li><a href="#">About Us</a></li>
-                        <li><a href="#">Careers</a></li>
-                        <li><a href="#">Press</a></li>
-                        <li><a href="#">Contact</a></li>
-                        <li><a href="#">Partnerships</a></li>
-                    </ul>
-                </div>
-                
-                <div class="footer-column">
-                    <h3>Legal</h3>
-                    <ul class="footer-links">
-                        <li><a href="tos.html">Terms of Service</a></li>
-                        <li><a href="privacy.html">Privacy Policy</a></li>
-                        <li><a href="copyright.html">Copyright</a></li>
-                        <li><a href="cookies-ethics.html">Cookies & AI Ethics</a></li>
-                    </ul>
-                </div>
+    <footer class="footer">
+        <div class="footer-content">
+            <div class="footer-section">
+                <h4>Tools Prompt</h4>
+                <p>Your source for AI photo editing prompts, tutorials, and guides. Learn how to create stunning images with AI.</p>
             </div>
             
-            <div class="copyright">
-                &copy; 2023 ToolsPrompt.com. All rights reserved. AI-generated content is subject to respective platform terms.
+            <div class="footer-section">
+                <h4>Quick Links</h4>
+                <ul>
+                    <li><a href="/">Home</a></li>
+                    <li><a href="/blog.html">Blog</a></li>
+                    <li><a href="/news.html">News</a></li>
+                    <li><a href="/promptconverter.html">Prompt Tools</a></li>
+                </ul>
             </div>
+            
+            <div class="footer-section">
+                <h4>Categories</h4>
+                <ul id="footerCategories">
+                    <li><a href="#" data-category="Tutorial">Tutorials</a></li>
+                    <li><a href="#" data-category="Prompts">Prompts</a></li>
+                    <li><a href="#" data-category="Guide">Guides</a></li>
+                    <li><a href="#" data-category="Tips">Tips & Tricks</a></li>
+                </ul>
+            </div>
+        </div>
+        
+        <div class="copyright">
+            <p>&copy; 2025 Tools Prompt. All rights reserved.</p>
         </div>
     </footer>
 
     <script>
-        // Simple search functionality
-        document.querySelector('.search-bar button').addEventListener('click', function() {
-            const searchTerm = document.querySelector('.search-bar input').value;
-            if(searchTerm.trim() !== '') {
-                alert(`Searching for: ${searchTerm}`);
-                // In a real implementation, this would trigger a search
+        // Global variables
+        let allPosts = [];
+        let filteredPosts = [];
+        let currentPage = 1;
+        let postsPerPage = 9;
+        let currentCategory = 'all';
+        let currentSearch = '';
+        let currentSort = 'newest';
+        let imageCache = {};
+
+        // Keywords that indicate UI elements (to avoid)
+        const UI_IMAGE_KEYWORDS = [
+            'logo', 'favicon', 'icon', 'avatar', 'profile', 
+            'menu', 'button', 'banner', 'header', 'footer',
+            'background', 'pattern', 'texture', 'decoration',
+            'border', 'separator', 'divider', 'shape', 'abstract',
+            'gradient', 'placeholder', 'spinner', 'loader', 'loading',
+            'thumbnail', 'arrow', 'bullet', 'dot', 'line',
+            'search', 'cart', 'user', 'account', 'settings',
+            'close', 'delete', 'remove', 'edit', 'save'
+        ];
+
+        // DOM Elements
+        const blogGrid = document.getElementById('blogGrid');
+        const loading = document.getElementById('loading');
+        const postCount = document.getElementById('postCount');
+        const searchInput = document.getElementById('searchInput');
+        const categoryFilter = document.getElementById('categoryFilter');
+        const sortSelect = document.getElementById('sortSelect');
+        const categoryPills = document.getElementById('categoryPills');
+        const pagination = document.getElementById('pagination');
+
+        // Load posts on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            loadBlogPosts();
+            setupEventListeners();
+        });
+
+        // Load blog posts from API
+        async function loadBlogPosts() {
+            try {
+                const response = await fetch('/api/blog-posts');
+                const data = await response.json();
+                
+                if (data.success) {
+                    allPosts = data.posts;
+                    postCount.textContent = allPosts.length;
+                    
+                    // Extract unique categories
+                    const categories = [...new Set(allPosts.map(post => post.category))];
+                    renderCategoryPills(categories);
+                    
+                    // Load images for all posts (with guaranteed fallback)
+                    await loadAllPostImages();
+                    
+                    // Apply initial filters
+                    applyFilters();
+                } else {
+                    showError('Failed to load blog posts');
+                }
+            } catch (error) {
+                console.error('Error loading blog posts:', error);
+                showError('Failed to connect to server');
             }
-        });
-        
-        // Newsletter form submission
-        document.querySelector('.newsletter-form').addEventListener('submit', function(e) {
-            e.preventDefault();
-            const email = this.querySelector('input[type="email"]').value;
-            alert(`Thank you for subscribing with: ${email}`);
-            this.reset();
-        });
-        
-        // Mobile navigation toggle
-        document.querySelector('.mobile-toggle').addEventListener('click', function() {
-            document.querySelector('.nav-links').classList.toggle('active');
-        });
+        }
+
+        // Load images for all posts from their HTML files
+        async function loadAllPostImages() {
+            const imagePromises = allPosts.map(post => extractImageFromPost(post));
+            await Promise.all(imagePromises);
+        }
+
+        // Check if URL is likely a UI element (to avoid)
+        function isLikelyUIElement(url) {
+            if (!url) return false;
+            
+            const urlLower = url.toLowerCase();
+            
+            // Check for common UI image patterns
+            for (const keyword of UI_IMAGE_KEYWORDS) {
+                if (urlLower.includes(keyword)) {
+                    return true;
+                }
+            }
+            
+            // Check for small icon files
+            if (urlLower.includes('.ico') || 
+                urlLower.includes('svg') || 
+                urlLower.match(/\d+x\d+/) || // Common icon size pattern
+                urlLower.includes('favicon') ||
+                urlLower.includes('apple-touch')) {
+                return true;
+            }
+            
+            return false;
+        }
+
+        // Extract background image URL from style attribute
+        function extractBackgroundImageUrl(html) {
+            // Match background-image: url('...') or url("...") or url(...)
+            const bgPatterns = [
+                /background-image:\s*url\(['"]?([^'")]+)['"]?\)/gi,
+                /background:\s*url\(['"]?([^'")]+)['"]?\)/gi,
+                /style=["'][^"']*background-image:\s*url\(['"]?([^'")]+)['"]?\)[^"']*["']/gi,
+                /style=["'][^"']*background:\s*url\(['"]?([^'")]+)['"]?\)[^"']*["']/gi
+            ];
+            
+            let matches = [];
+            for (const pattern of bgPatterns) {
+                const bgMatches = [...html.matchAll(pattern)];
+                for (const match of bgMatches) {
+                    if (match[1] && !match[1].includes('none') && !match[1].includes('transparent')) {
+                        matches.push(match[1]);
+                    }
+                }
+            }
+            
+            return matches;
+        }
+
+        // Extract image from blog post HTML file - UPDATED TO HANDLE BACKGROUND IMAGES
+        async function extractImageFromPost(post) {
+            // Return cached image if available
+            if (imageCache[post.filename]) {
+                post.image = imageCache[post.filename];
+                return;
+            }
+
+            // Default fallback images based on category
+            const fallbackImages = {
+                'Tutorial': 'https://images.unsplash.com/photo-1581091226033-d5c48150dbaa?w=800&auto=format&fit=crop',
+                'Prompts': 'https://images.unsplash.com/photo-1677442136019-21780ecad995?w=800&auto=format&fit=crop',
+                'Guide': 'https://images.unsplash.com/photo-1581291518633-83b4ebd1d83e?w=800&auto=format&fit=crop',
+                'Tips': 'https://images.unsplash.com/photo-1581291518633-83b4ebd1d83e?w=800&auto=format&fit=crop',
+                'News': 'https://images.unsplash.com/photo-1585829365295-ab7cd400c167?w=800&auto=format&fit=crop',
+                'General': 'https://images.unsplash.com/photo-1677442136019-21780ecad995?w=800&auto=format&fit=crop'
+            };
+
+            // Default fallback
+            const defaultFallback = 'https://images.unsplash.com/photo-1677442136019-21780ecad995?w=800&auto=format&fit=crop';
+
+            try {
+                // Fetch the blog post HTML
+                const response = await fetch(post.url);
+                const html = await response.text();
+
+                // Array to collect all potential images
+                let potentialImages = [];
+
+                // 1. Check for Open Graph image (usually the best choice)
+                const ogImageMatch = html.match(/<meta property="og:image" content="([^"]+)"/i) || 
+                                     html.match(/<meta name="og:image" content="([^"]+)"/i);
+                if (ogImageMatch && ogImageMatch[1] && !isLikelyUIElement(ogImageMatch[1])) {
+                    potentialImages.push(ogImageMatch[1]);
+                }
+
+                // 2. Check for Twitter card image
+                const twitterImageMatch = html.match(/<meta name="twitter:image" content="([^"]+)"/i);
+                if (twitterImageMatch && twitterImageMatch[1] && !isLikelyUIElement(twitterImageMatch[1])) {
+                    potentialImages.push(twitterImageMatch[1]);
+                }
+
+                // 3. Extract background images from divs with style attributes
+                const bgImages = extractBackgroundImageUrl(html);
+                for (const bgUrl of bgImages) {
+                    if (!isLikelyUIElement(bgUrl)) {
+                        potentialImages.push(bgUrl);
+                    }
+                }
+
+                // 4. Extract all img tags
+                const imgTagRegex = /<img[^>]+src="([^">]+)"[^>]*>/gi;
+                let match;
+                while ((match = imgTagRegex.exec(html)) !== null) {
+                    const imgTag = match[0];
+                    const imgUrl = match[1];
+                    
+                    // Skip UI elements
+                    if (isLikelyUIElement(imgUrl)) {
+                        continue;
+                    }
+                    
+                    // Check if it has meaningful alt text or is in content area
+                    const hasMeaningfulAlt = imgTag.match(/alt=["']([^"']{15,})["']/i);
+                    const isInContent = imgTag.match(/class=["'][^"']*(content|article|post|entry|main|featured|hero)[^"']*["']/i) ||
+                                       imgTag.match(/id=["'][^"']*(content|article|post|entry|main|featured|hero)[^"']*["']/i);
+                    
+                    if (hasMeaningfulAlt || isInContent) {
+                        potentialImages.push(imgUrl);
+                    } else {
+                        // Still add but with lower priority
+                        potentialImages.push(imgUrl);
+                    }
+                }
+
+                // 5. Check for schema.org image
+                const schemaMatch = html.match(/"image":\s*"([^"]+)"/i);
+                if (schemaMatch && schemaMatch[1] && !isLikelyUIElement(schemaMatch[1])) {
+                    potentialImages.push(schemaMatch[1]);
+                }
+
+                // 6. Look for any image in the first 2000 characters (likely above the fold)
+                const firstPart = html.substring(0, 2000);
+                
+                // Check for img tags in first part
+                const firstImgMatch = firstPart.match(/<img[^>]+src="([^">]+)"/i);
+                if (firstImgMatch && firstImgMatch[1] && !isLikelyUIElement(firstImgMatch[1])) {
+                    potentialImages.push(firstImgMatch[1]);
+                }
+                
+                // Check for background images in first part
+                const firstBgMatch = firstPart.match(/background(?:-image)?:\s*url\(['"]?([^'")]+)['"]?\)/i);
+                if (firstBgMatch && firstBgMatch[1] && !isLikelyUIElement(firstBgMatch[1])) {
+                    potentialImages.push(firstBgMatch[1]);
+                }
+
+                // Remove duplicates
+                potentialImages = [...new Set(potentialImages)];
+
+                // Select the best image
+                let selectedImage = null;
+                
+                if (potentialImages.length > 0) {
+                    // Prefer images that don't look like UI elements
+                    const nonUIimages = potentialImages.filter(url => !isLikelyUIElement(url));
+                    
+                    if (nonUIimages.length > 0) {
+                        selectedImage = nonUIimages[0];
+                    } else {
+                        selectedImage = potentialImages[0];
+                    }
+                }
+
+                if (selectedImage) {
+                    // Resolve relative URLs
+                    if (selectedImage.startsWith('/')) {
+                        selectedImage = window.location.origin + selectedImage;
+                    } else if (!selectedImage.startsWith('http')) {
+                        // Handle relative paths
+                        const pathParts = post.url.split('/');
+                        pathParts.pop(); // Remove filename
+                        const basePath = pathParts.join('/');
+                        selectedImage = basePath + '/' + selectedImage;
+                    }
+                    
+                    post.image = selectedImage;
+                    imageCache[post.filename] = post.image;
+                    return;
+                }
+
+                // If no image found, use category-based fallback
+                post.image = fallbackImages[post.category] || defaultFallback;
+                imageCache[post.filename] = post.image;
+
+            } catch (error) {
+                console.error(`Error extracting image from ${post.filename}:`, error);
+                // Use category-based fallback on error
+                post.image = fallbackImages[post.category] || defaultFallback;
+                imageCache[post.filename] = post.image;
+            }
+        }
+
+        // Render category pills
+        function renderCategoryPills(categories) {
+            categoryPills.innerHTML = `
+                <span class="category-pill active" data-category="all">All</span>
+                ${categories.map(cat => `
+                    <span class="category-pill" data-category="${cat}">${cat}</span>
+                `).join('')}
+            `;
+            
+            // Add click handlers
+            document.querySelectorAll('.category-pill').forEach(pill => {
+                pill.addEventListener('click', () => {
+                    document.querySelectorAll('.category-pill').forEach(p => p.classList.remove('active'));
+                    pill.classList.add('active');
+                    currentCategory = pill.dataset.category;
+                    categoryFilter.value = currentCategory === 'all' ? 'all' : currentCategory;
+                    currentPage = 1;
+                    applyFilters();
+                });
+            });
+        }
+
+        // Apply filters and search
+        function applyFilters() {
+            // Filter by category
+            filteredPosts = allPosts.filter(post => {
+                if (currentCategory === 'all') return true;
+                return post.category === currentCategory;
+            });
+            
+            // Filter by search
+            if (currentSearch) {
+                const searchLower = currentSearch.toLowerCase();
+                filteredPosts = filteredPosts.filter(post => 
+                    post.title.toLowerCase().includes(searchLower) ||
+                    post.excerpt.toLowerCase().includes(searchLower) ||
+                    post.description.toLowerCase().includes(searchLower)
+                );
+            }
+            
+            // Apply sorting
+            filteredPosts.sort((a, b) => {
+                if (currentSort === 'newest') {
+                    return new Date(b.date) - new Date(a.date);
+                } else if (currentSort === 'oldest') {
+                    return new Date(a.date) - new Date(b.date);
+                } else if (currentSort === 'title') {
+                    return a.title.localeCompare(b.title);
+                } else if (currentSort === 'title-desc') {
+                    return b.title.localeCompare(a.title);
+                }
+            });
+            
+            // Update post count
+            postCount.textContent = filteredPosts.length;
+            
+            // Render posts
+            renderPosts();
+        }
+
+        // Render posts with pagination
+        function renderPosts() {
+            loading.style.display = 'none';
+            
+            if (filteredPosts.length === 0) {
+                blogGrid.innerHTML = `
+                    <div class="no-results">
+                        <i class="fas fa-search"></i>
+                        <h3>No posts found</h3>
+                        <p>Try adjusting your search or filter criteria</p>
+                        <button class="reset-btn" onclick="resetFilters()">Show All Posts</button>
+                    </div>
+                `;
+                pagination.innerHTML = '';
+                return;
+            }
+            
+            // Calculate pagination
+            const startIndex = (currentPage - 1) * postsPerPage;
+            const endIndex = Math.min(startIndex + postsPerPage, filteredPosts.length);
+            const paginatedPosts = filteredPosts.slice(startIndex, endIndex);
+            const totalPages = Math.ceil(filteredPosts.length / postsPerPage);
+            
+            // Render posts with images
+            blogGrid.innerHTML = paginatedPosts.map((post, index) => {
+                const date = new Date(post.date).toLocaleDateString('en-US', {
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric'
+                });
+                
+                // Ensure we have an image (fallback to category-based if somehow missing)
+                const imageUrl = post.image || getCategoryFallbackImage(post.category);
+                
+                return `
+                    <div class="blog-card" style="animation-delay: ${index * 0.1}s">
+                        <div class="blog-card-image">
+                            <img 
+                                src="${imageUrl}" 
+                                alt="${post.title}"
+                                onerror="this.onerror=null; this.src='${getCategoryFallbackImage(post.category)}'"
+                                loading="lazy"
+                            >
+                            <span class="blog-card-category-badge">${post.category}</span>
+                        </div>
+                        <div class="blog-card-content">
+                            <div class="blog-meta">
+                                <span class="blog-date">
+                                    <i class="far fa-calendar"></i> ${date}
+                                </span>
+                                <span class="blog-author">
+                                    <i class="far fa-user"></i> ${post.author}
+                                </span>
+                            </div>
+                            <h3 class="blog-title">
+                                <a href="${post.url}">${post.title}</a>
+                            </h3>
+                            <p class="blog-excerpt">${post.excerpt}</p>
+                        </div>
+                        <div class="blog-footer">
+                            <a href="${post.url}" class="read-more">
+                                Read Article <i class="fas fa-arrow-right"></i>
+                            </a>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            
+            // Render pagination
+            renderPagination(totalPages);
+        }
+
+        // Get category fallback image
+        function getCategoryFallbackImage(category) {
+            const fallbackImages = {
+                'Tutorial': 'https://images.unsplash.com/photo-1581091226033-d5c48150dbaa?w=800&auto=format&fit=crop',
+                'Prompts': 'https://images.unsplash.com/photo-1677442136019-21780ecad995?w=800&auto=format&fit=crop',
+                'Guide': 'https://images.unsplash.com/photo-1581291518633-83b4ebd1d83e?w=800&auto=format&fit=crop',
+                'Tips': 'https://images.unsplash.com/photo-1581291518633-83b4ebd1d83e?w=800&auto=format&fit=crop',
+                'News': 'https://images.unsplash.com/photo-1585829365295-ab7cd400c167?w=800&auto=format&fit=crop',
+                'General': 'https://images.unsplash.com/photo-1677442136019-21780ecad995?w=800&auto=format&fit=crop'
+            };
+            return fallbackImages[category] || 'https://images.unsplash.com/photo-1677442136019-21780ecad995?w=800&auto=format&fit=crop';
+        }
+
+        // Render pagination
+        function renderPagination(totalPages) {
+            if (totalPages <= 1) {
+                pagination.innerHTML = '';
+                return;
+            }
+            
+            let html = '';
+            
+            // Previous button
+            html += `<span class="page-item ${currentPage === 1 ? 'disabled' : ''}" onclick="changePage(${currentPage - 1})">«</span>`;
+            
+            // Page numbers
+            for (let i = 1; i <= totalPages; i++) {
+                if (i === 1 || i === totalPages || (i >= currentPage - 2 && i <= currentPage + 2)) {
+                    html += `<span class="page-item ${i === currentPage ? 'active' : ''}" onclick="changePage(${i})">${i}</span>`;
+                } else if (i === currentPage - 3 || i === currentPage + 3) {
+                    html += `<span class="page-item disabled">...</span>`;
+                }
+            }
+            
+            // Next button
+            html += `<span class="page-item ${currentPage === totalPages ? 'disabled' : ''}" onclick="changePage(${currentPage + 1})">»</span>`;
+            
+            pagination.innerHTML = html;
+        }
+
+        // Change page
+        function changePage(page) {
+            if (page < 1 || page > Math.ceil(filteredPosts.length / postsPerPage) || page === currentPage) return;
+            
+            currentPage = page;
+            renderPosts();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        // Setup event listeners
+        function setupEventListeners() {
+            // Search input
+            let searchTimeout;
+            searchInput.addEventListener('input', (e) => {
+                clearTimeout(searchTimeout);
+                searchTimeout = setTimeout(() => {
+                    currentSearch = e.target.value;
+                    currentPage = 1;
+                    applyFilters();
+                }, 300);
+            });
+            
+            // Category filter
+            categoryFilter.addEventListener('change', (e) => {
+                currentCategory = e.target.value;
+                
+                // Update active pill
+                document.querySelectorAll('.category-pill').forEach(p => p.classList.remove('active'));
+                if (currentCategory === 'all') {
+                    document.querySelector('[data-category="all"]').classList.add('active');
+                } else {
+                    const pill = document.querySelector(`[data-category="${currentCategory}"]`);
+                    if (pill) pill.classList.add('active');
+                }
+                
+                currentPage = 1;
+                applyFilters();
+            });
+            
+            // Sort select
+            sortSelect.addEventListener('change', (e) => {
+                currentSort = e.target.value;
+                currentPage = 1;
+                applyFilters();
+            });
+            
+            // Footer category links
+            document.querySelectorAll('#footerCategories a').forEach(link => {
+                link.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    const category = link.dataset.category;
+                    
+                    categoryFilter.value = category;
+                    categoryFilter.dispatchEvent(new Event('change'));
+                    
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                });
+            });
+        }
+
+        // Reset filters
+        function resetFilters() {
+            currentCategory = 'all';
+            currentSearch = '';
+            currentSort = 'newest';
+            currentPage = 1;
+            
+            searchInput.value = '';
+            categoryFilter.value = 'all';
+            sortSelect.value = 'newest';
+            
+            document.querySelectorAll('.category-pill').forEach(p => p.classList.remove('active'));
+            document.querySelector('[data-category="all"]').classList.add('active');
+            
+            applyFilters();
+        }
+
+        // Show error
+        function showError(message) {
+            loading.style.display = 'none';
+            blogGrid.innerHTML = `
+                <div class="no-results">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <h3>Error</h3>
+                    <p>${message}</p>
+                    <button class="reset-btn" onclick="location.reload()">Try Again</button>
+                </div>
+            `;
+        }
+
+        // Make functions global
+        window.changePage = changePage;
+        window.resetFilters = resetFilters;
     </script>
 </body>
 </html>

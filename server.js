@@ -2769,6 +2769,89 @@ app.get('/api/uploads', async (req, res) => {
   }
 });
 
+
+
+// API endpoint to get list of blog posts
+app.get('/api/blog-posts', (req, res) => {
+    const blogDir = path.join(__dirname, 'blog');
+    
+    // Check if blog directory exists
+    if (!fs.existsSync(blogDir)) {
+        return res.json({ posts: [] });
+    }
+    
+    try {
+        // Read all files in blog directory
+        const files = fs.readdirSync(blogDir);
+        
+        // Filter only .html files
+        const htmlFiles = files.filter(file => file.endsWith('.html'));
+        
+        // Get file stats and extract meta tags
+        const posts = htmlFiles.map(filename => {
+            const filePath = path.join(blogDir, filename);
+            const stats = fs.statSync(filePath);
+            const content = fs.readFileSync(filePath, 'utf8');
+            
+            // Extract title from <title> tag
+            const titleMatch = content.match(/<title>(.*?)<\/title>/);
+            const title = titleMatch ? titleMatch[1] : filename.replace('.html', '');
+            
+            // Extract description from meta tag
+            const descMatch = content.match(/<meta name="description" content="(.*?)">/);
+            const description = descMatch ? descMatch[1] : 'No description available';
+            
+            // Extract date from meta tag
+            const dateMatch = content.match(/<meta name="date" content="(.*?)">/);
+            const date = dateMatch ? dateMatch[1] : stats.birthtime.toISOString().split('T')[0];
+            
+            // Extract author from meta tag
+            const authorMatch = content.match(/<meta name="author" content="(.*?)">/);
+            const author = authorMatch ? authorMatch[1] : 'Tools Prompt';
+            
+            // Extract category from meta tag
+            const categoryMatch = content.match(/<meta name="category" content="(.*?)">/);
+            const category = categoryMatch ? categoryMatch[1] : 'General';
+            
+            // Extract first paragraph for excerpt
+            const excerptMatch = content.match(/<p>(.*?)<\/p>/);
+            const excerpt = excerptMatch ? excerptMatch[1] : description;
+            
+            return {
+                filename,
+                title,
+                description,
+                excerpt,
+                date,
+                author,
+                category,
+                url: `/blog/${filename}`,
+                modified: stats.mtime
+            };
+        });
+        
+        // Sort by date (newest first)
+        posts.sort((a, b) => new Date(b.date) - new Date(a.date));
+        
+        res.json({ 
+            success: true, 
+            posts,
+            count: posts.length
+        });
+        
+    } catch (error) {
+        console.error('Error reading blog directory:', error);
+        res.status(500).json({ 
+            success: false, 
+            error: 'Failed to read blog posts',
+            posts: [] 
+        });
+    }
+});
+
+// Serve individual blog posts
+app.use('/blog', express.static(path.join(__dirname, 'blog')));
+
 // Individual prompt pages for SEO - WITH CACHING
 app.get('/prompt/:id', async (req, res) => {
   try {
@@ -2842,6 +2925,8 @@ app.get('/category/:category', async (req, res) => {
     sendErrorPage(res, error);
   }
 });
+
+
 
 // Helper functions
 function createNewsData(news, id) {
