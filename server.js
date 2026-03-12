@@ -1,10 +1,12 @@
-﻿﻿﻿const express = require('express');
+﻿﻿﻿﻿const express = require('express');
 const path = require('path');
 const admin = require('firebase-admin');
 const Busboy = require('busboy');
 const axios = require('axios');
 const fs = require('fs');
-const NodeCache = require('node-cache'); // Added for caching
+const NodeCache = require('node-cache');
+const { v4: uuidv4 } = require('uuid');
+const mime = require('mime-types');
 require('dotenv').config();
 
 // Initialize Firebase Admin
@@ -79,7 +81,8 @@ if (!adminInitialized) {
             console.log('Mock saving file with size:', buffer.length);
             return Promise.resolve();
           },
-          makePublic: () => Promise.resolve()
+          makePublic: () => Promise.resolve(),
+          createReadStream: () => require('stream').Readable.from([])
         })
       }) 
     }),
@@ -110,8 +113,8 @@ app.use((req, res, next) => {
 });
 
 // Basic middleware
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '100mb' }));
+app.use(express.urlencoded({ extended: true, limit: '100mb' }));
 
 // Serve static files from current directory
 app.use(express.static(__dirname));
@@ -287,7 +290,7 @@ async function migrateExistingPromptsForAdSense() {
     
     if (db && db.collection) {
       const snapshot = await db.collection('uploads')
-        .limit(100) // LIMITED: Only migrate 100 at a time
+        .limit(500) // INCREASED: Migrate 500 at a time
         .get();
       
       let migratedCount = 0;
@@ -323,13 +326,13 @@ async function migrateExistingPromptsForAdSense() {
 class SEOOptimizer {
   static generateSEOTitle(promptTitle) {
     const keywords = this.extractKeywords(promptTitle);
-    const baseTitle = `AI Prompt: ${promptTitle} - Tools Prompt`;
+    const baseTitle = `AI Prompt: ${promptTitle} - tools prompt`;
     return keywords.length > 0 ? `${keywords.slice(0, 3).join(', ')} | ${baseTitle}` : baseTitle;
   }
 
   static generateMetaDescription(promptText, title) {
     const cleanText = promptText.replace(/[^\w\s]/gi, ' ').substring(0, 155);
-    return `${cleanText}... Explore this AI-generated image and learn prompt engineering techniques.`;
+    return `${cleanText}... Explore this AI-generated content and learn prompt engineering techniques.`;
   }
 
   static extractKeywords(text) {
@@ -360,7 +363,7 @@ class SEOOptimizer {
       "image": prompt.imageUrl || 'https://via.placeholder.com/800x400/4e54c8/white?text=AI+Image',
       "author": {
         "@type": "Person",
-        "name": prompt.userName || "Tools Prompt User"
+        "name": prompt.userName || "tools prompt User"
       },
       "datePublished": prompt.createdAt || new Date().toISOString(),
       "keywords": (prompt.keywords || ['AI', 'prompt']).join(', '),
@@ -372,11 +375,1778 @@ class SEOOptimizer {
   }
 }
 
-// AI Content Generator for Prompt Pages - RESTORED DETAILED VERSION
+// ========== 25+ AI PHOTO EDITING MODELS ==========
+const AI_PHOTO_MODELS = {
+  // Google AI Image Models
+  'google-imagen': {
+    name: 'Google Imagen 3',
+    description: 'Google\'s most advanced text-to-image model with photorealistic quality',
+    strengths: ['photorealistic', 'detailed rendering', 'text integration'],
+    bestFor: 'Photorealistic images, product visualization',
+    price: 'Free/Paid tiers',
+    releaseDate: '2025',
+    category: 'professional'
+  },
+  'gemini-image': {
+    name: 'Gemini Image Generation',
+    description: 'Google Gemini\'s integrated image generation with multimodal understanding',
+    strengths: ['multimodal', 'contextual understanding', 'fast generation'],
+    bestFor: 'Concept art, rapid prototyping',
+    price: 'Free/Paid tiers',
+    releaseDate: '2025',
+    category: 'versatile'
+  },
+
+  // OpenAI Image Models
+  'dalle-3': {
+    name: 'DALL-E 3',
+    description: 'OpenAI\'s leading image generation model with exceptional prompt comprehension',
+    strengths: ['prompt accuracy', 'creative composition', 'detail'],
+    bestFor: 'Artistic creations, marketing visuals',
+    price: 'Credits system',
+    releaseDate: '2025',
+    category: 'professional'
+  },
+  'dalle-2': {
+    name: 'DALL-E 2',
+    description: 'Advanced image generation with inpainting and variations',
+    strengths: ['inpainting', 'variations', 'editing'],
+    bestFor: 'Image editing, variations',
+    price: 'Credits system',
+    releaseDate: '2024',
+    category: 'versatile'
+  },
+
+  // Midjourney
+  'midjourney-v6': {
+    name: 'Midjourney V6',
+    description: 'Premium artistic image generation with unparalleled style control',
+    strengths: ['artistic styles', 'composition', 'community'],
+    bestFor: 'Digital art, concept art, fantasy',
+    price: 'Paid subscription',
+    releaseDate: '2025',
+    category: 'artistic'
+  },
+  'midjourney-niji': {
+    name: 'Midjourney Niji',
+    description: 'Anime and illustration-focused version of Midjourney',
+    strengths: ['anime', 'illustration', 'stylized'],
+    bestFor: 'Anime art, manga, illustrations',
+    price: 'Paid subscription',
+    releaseDate: '2025',
+    category: 'artistic'
+  },
+
+  // Stability AI
+  'stable-diffusion-3': {
+    name: 'Stable Diffusion 3',
+    description: 'Latest open-source image generation with improved quality and control',
+    strengths: ['open-source', 'fine-tuning', 'control'],
+    bestFor: 'Custom models, research, local generation',
+    price: 'Free/Paid',
+    releaseDate: '2025',
+    category: 'open-source'
+  },
+  'stable-diffusion-xl': {
+    name: 'Stable Diffusion XL',
+    description: 'High-quality image generation with base/refiner models',
+    strengths: ['high resolution', 'refiner', 'control'],
+    bestFor: 'Professional projects, high-res images',
+    price: 'Free/Paid',
+    releaseDate: '2024',
+    category: 'professional'
+  },
+  'sd-xl-turbo': {
+    name: 'SDXL Turbo',
+    description: 'Real-time image generation with reduced steps',
+    strengths: ['real-time', 'fast', 'efficient'],
+    bestFor: 'Rapid prototyping, real-time applications',
+    price: 'Free/Paid',
+    releaseDate: '2024',
+    category: 'real-time'
+  },
+
+  // Adobe
+  'adobe-firefly-image': {
+    name: 'Adobe Firefly Image',
+    description: 'Adobe\'s commercial-safe image generation with Creative Cloud integration',
+    strengths: ['commercial safe', 'Adobe integration', 'professional'],
+    bestFor: 'Commercial projects, design work',
+    price: 'Adobe subscription',
+    releaseDate: '2025',
+    category: 'professional'
+  },
+  'photoshop-generative': {
+    name: 'Photoshop Generative Fill',
+    description: 'AI-powered image editing directly in Photoshop',
+    strengths: ['generative fill', 'inpainting', 'editing'],
+    bestFor: 'Photo editing, retouching',
+    price: 'Adobe subscription',
+    releaseDate: '2025',
+    category: 'editing'
+  },
+
+  // Canva
+  'canva-ai': {
+    name: 'Canva AI',
+    description: 'Integrated AI image generation for design projects',
+    strengths: ['templates', 'design integration', 'easy'],
+    bestFor: 'Social media graphics, presentations',
+    price: 'Free/Pro',
+    releaseDate: '2025',
+    category: 'design'
+  },
+  'canva-magic-media': {
+    name: 'Canva Magic Media',
+    description: 'Text-to-image and text-to-video in Canva',
+    strengths: ['versatile', 'templates', 'integration'],
+    bestFor: 'Design projects, marketing',
+    price: 'Free/Pro',
+    releaseDate: '2025',
+    category: 'design'
+  },
+
+  // Leonardo AI
+  'leonardo-creative': {
+    name: 'Leonardo Creative',
+    description: 'Professional art generation with style consistency',
+    strengths: ['style consistency', 'professional', 'commercial'],
+    bestFor: 'Professional art, commercial projects',
+    price: 'Token system',
+    releaseDate: '2025',
+    category: 'professional'
+  },
+  'leonardo-phoenix': {
+    name: 'Leonardo Phoenix',
+    description: 'Latest Leonardo model with enhanced quality',
+    strengths: ['quality', 'speed', 'control'],
+    bestFor: 'High-quality art, illustrations',
+    price: 'Token system',
+    releaseDate: '2025',
+    category: 'professional'
+  },
+
+  // Ideogram
+  'ideogram-2': {
+    name: 'Ideogram 2.0',
+    description: 'AI image generation with exceptional typography',
+    strengths: ['typography', 'text rendering', 'design'],
+    bestFor: 'Graphic design, text-heavy images',
+    price: 'Free/Paid',
+    releaseDate: '2025',
+    category: 'design'
+  },
+
+  // Playground AI
+  'playground-v2': {
+    name: 'Playground AI V2',
+    description: 'Versatile image generation with fine-tuning options',
+    strengths: ['fine-tuning', 'style mixing', 'easy'],
+    bestFor: 'Creative exploration, experimentation',
+    price: 'Free/Paid',
+    releaseDate: '2024',
+    category: 'creative'
+  },
+
+  // ClipDrop
+  'clipdrop-replace': {
+    name: 'ClipDrop Replace',
+    description: 'AI image editing with object replacement',
+    strengths: ['object replacement', 'background removal', 'practical'],
+    bestFor: 'Product photography, e-commerce',
+    price: 'Free/Paid',
+    releaseDate: '2024',
+    category: 'editing'
+  },
+
+  // Runway
+  'runway-image': {
+    name: 'Runway Image Generation',
+    description: 'Integrated image generation in Runway platform',
+    strengths: ['integration', 'video synergy', 'professional'],
+    bestFor: 'Multi-modal projects, video+image',
+    price: 'Subscription',
+    releaseDate: '2025',
+    category: 'professional'
+  },
+
+  // NightCafe
+  'nightcafe-creator': {
+    name: 'NightCafe Creator',
+    description: 'Multiple AI algorithms in one platform',
+    strengths: ['multiple algorithms', 'community', 'styles'],
+    bestFor: 'Artistic exploration, community engagement',
+    price: 'Credit system',
+    releaseDate: '2025',
+    category: 'artistic'
+  },
+
+  // Wombo
+  'wombo-dream': {
+    name: 'Wombo Dream',
+    description: 'Mobile-first AI art generation',
+    strengths: ['mobile', 'artistic styles', 'quick'],
+    bestFor: 'Mobile creation, quick art',
+    price: 'Free/Paid',
+    releaseDate: '2024',
+    category: 'mobile'
+  },
+
+  // StarryAI
+  'starryai': {
+    name: 'StarryAI',
+    description: 'NFT-focused AI art generation',
+    strengths: ['NFT', 'ownership rights', 'mobile'],
+    bestFor: 'NFT creation, digital collectibles',
+    price: 'Token system',
+    releaseDate: '2024',
+    category: 'nft'
+  },
+
+  // DeepAI
+  'deepai': {
+    name: 'DeepAI',
+    description: 'Classic AI image generation with various models',
+    strengths: ['multiple models', 'API access', 'simple'],
+    bestFor: 'Quick generation, API integration',
+    price: 'Free/Paid',
+    releaseDate: '2024',
+    category: 'versatile'
+  },
+
+  // Craiyon
+  'craiyon-v3': {
+    name: 'Craiyon V3',
+    description: 'Free AI image generation with improved quality',
+    strengths: ['completely free', 'simple', 'no signup'],
+    bestFor: 'Quick testing, casual use',
+    price: 'Free',
+    releaseDate: '2025',
+    category: 'free'
+  },
+
+  // Bing Image Creator
+  'bing-creator': {
+    name: 'Bing Image Creator',
+    description: 'Free DALL-E powered image generation',
+    strengths: ['free DALL-E', 'Microsoft integration', 'daily credits'],
+    bestFor: 'Free generation, quick results',
+    price: 'Free',
+    releaseDate: '2025',
+    category: 'free'
+  },
+
+  // Getty Images
+  'getty-generative': {
+    name: 'Getty Generative AI',
+    description: 'Commercial-safe AI images with legal protection',
+    strengths: ['legal protection', 'commercial safe', 'royalty-free'],
+    bestFor: 'Commercial use, licensed content',
+    price: 'Paid',
+    releaseDate: '2024',
+    category: 'commercial'
+  },
+
+  // Shutterstock
+  'shutterstock-ai': {
+    name: 'Shutterstock AI',
+    description: 'AI image generation with stock library integration',
+    strengths: ['stock integration', 'commercial', 'variety'],
+    bestFor: 'Stock content, commercial projects',
+    price: 'Paid',
+    releaseDate: '2024',
+    category: 'commercial'
+  },
+
+  // Picsart
+  'picsart-ai': {
+    name: 'Picsart AI',
+    description: 'AI image generation with editing tools',
+    strengths: ['editing tools', 'social features', 'filters'],
+    bestFor: 'Social media content, quick edits',
+    price: 'Free/Paid',
+    releaseDate: '2024',
+    category: 'editing'
+  },
+
+  // Fotor
+  'fotor-ai': {
+    name: 'Fotor AI',
+    description: 'AI image generation with photo editing',
+    strengths: ['photo editing', 'templates', 'easy'],
+    bestFor: 'Photo enhancement, quick edits',
+    price: 'Free/Paid',
+    releaseDate: '2024',
+    category: 'editing'
+  },
+
+  // BlueWillow
+  'bluewillow-v4': {
+    name: 'BlueWillow V4',
+    description: 'Free Discord-based AI art generation',
+    strengths: ['free', 'Discord community', 'rapid'],
+    bestFor: 'Community art, free generation',
+    price: 'Free',
+    releaseDate: '2024',
+    category: 'free'
+  },
+
+  // TensorArt
+  'tensorart': {
+    name: 'TensorArt',
+    description: 'Free AI image generation with multiple models',
+    strengths: ['multiple models', 'free credits', 'community'],
+    bestFor: 'Model experimentation, free generation',
+    price: 'Free/Paid',
+    releaseDate: '2025',
+    category: 'versatile'
+  },
+
+  // SeaArt
+  'seaart': {
+    name: 'SeaArt',
+    description: 'AI art platform with various styles',
+    strengths: ['style variety', 'community', 'easy'],
+    bestFor: 'Style exploration, community art',
+    price: 'Free/Paid',
+    releaseDate: '2024',
+    category: 'artistic'
+  }
+};
+
+// ========== 25+ AI VIDEO EDITING MODELS ==========
+const AI_VIDEO_MODELS = {
+  // Google AI Video Models
+  'google-veo-2': {
+    name: 'Google Veo 2',
+    description: 'Google\'s most advanced video generation model with 4K quality',
+    strengths: ['4K video', 'prompt consistency', 'professional quality'],
+    bestFor: 'Professional video creation, marketing content',
+    price: 'Free (Limited) / Paid',
+    releaseDate: '2025',
+    category: 'professional'
+  },
+  'google-flow': {
+    name: 'Google Flow',
+    description: 'Google\'s real-time video editing AI with intelligent scene analysis',
+    strengths: ['real-time editing', 'scene detection', 'smart transitions'],
+    bestFor: 'Real-time video editing, live content',
+    price: 'Included with Workspace',
+    releaseDate: '2025',
+    category: 'real-time'
+  },
+  'gemini-video': {
+    name: 'Gemini 2.0 Video',
+    description: 'Google Gemini\'s multimodal video understanding and generation',
+    strengths: ['multimodal understanding', 'video analysis', 'script-to-video'],
+    bestFor: 'Content analysis, automated editing',
+    price: 'API pricing',
+    releaseDate: '2025',
+    category: 'analysis'
+  },
+  'video-poet': {
+    name: 'VideoPoet',
+    description: 'Google\'s large language model for video generation',
+    strengths: ['zero-shot', 'video stylization', 'audio generation'],
+    bestFor: 'Experimental video, creative projects',
+    price: 'Research preview',
+    releaseDate: '2024',
+    category: 'experimental'
+  },
+
+  // OpenAI Video Models
+  'openai-sora': {
+    name: 'OpenAI Sora',
+    description: 'State-of-the-art text-to-video with photorealistic quality',
+    strengths: ['photorealistic', 'complex scenes', 'natural motion'],
+    bestFor: 'High-end video production, cinematic projects',
+    price: 'Not publicly available',
+    releaseDate: '2025',
+    category: 'professional'
+  },
+  'chatgpt-4o-video': {
+    name: 'ChatGPT-4o Video',
+    description: 'GPT-4o\'s integrated video understanding and generation',
+    strengths: ['real-time editing', 'multimodal', 'conversational'],
+    bestFor: 'Interactive video editing, content creation',
+    price: 'ChatGPT Plus',
+    releaseDate: '2025',
+    category: 'interactive'
+  },
+  'dalle-video': {
+    name: 'DALL-E Video',
+    description: 'Video generation based on DALL-E\'s prompt understanding',
+    strengths: ['prompt accuracy', 'artistic styles', 'creative control'],
+    bestFor: 'Artistic video creation, experimental',
+    price: 'Credits system',
+    releaseDate: '2025',
+    category: 'artistic'
+  },
+
+  // Meta AI Video Models
+  'meta-movie-gen': {
+    name: 'Meta Movie Gen',
+    description: 'Meta\'s advanced video generation with audio synthesis',
+    strengths: ['audio generation', 'long-form video', 'character consistency'],
+    bestFor: 'Long-form content, character animation',
+    price: 'Research preview',
+    releaseDate: '2025',
+    category: 'long-form'
+  },
+  'make-a-video': {
+    name: 'Make-A-Video',
+    description: 'Meta\'s text-to-video model with motion understanding',
+    strengths: ['motion understanding', 'style transfer', 'quick generation'],
+    bestFor: 'Rapid prototyping, motion experiments',
+    price: 'Research preview',
+    releaseDate: '2024',
+    category: 'rapid'
+  },
+  'emu-video': {
+    name: 'Emu Video',
+    description: 'Meta\'s video generation model based on Emu',
+    strengths: ['quality', 'style control', 'factorized diffusion'],
+    bestFor: 'Factorized video generation, style control',
+    price: 'Research preview',
+    releaseDate: '2024',
+    category: 'experimental'
+  },
+
+  // Runway ML
+  'runway-gen-3': {
+    name: 'Runway Gen-3',
+    description: 'Latest Runway video generation with advanced controls',
+    strengths: ['multi-shot', 'inpainting', 'professional tools'],
+    bestFor: 'Professional video editing, post-production',
+    price: 'Subscription',
+    releaseDate: '2025',
+    category: 'professional'
+  },
+  'runway-gen-2': {
+    name: 'Runway Gen-2',
+    description: 'Text-to-video and video-to-video generation',
+    strengths: ['style transfer', 'motion brush', 'real-time preview'],
+    bestFor: 'Creative experimentation, style transfer',
+    price: 'Credits system',
+    releaseDate: '2024',
+    category: 'creative'
+  },
+  'runway-frame-interpolation': {
+    name: 'Runway Frame Interpolation',
+    description: 'Smooth slow-motion and frame interpolation',
+    strengths: ['slow motion', 'smooth transitions', 'frame generation'],
+    bestFor: 'Smooth motion, slow-motion effects',
+    price: 'Subscription',
+    releaseDate: '2024',
+    category: 'effects'
+  },
+
+  // Pika Labs
+  'pika-2-0': {
+    name: 'Pika 2.0',
+    description: 'Advanced video generation with lip sync and character animation',
+    strengths: ['lip sync', 'character animation', 'style consistency'],
+    bestFor: 'Character animation, dialogue scenes',
+    price: 'Free/Paid tiers',
+    releaseDate: '2025',
+    category: 'animation'
+  },
+  'pika-effects': {
+    name: 'Pika Effects',
+    description: 'Specialized video effects and transitions',
+    strengths: ['visual effects', 'transitions', 'stylization'],
+    bestFor: 'Effect-heavy content, stylized videos',
+    price: 'Credits system',
+    releaseDate: '2024',
+    category: 'effects'
+  },
+  'pika-1-0': {
+    name: 'Pika 1.0',
+    description: 'Original Pika video generation platform',
+    strengths: ['easy to use', 'quick generation', 'social optimized'],
+    bestFor: 'Quick videos, social media content',
+    price: 'Free/Paid',
+    releaseDate: '2024',
+    category: 'social'
+  },
+
+  // Stability AI Video
+  'stable-video-diffusion': {
+    name: 'Stable Video Diffusion',
+    description: 'Open-source video generation with fine-tuning',
+    strengths: ['open source', 'custom training', 'local generation'],
+    bestFor: 'Custom models, research, local use',
+    price: 'Free',
+    releaseDate: '2024',
+    category: 'open-source'
+  },
+  'svd-xt': {
+    name: 'SVD-XT',
+    description: 'Extended Stable Video Diffusion with higher quality',
+    strengths: ['4K support', 'longer videos', 'better motion'],
+    bestFor: 'High-quality projects, extended videos',
+    price: 'API access',
+    releaseDate: '2025',
+    category: 'professional'
+  },
+  'svd-frame-interpolation': {
+    name: 'SVD Frame Interpolation',
+    description: 'Frame interpolation for smoother video',
+    strengths: ['smooth motion', 'frame generation', 'upscaling'],
+    bestFor: 'Smooth slow-motion, frame generation',
+    price: 'Free',
+    releaseDate: '2024',
+    category: 'open-source'
+  },
+
+  // Adobe Video AI
+  'adobe-firefly-video': {
+    name: 'Adobe Firefly Video',
+    description: 'Adobe\'s generative AI for video in Premiere Pro',
+    strengths: ['Adobe integration', 'professional workflow', 'commercial safe'],
+    bestFor: 'Professional editors, post-production',
+    price: 'Creative Cloud',
+    releaseDate: '2025',
+    category: 'professional'
+  },
+  'premiere-pro-ai': {
+    name: 'Premiere Pro AI',
+    description: 'AI-powered editing tools in Premiere Pro',
+    strengths: ['auto-reframe', 'scene detection', 'color matching'],
+    bestFor: 'Post-production, automated editing',
+    price: 'Creative Cloud',
+    releaseDate: '2025',
+    category: 'professional'
+  },
+  'after-effects-ai': {
+    name: 'After Effects AI',
+    description: 'AI-powered motion graphics and effects',
+    strengths: ['motion graphics', 'effects', 'rotoscoping'],
+    bestFor: 'Motion graphics, visual effects',
+    price: 'Creative Cloud',
+    releaseDate: '2025',
+    category: 'effects'
+  },
+
+  // CapCut/Creative Suite
+  'capcut-pro-ai': {
+    name: 'CapCut Pro AI',
+    description: 'ByteDance\'s AI-powered video editing suite',
+    strengths: ['auto-captions', 'auto-cut', 'templates'],
+    bestFor: 'Social media content, quick edits',
+    price: 'Free/Pro',
+    releaseDate: '2025',
+    category: 'social'
+  },
+  'capcut-text-to-video': {
+    name: 'CapCut Text-to-Video',
+    description: 'AI video generation from text descriptions',
+    strengths: ['quick generation', 'templates', 'music sync'],
+    bestFor: 'Quick content creation, social media',
+    price: 'Free/Pro',
+    releaseDate: '2025',
+    category: 'social'
+  },
+  'capcut-auto-cut': {
+    name: 'CapCut Auto Cut',
+    description: 'AI-powered automatic video editing',
+    strengths: ['auto-editing', 'beat sync', 'highlights'],
+    bestFor: 'Highlight reels, automated edits',
+    price: 'Free/Pro',
+    releaseDate: '2024',
+    category: 'editing'
+  },
+
+  // InVideo
+  'invideo-ai': {
+    name: 'InVideo AI',
+    description: 'AI-powered video creation for marketing',
+    strengths: ['script to video', 'stock footage', 'voiceover'],
+    bestFor: 'Marketing videos, promotional content',
+    price: 'Subscription',
+    releaseDate: '2025',
+    category: 'marketing'
+  },
+  'invideo-studio': {
+    name: 'InVideo Studio',
+    description: 'Advanced video editing with AI assistance',
+    strengths: ['AI editing', 'templates', 'collaboration'],
+    bestFor: 'Team projects, collaborative editing',
+    price: 'Subscription',
+    releaseDate: '2024',
+    category: 'collaboration'
+  },
+
+  // Synthesia
+  'synthesia-2-0': {
+    name: 'Synthesia 2.0',
+    description: 'AI video generation with realistic avatars',
+    strengths: ['avatar videos', 'multilingual', 'custom avatars'],
+    bestFor: 'Corporate training, presentations, e-learning',
+    price: 'Subscription',
+    releaseDate: '2025',
+    category: 'avatar'
+  },
+  'synthesia-avatars': {
+    name: 'Synthesia Avatars',
+    description: 'Custom AI avatar creation and video',
+    strengths: ['custom avatars', 'cloning', 'expressions'],
+    bestFor: 'Personalized videos, branding',
+    price: 'Enterprise',
+    releaseDate: '2024',
+    category: 'avatar'
+  },
+
+  // HeyGen
+  'heygen-2-0': {
+    name: 'HeyGen 2.0',
+    description: 'AI video generation with avatar and voice cloning',
+    strengths: ['avatar cloning', 'voice cloning', 'translation'],
+    bestFor: 'Personalized videos, multilingual content',
+    price: 'Credits system',
+    releaseDate: '2025',
+    category: 'avatar'
+  },
+  'heygen-interactive': {
+    name: 'HeyGen Interactive',
+    description: 'Interactive AI avatar videos',
+    strengths: ['interactive avatars', 'real-time', 'chat'],
+    bestFor: 'Interactive content, customer service',
+    price: 'Enterprise',
+    releaseDate: '2025',
+    category: 'interactive'
+  },
+
+  // ElevenLabs Video
+  'elevenlabs-video': {
+    name: 'ElevenLabs Video',
+    description: 'AI video with advanced voice synthesis and lip sync',
+    strengths: ['voice quality', 'lip sync', 'emotion'],
+    bestFor: 'Narrated content, voice-first videos',
+    price: 'Subscription',
+    releaseDate: '2025',
+    category: 'voice'
+  },
+
+  // Kling (Kuaishou)
+  'kling-1-6': {
+    name: 'Kling 1.6',
+    description: 'Advanced video generation from Kuaishou',
+    strengths: ['high quality', 'fast generation', 'Chinese support'],
+    bestFor: 'Chinese market content, high-quality video',
+    price: 'Credits system',
+    releaseDate: '2025',
+    category: 'professional'
+  },
+  'kling-1-5': {
+    name: 'Kling 1.5',
+    description: 'Previous generation with good quality/speed balance',
+    strengths: ['balanced', 'reliable', 'consistent'],
+    bestFor: 'General video creation',
+    price: 'Credits system',
+    releaseDate: '2024',
+    category: 'versatile'
+  },
+
+  // Luma Dream Machine
+  'luma-dream-machine': {
+    name: 'Luma Dream Machine',
+    description: 'High-quality video generation with cinematic quality',
+    strengths: ['cinematic', 'motion quality', 'resolution'],
+    bestFor: 'Cinematic projects, high-end content',
+    price: 'Credits system',
+    releaseDate: '2025',
+    category: 'cinematic'
+  },
+  'luma-ray': {
+    name: 'Luma Ray',
+    description: 'AI-powered 3D video and NeRF technology',
+    strengths: ['3D video', 'NeRF', 'real-world capture'],
+    bestFor: '3D content, real-world capture',
+    price: 'Credits system',
+    releaseDate: '2024',
+    category: '3d'
+  },
+
+  // Haiper
+  'haiper-2-0': {
+    name: 'Haiper 2.0',
+    description: 'Video generation with enhanced motion understanding',
+    strengths: ['motion physics', 'object interaction', 'extensions'],
+    bestFor: 'Complex motion scenes, physics-based animation',
+    price: 'Free/Paid',
+    releaseDate: '2025',
+    category: 'motion'
+  },
+  'haiper-1-0': {
+    name: 'Haiper 1.0',
+    description: 'Original Haiper video generation platform',
+    strengths: ['easy to use', 'quick', 'versatile'],
+    bestFor: 'Quick video generation',
+    price: 'Free',
+    releaseDate: '2024',
+    category: 'free'
+  },
+
+  // Minimax
+  'minimax-video': {
+    name: 'Minimax Video',
+    description: 'Chinese video generation model with high-quality output',
+    strengths: ['quality', 'speed', 'Chinese optimization'],
+    bestFor: 'Asian market content, high-quality video',
+    price: 'API access',
+    releaseDate: '2025',
+    category: 'professional'
+  },
+  'minimax-hailuo': {
+    name: 'Minimax Hailuo',
+    description: 'Advanced video generation with emotional understanding',
+    strengths: ['emotional', 'expressive', 'character-driven'],
+    bestFor: 'Character-driven content, emotional scenes',
+    price: 'API access',
+    releaseDate: '2025',
+    category: 'expressive'
+  },
+
+  // Kaiber
+  'kaiber-2-0': {
+    name: 'Kaiber 2.0',
+    description: 'Artistic video generation with style transfer',
+    strengths: ['artistic styles', 'music visualization', 'creative'],
+    bestFor: 'Music videos, artistic content',
+    price: 'Subscription',
+    releaseDate: '2025',
+    category: 'artistic'
+  },
+  'kaiber-motion': {
+    name: 'Kaiber Motion',
+    description: 'Motion-aware artistic video generation',
+    strengths: ['motion control', 'style transfer', 'fluid animation'],
+    bestFor: 'Artistic motion graphics',
+    price: 'Subscription',
+    releaseDate: '2024',
+    category: 'artistic'
+  },
+
+  // CogVideoX
+  'cogvideo-x': {
+    name: 'CogVideoX',
+    description: 'Open-source video generation from THUDM',
+    strengths: ['open source', 'Chinese/English', 'fine-tuning'],
+    bestFor: 'Custom training, research, open-source projects',
+    price: 'Free',
+    releaseDate: '2025',
+    category: 'open-source'
+  },
+  'cogvideo-x-5b': {
+    name: 'CogVideoX-5B',
+    description: '5B parameter version for higher quality',
+    strengths: ['high quality', 'more parameters', 'better results'],
+    bestFor: 'High-quality open-source generation',
+    price: 'Free',
+    releaseDate: '2025',
+    category: 'open-source'
+  },
+
+  // AnimateDiff
+  'animatediff': {
+    name: 'AnimateDiff',
+    description: 'Motion module for Stable Diffusion animation',
+    strengths: ['animation', 'motion modules', 'ControlNet support'],
+    bestFor: 'Animated sequences, motion modules',
+    price: 'Free',
+    releaseDate: '2024',
+    category: 'open-source'
+  },
+  'animatediff-v2': {
+    name: 'AnimateDiff V2',
+    description: 'Improved motion module with better quality',
+    strengths: ['better motion', 'quality', 'control'],
+    bestFor: 'High-quality animation',
+    price: 'Free',
+    releaseDate: '2025',
+    category: 'open-source'
+  },
+
+  // Gen-2/Moonvalley
+  'moonvalley': {
+    name: 'Moonvalley',
+    description: 'Free AI video generation with Discord bot',
+    strengths: ['free', 'Discord', 'community'],
+    bestFor: 'Free video generation, community art',
+    price: 'Free',
+    releaseDate: '2024',
+    category: 'free'
+  },
+
+  // Deforum
+  'deforum': {
+    name: 'Deforum',
+    description: 'Animation toolkit for Stable Diffusion',
+    strengths: ['animation', 'parameter control', '3D camera'],
+    bestFor: 'Complex animations, camera movements',
+    price: 'Free',
+    releaseDate: '2024',
+    category: 'open-source'
+  },
+
+  // Morph Studio
+  'morph-studio': {
+    name: 'Morph Studio',
+    description: 'AI video generation platform with style control',
+    strengths: ['style control', 'quality', 'easy'],
+    bestFor: 'Style-consistent video generation',
+    price: 'Credits system',
+    releaseDate: '2024',
+    category: 'versatile'
+  },
+
+  // Pixverse
+  'pixverse': {
+    name: 'Pixverse',
+    description: 'Free AI video generation platform',
+    strengths: ['free', 'web-based', 'fast'],
+    bestFor: 'Free video generation, quick tests',
+    price: 'Free',
+    releaseDate: '2024',
+    category: 'free'
+  },
+
+  // VideoCom
+  'videocom': {
+    name: 'VideoCom',
+    description: 'AI video generation with character consistency',
+    strengths: ['character consistency', 'storytelling', 'long-form'],
+    bestFor: 'Story-driven videos, character animation',
+    price: 'Credits system',
+    releaseDate: '2024',
+    category: 'storytelling'
+  },
+
+  // LTX Studio
+  'ltx-studio': {
+    name: 'LTX Studio',
+    description: 'AI film production platform',
+    strengths: ['film production', 'scene planning', 'multi-shot'],
+    bestFor: 'Film production, multi-scene videos',
+    price: 'Paid',
+    releaseDate: '2025',
+    category: 'professional'
+  }
+};
+
+// ========== AI MODEL MANAGER ==========
+class AIModelManager {
+  static detectPlatform(promptData) {
+    const promptText = (promptData.promptText || '').toLowerCase();
+    const title = (promptData.title || '').toLowerCase();
+    const keywords = promptData.keywords || [];
+    const category = promptData.category || 'general';
+    const fileType = promptData.fileType || 'image';
+    
+    // Check if it's video or image
+    const isVideo = fileType === 'video' || promptData.videoUrl || category === 'video';
+    
+    // Use video models for video content
+    if (isVideo) {
+      return this.detectVideoPlatform(promptText, keywords, category);
+    }
+    
+    // Otherwise use photo models
+    return this.detectPhotoPlatform(promptText, keywords, category);
+  }
+  
+  static detectPhotoPlatform(promptText, keywords, category) {
+    // Google AI
+    if (promptText.includes('imagen') || keywords.includes('imagen') || promptText.includes('google imagen')) {
+      return 'google-imagen';
+    }
+    if (promptText.includes('gemini image') || promptText.includes('gemini-image')) {
+      return 'gemini-image';
+    }
+    
+    // OpenAI
+    if (promptText.includes('dalle-3') || promptText.includes('dall-e 3') || (promptText.includes('dalle') && promptText.includes('3'))) {
+      return 'dalle-3';
+    }
+    if (promptText.includes('dalle-2') || promptText.includes('dall-e 2') || promptText.includes('dalle mini')) {
+      return 'dalle-2';
+    }
+    
+    // Midjourney
+    if (promptText.includes('midjourney v6') || promptText.includes('midjourney 6') || (promptText.includes('midjourney') && promptText.includes('--'))) {
+      return 'midjourney-v6';
+    }
+    if (promptText.includes('niji') || promptText.includes('anime') || promptText.includes('manga')) {
+      return 'midjourney-niji';
+    }
+    if (promptText.includes('midjourney')) {
+      return 'midjourney-v6';
+    }
+    
+    // Stability AI
+    if (promptText.includes('stable diffusion 3') || promptText.includes('sd3') || (promptText.includes('stable') && promptText.includes('3'))) {
+      return 'stable-diffusion-3';
+    }
+    if (promptText.includes('stable diffusion xl') || promptText.includes('sdxl') || (promptText.includes('xl') && promptText.includes('stable'))) {
+      return 'stable-diffusion-xl';
+    }
+    if (promptText.includes('sdxl turbo') || promptText.includes('turbo') || promptText.includes('real-time')) {
+      return 'sd-xl-turbo';
+    }
+    if (promptText.includes('stable diffusion') || promptText.includes('sd')) {
+      return 'stable-diffusion-xl';
+    }
+    
+    // Adobe
+    if (promptText.includes('adobe firefly') || promptText.includes('firefly image')) {
+      return 'adobe-firefly-image';
+    }
+    if (promptText.includes('photoshop') || promptText.includes('generative fill')) {
+      return 'photoshop-generative';
+    }
+    
+    // Canva
+    if (promptText.includes('canva ai') || promptText.includes('canva magic')) {
+      return 'canva-ai';
+    }
+    if (promptText.includes('canva magic media')) {
+      return 'canva-magic-media';
+    }
+    
+    // Leonardo
+    if (promptText.includes('leonardo creative') || (promptText.includes('leonardo') && promptText.includes('creative'))) {
+      return 'leonardo-creative';
+    }
+    if (promptText.includes('leonardo phoenix') || (promptText.includes('leonardo') && promptText.includes('phoenix'))) {
+      return 'leonardo-phoenix';
+    }
+    if (promptText.includes('leonardo')) {
+      return 'leonardo-creative';
+    }
+    
+    // Ideogram
+    if (promptText.includes('ideogram') || keywords.includes('ideogram') || promptText.includes('typography')) {
+      return 'ideogram-2';
+    }
+    
+    // Playground
+    if (promptText.includes('playground ai') || promptText.includes('playground v2')) {
+      return 'playground-v2';
+    }
+    
+    // ClipDrop
+    if (promptText.includes('clipdrop') || keywords.includes('clipdrop') || promptText.includes('replace background')) {
+      return 'clipdrop-replace';
+    }
+    
+    // Runway
+    if (promptText.includes('runway image') || (promptText.includes('runway') && !promptText.includes('video'))) {
+      return 'runway-image';
+    }
+    
+    // NightCafe
+    if (promptText.includes('nightcafe') || keywords.includes('nightcafe')) {
+      return 'nightcafe-creator';
+    }
+    
+    // Wombo
+    if (promptText.includes('wombo') || keywords.includes('wombo')) {
+      return 'wombo-dream';
+    }
+    
+    // StarryAI
+    if (promptText.includes('starryai') || keywords.includes('starryai') || promptText.includes('nft')) {
+      return 'starryai';
+    }
+    
+    // DeepAI
+    if (promptText.includes('deepai') || keywords.includes('deepai')) {
+      return 'deepai';
+    }
+    
+    // Craiyon
+    if (promptText.includes('craiyon') || promptText.includes('dall-e mini')) {
+      return 'craiyon-v3';
+    }
+    
+    // Bing
+    if (promptText.includes('bing') || keywords.includes('bing') || promptText.includes('microsoft')) {
+      return 'bing-creator';
+    }
+    
+    // Getty
+    if (promptText.includes('getty') || keywords.includes('getty') || promptText.includes('commercial safe')) {
+      return 'getty-generative';
+    }
+    
+    // Shutterstock
+    if (promptText.includes('shutterstock') || keywords.includes('shutterstock')) {
+      return 'shutterstock-ai';
+    }
+    
+    // Picsart
+    if (promptText.includes('picsart') || keywords.includes('picsart')) {
+      return 'picsart-ai';
+    }
+    
+    // Fotor
+    if (promptText.includes('fotor') || keywords.includes('fotor')) {
+      return 'fotor-ai';
+    }
+    
+    // BlueWillow
+    if (promptText.includes('bluewillow') || keywords.includes('bluewillow')) {
+      return 'bluewillow-v4';
+    }
+    
+    // TensorArt
+    if (promptText.includes('tensorart') || keywords.includes('tensor')) {
+      return 'tensorart';
+    }
+    
+    // SeaArt
+    if (promptText.includes('seaart') || keywords.includes('sea')) {
+      return 'seaart';
+    }
+    
+    // Default based on category
+    const categoryPlatforms = {
+      'art': 'midjourney-v6',
+      'photography': 'google-imagen',
+      'design': 'adobe-firefly-image',
+      'writing': 'chatgpt',
+      'professional': 'leonardo-creative',
+      'mobile': 'wombo-dream',
+      'free': 'craiyon-v3',
+      'commercial': 'getty-generative',
+      'general': 'dalle-3'
+    };
+    
+    return categoryPlatforms[category] || 'dalle-3';
+  }
+  
+  static detectVideoPlatform(promptText, keywords, category) {
+    // Google AI
+    if (promptText.includes('veo') || promptText.includes('veo 2') || keywords.includes('veo')) {
+      return 'google-veo-2';
+    }
+    if (promptText.includes('google flow') || promptText.includes('flow ai')) {
+      return 'google-flow';
+    }
+    if (promptText.includes('gemini video') || promptText.includes('gemini-video')) {
+      return 'gemini-video';
+    }
+    if (promptText.includes('video poet') || promptText.includes('videopoet')) {
+      return 'video-poet';
+    }
+    
+    // OpenAI
+    if (promptText.includes('sora') || keywords.includes('sora')) {
+      return 'openai-sora';
+    }
+    if (promptText.includes('chatgpt video') || promptText.includes('gpt video') || promptText.includes('chatgpt-4o')) {
+      return 'chatgpt-4o-video';
+    }
+    if (promptText.includes('dalle video') || promptText.includes('dall-e video')) {
+      return 'dalle-video';
+    }
+    
+    // Meta
+    if (promptText.includes('movie gen') || promptText.includes('metas movie gen')) {
+      return 'meta-movie-gen';
+    }
+    if (promptText.includes('make a video') || promptText.includes('make-a-video')) {
+      return 'make-a-video';
+    }
+    if (promptText.includes('emu video') || promptText.includes('emu-video')) {
+      return 'emu-video';
+    }
+    
+    // Runway
+    if (promptText.includes('runway gen-3') || promptText.includes('gen-3')) {
+      return 'runway-gen-3';
+    }
+    if (promptText.includes('runway gen-2') || promptText.includes('gen-2')) {
+      return 'runway-gen-2';
+    }
+    if (promptText.includes('frame interpolation') || promptText.includes('slow motion')) {
+      return 'runway-frame-interpolation';
+    }
+    if (promptText.includes('runway')) {
+      return 'runway-gen-3';
+    }
+    
+    // Pika
+    if (promptText.includes('pika 2.0') || promptText.includes('pika 2')) {
+      return 'pika-2-0';
+    }
+    if (promptText.includes('pika effects') || promptText.includes('pika effect')) {
+      return 'pika-effects';
+    }
+    if (promptText.includes('pika 1.0') || promptText.includes('pika 1')) {
+      return 'pika-1-0';
+    }
+    if (promptText.includes('pika')) {
+      return 'pika-2-0';
+    }
+    
+    // Stability AI
+    if (promptText.includes('stable video diffusion') || promptText.includes('svd')) {
+      return 'stable-video-diffusion';
+    }
+    if (promptText.includes('svd-xt') || promptText.includes('svd xt')) {
+      return 'svd-xt';
+    }
+    if (promptText.includes('frame interpolation') && promptText.includes('stable')) {
+      return 'svd-frame-interpolation';
+    }
+    
+    // Adobe
+    if (promptText.includes('adobe firefly video') || promptText.includes('firefly video')) {
+      return 'adobe-firefly-video';
+    }
+    if (promptText.includes('premiere pro ai') || promptText.includes('premiere ai')) {
+      return 'premiere-pro-ai';
+    }
+    if (promptText.includes('after effects') || promptText.includes('motion graphics')) {
+      return 'after-effects-ai';
+    }
+    
+    // CapCut
+    if (promptText.includes('capcut pro') || promptText.includes('capcut ai')) {
+      return 'capcut-pro-ai';
+    }
+    if (promptText.includes('capcut text to video') || promptText.includes('text-to-video')) {
+      return 'capcut-text-to-video';
+    }
+    if (promptText.includes('auto cut') || promptText.includes('auto-cut')) {
+      return 'capcut-auto-cut';
+    }
+    if (promptText.includes('capcut')) {
+      return 'capcut-pro-ai';
+    }
+    
+    // InVideo
+    if (promptText.includes('invideo ai') || promptText.includes('invideo')) {
+      return 'invideo-ai';
+    }
+    if (promptText.includes('invideo studio')) {
+      return 'invideo-studio';
+    }
+    
+    // Synthesia
+    if (promptText.includes('synthesia 2.0') || promptText.includes('synthesia')) {
+      return 'synthesia-2-0';
+    }
+    if (promptText.includes('synthesia avatar') || promptText.includes('avatar clone')) {
+      return 'synthesia-avatars';
+    }
+    
+    // HeyGen
+    if (promptText.includes('heygen 2.0') || promptText.includes('heygen')) {
+      return 'heygen-2-0';
+    }
+    if (promptText.includes('heygen interactive') || promptText.includes('interactive avatar')) {
+      return 'heygen-interactive';
+    }
+    
+    // ElevenLabs
+    if (promptText.includes('elevenlabs video') || promptText.includes('eleven labs')) {
+      return 'elevenlabs-video';
+    }
+    
+    // Kling
+    if (promptText.includes('kling 1.6') || promptText.includes('kling 1.6')) {
+      return 'kling-1-6';
+    }
+    if (promptText.includes('kling 1.5') || promptText.includes('kling')) {
+      return 'kling-1-5';
+    }
+    
+    // Luma
+    if (promptText.includes('luma dream machine') || promptText.includes('dream machine')) {
+      return 'luma-dream-machine';
+    }
+    if (promptText.includes('luma ray') || promptText.includes('3d video')) {
+      return 'luma-ray';
+    }
+    
+    // Haiper
+    if (promptText.includes('haiper 2.0') || promptText.includes('haiper 2')) {
+      return 'haiper-2-0';
+    }
+    if (promptText.includes('haiper 1.0') || promptText.includes('haiper')) {
+      return 'haiper-1-0';
+    }
+    
+    // Minimax
+    if (promptText.includes('minimax video') || promptText.includes('minimax')) {
+      return 'minimax-video';
+    }
+    if (promptText.includes('minimax hailuo') || promptText.includes('hailuo')) {
+      return 'minimax-hailuo';
+    }
+    
+    // Kaiber
+    if (promptText.includes('kaiber 2.0') || promptText.includes('kaiber')) {
+      return 'kaiber-2-0';
+    }
+    if (promptText.includes('kaiber motion')) {
+      return 'kaiber-motion';
+    }
+    
+    // CogVideoX
+    if (promptText.includes('cogvideo x') || promptText.includes('cogvideo-x')) {
+      return 'cogvideo-x';
+    }
+    if (promptText.includes('cogvideo-x-5b') || promptText.includes('5b')) {
+      return 'cogvideo-x-5b';
+    }
+    
+    // AnimateDiff
+    if (promptText.includes('animatediff v2') || promptText.includes('animate diff v2')) {
+      return 'animatediff-v2';
+    }
+    if (promptText.includes('animatediff') || promptText.includes('animate diff')) {
+      return 'animatediff';
+    }
+    
+    // Other platforms
+    if (promptText.includes('moonvalley')) {
+      return 'moonvalley';
+    }
+    if (promptText.includes('deforum')) {
+      return 'deforum';
+    }
+    if (promptText.includes('morph studio')) {
+      return 'morph-studio';
+    }
+    if (promptText.includes('pixverse')) {
+      return 'pixverse';
+    }
+    if (promptText.includes('videocom')) {
+      return 'videocom';
+    }
+    if (promptText.includes('ltx studio')) {
+      return 'ltx-studio';
+    }
+    
+    // Default based on category
+    const categoryPlatforms = {
+      'professional': 'runway-gen-3',
+      'animation': 'pika-2-0',
+      'social': 'capcut-pro-ai',
+      'avatar': 'synthesia-2-0',
+      'marketing': 'invideo-ai',
+      'cinematic': 'luma-dream-machine',
+      'artistic': 'kaiber-2-0',
+      'free': 'pixverse',
+      'open-source': 'stable-video-diffusion',
+      'video': 'runway-gen-3',
+      'general': 'pika-2-0'
+    };
+    
+    return categoryPlatforms[category] || 'pika-2-0';
+  }
+  
+  static getPhotoModelInfo(modelId) {
+    return AI_PHOTO_MODELS[modelId] || AI_PHOTO_MODELS['dalle-3'];
+  }
+  
+  static getVideoModelInfo(modelId) {
+    return AI_VIDEO_MODELS[modelId] || AI_VIDEO_MODELS['pika-2-0'];
+  }
+  
+  static getAllPhotoModels() {
+    return Object.values(AI_PHOTO_MODELS);
+  }
+  
+  static getAllVideoModels() {
+    return Object.values(AI_VIDEO_MODELS);
+  }
+  
+  static getPhotoModelCount() {
+    return Object.keys(AI_PHOTO_MODELS).length;
+  }
+  
+  static getVideoModelCount() {
+    return Object.keys(AI_VIDEO_MODELS).length;
+  }
+}
+
+// ========== AI PLATFORM CONTENT GENERATOR ==========
+class AIPlatformContentGenerator {
+  static generatePlatformIntroduction(promptData) {
+    const isVideo = promptData.fileType === 'video' || promptData.videoUrl || promptData.category === 'video';
+    const platformId = AIModelManager.detectPlatform(promptData);
+    
+    if (isVideo) {
+      const platform = AIModelManager.getVideoModelInfo(platformId);
+      return `${platform.name} ${platform.description}. With cutting-edge capabilities including ${platform.strengths.join(', ')}, this AI video tool helps you create professional-quality content with minimal effort.`;
+    } else {
+      const platform = AIModelManager.getPhotoModelInfo(platformId);
+      return `${platform.name} ${platform.description}. Whether you need ${platform.strengths.join(', ')}, this platform delivers exceptional results for your creative projects.`;
+    }
+  }
+  
+  static generatePlatformComparison(promptData) {
+    const isVideo = promptData.fileType === 'video' || promptData.videoUrl || promptData.category === 'video';
+    const primaryPlatformId = AIModelManager.detectPlatform(promptData);
+    
+    if (isVideo) {
+      // Get top 15 video platforms
+      const topVideoPlatforms = [
+        'google-veo-2', 'openai-sora', 'runway-gen-3', 'pika-2-0', 'adobe-firefly-video',
+        'meta-movie-gen', 'capcut-pro-ai', 'synthesia-2-0', 'luma-dream-machine', 'kaiber-2-0',
+        'stable-video-diffusion', 'haiper-2-0', 'minimax-video', 'cogvideo-x', 'elevenlabs-video'
+      ];
+      
+      const comparisonRows = topVideoPlatforms.map(platformId => {
+        const platform = AIModelManager.getVideoModelInfo(platformId);
+        const isPrimary = platformId === primaryPlatformId;
+        
+        return `
+          <tr class="${isPrimary ? 'primary-platform' : ''}">
+            <td><strong>${platform.name}</strong>${isPrimary ? ' <span class="primary-badge">Recommended</span>' : ''}</td>
+            <td>${platform.bestFor}</td>
+            <td><span class="price-tag ${platform.price?.includes('Free') ? 'price-free' : 'price-paid'}">${platform.price}</span></td>
+            <td><span class="category-badge category-${platform.category}">${platform.category}</span></td>
+            <td>${platform.strengths[0]}</td>
+          </tr>
+        `;
+      }).join('');
+      
+      return `
+        <div class="platform-comparison">
+          <h3><i class="fas fa-video"></i> AI Video Platform Comparison (${AIModelManager.getVideoModelCount()}+ Models)</h3>
+          <p>Choose from over ${AIModelManager.getVideoModelCount()} leading AI video platforms. Compare features, pricing, and best use cases:</p>
+          <div class="comparison-table-container">
+            <table class="platform-comparison-table">
+              <thead>
+                <tr>
+                  <th>Platform</th>
+                  <th>Best For</th>
+                  <th>Pricing</th>
+                  <th>Category</th>
+                  <th>Key Strength</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${comparisonRows}
+              </tbody>
+            </table>
+          </div>
+          <div class="comparison-tips">
+            <p><strong>Quick recommendations:</strong></p>
+            <ul>
+              <li><strong>For professionals:</strong> Google Veo 2, OpenAI Sora, Runway Gen-3</li>
+              <li><strong>For social media:</strong> CapCut Pro AI, Pika 2.0, InVideo AI</li>
+              <li><strong>For avatars:</strong> Synthesia 2.0, HeyGen 2.0, ElevenLabs Video</li>
+              <li><strong>For open source:</strong> Stable Video Diffusion, CogVideoX, AnimateDiff</li>
+              <li><strong>For cinematic:</strong> Luma Dream Machine, Meta Movie Gen, Kling 1.6</li>
+              <li><strong>For artistic:</strong> Kaiber 2.0, Haiper 2.0, Deforum</li>
+            </ul>
+          </div>
+        </div>
+      `;
+    } else {
+      // Get top 15 photo platforms
+      const topPhotoPlatforms = [
+        'google-imagen', 'dalle-3', 'midjourney-v6', 'stable-diffusion-3', 'adobe-firefly-image',
+        'leonardo-creative', 'ideogram-2', 'canva-ai', 'playground-v2', 'runway-image',
+        'nightcafe-creator', 'wombo-dream', 'getty-generative', 'craiyon-v3', 'bing-creator'
+      ];
+      
+      const comparisonRows = topPhotoPlatforms.map(platformId => {
+        const platform = AIModelManager.getPhotoModelInfo(platformId);
+        const isPrimary = platformId === primaryPlatformId;
+        
+        return `
+          <tr class="${isPrimary ? 'primary-platform' : ''}">
+            <td><strong>${platform.name}</strong>${isPrimary ? ' <span class="primary-badge">Recommended</span>' : ''}</td>
+            <td>${platform.bestFor}</td>
+            <td><span class="price-tag ${platform.price?.includes('Free') ? 'price-free' : 'price-paid'}">${platform.price}</span></td>
+            <td><span class="category-badge category-${platform.category}">${platform.category}</span></td>
+            <td>${platform.strengths[0]}</td>
+          </tr>
+        `;
+      }).join('');
+      
+      return `
+        <div class="platform-comparison">
+          <h3><i class="fas fa-camera"></i> AI Photo Platform Comparison (${AIModelManager.getPhotoModelCount()}+ Models)</h3>
+          <p>Choose from over ${AIModelManager.getPhotoModelCount()} leading AI image platforms. Compare features, pricing, and best use cases:</p>
+          <div class="comparison-table-container">
+            <table class="platform-comparison-table">
+              <thead>
+                <tr>
+                  <th>Platform</th>
+                  <th>Best For</th>
+                  <th>Pricing</th>
+                  <th>Category</th>
+                  <th>Key Strength</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${comparisonRows}
+              </tbody>
+            </table>
+          </div>
+          <div class="comparison-tips">
+            <p><strong>Quick recommendations:</strong></p>
+            <ul>
+              <li><strong>For professionals:</strong> Google Imagen 3, DALL-E 3, Midjourney V6</li>
+              <li><strong>For designers:</strong> Adobe Firefly, Canva AI, Leonardo Creative</li>
+              <li><strong>For commercial use:</strong> Getty Generative, Shutterstock AI, Adobe Firefly</li>
+              <li><strong>For open source:</strong> Stable Diffusion 3, SDXL, SDXL Turbo</li>
+              <li><strong>For free:</strong> Craiyon V3, Bing Creator, BlueWillow V4</li>
+              <li><strong>For mobile:</strong> Wombo Dream, StarryAI, Picsart AI</li>
+            </ul>
+          </div>
+        </div>
+      `;
+    }
+  }
+  
+  static generateBestAITools(promptData) {
+    const isVideo = promptData.fileType === 'video' || promptData.videoUrl || promptData.category === 'video';
+    const primaryPlatformId = AIModelManager.detectPlatform(promptData);
+    
+    if (isVideo) {
+      const featuredPlatforms = [
+        'google-veo-2', 'openai-sora', 'runway-gen-3', 'pika-2-0', 'adobe-firefly-video',
+        'capcut-pro-ai', 'synthesia-2-0', 'luma-dream-machine', 'kaiber-2-0', 'stable-video-diffusion'
+      ];
+      
+      return featuredPlatforms.slice(0, 6).map(platformId => {
+        const platform = AIModelManager.getVideoModelInfo(platformId);
+        return {
+          name: platform.name,
+          description: platform.description,
+          strengths: platform.strengths,
+          bestFor: platform.bestFor,
+          price: platform.price,
+          category: platform.category,
+          isPrimary: platformId === primaryPlatformId
+        };
+      });
+    } else {
+      const featuredPlatforms = [
+        'google-imagen', 'dalle-3', 'midjourney-v6', 'stable-diffusion-3', 'adobe-firefly-image',
+        'leonardo-creative', 'ideogram-2', 'canva-ai', 'playground-v2', 'getty-generative'
+      ];
+      
+      return featuredPlatforms.slice(0, 6).map(platformId => {
+        const platform = AIModelManager.getPhotoModelInfo(platformId);
+        return {
+          name: platform.name,
+          description: platform.description,
+          strengths: platform.strengths,
+          bestFor: platform.bestFor,
+          price: platform.price,
+          category: platform.category,
+          rating: platform.category === 'professional' ? 5 : 4,
+          isPrimary: platformId === primaryPlatformId
+        };
+      });
+    }
+  }
+  
+  static generateExpertTips(promptData) {
+    const isVideo = promptData.fileType === 'video' || promptData.videoUrl || promptData.category === 'video';
+    
+    if (isVideo) {
+      return [
+        'Start with detailed scene descriptions including camera angles, lighting, and mood',
+        'Specify exact duration (3-15 seconds) for optimal social media performance',
+        'Include camera movements: "smooth zoom", "pan left", "dolly in", "tracking shot"',
+        'Describe transitions between scenes for multi-shot videos',
+        'Use motion keywords like "fluid", "dynamic", "cinematic", "slow motion"',
+        'Specify aspect ratio: 9:16 for Reels/Shorts, 16:9 for YouTube, 1:1 for Instagram',
+        'Include lighting changes and mood progression throughout the video',
+        'For character animation, describe expressions and actions precisely',
+        'Use negative prompts to exclude unwanted elements or artifacts',
+        'Generate multiple variations and combine the best parts using video editing software'
+      ];
+    } else {
+      return [
+        'Be descriptive: Use specific, detailed language rather than vague terms',
+        'Include artistic references: "in the style of [artist], [art movement]"',
+        'Specify lighting and composition: "dramatic lighting, rule of thirds"',
+        'Use quality modifiers: "highly detailed, 8k resolution, professional"',
+        'Use weighted prompts: "(keyword:1.3)" to emphasize elements',
+        'Experiment with different aspect ratios for various platforms',
+        'Use negative prompts extensively to exclude unwanted elements',
+        'Save successful seeds for consistent style reproduction',
+        'Use image prompts with URLs for style reference',
+        'Iterate systematically: Make small, specific changes between generations'
+      ];
+    }
+  }
+  
+  static generateUsageTips(promptData) {
+    const isVideo = promptData.fileType === 'video' || promptData.videoUrl || promptData.category === 'video';
+    
+    if (isVideo) {
+      return [
+        'Keep videos short (3-10 seconds) for optimal social media performance',
+        'Use descriptive motion language: "fluid", "dynamic", "cinematic"',
+        'Specify transitions between scenes: "fade to", "whip pan", "cross dissolve"',
+        'Include camera movement directions: "zoom in on subject", "track left"',
+        'Mention pacing: "slow and dreamy", "fast-paced action"',
+        'Describe lighting changes throughout the video sequence',
+        'Reference popular video styles: "like TikTok transitions", "cinematic film look"',
+        'Specify output format: portrait for Reels/Shorts, landscape for YouTube',
+        'Include audio suggestions or mood descriptions to pair with visuals',
+        'Add music, captions, or effects using video editing tools for enhanced results'
+      ];
+    } else {
+      return [
+        'Experiment with different art styles and mediums mentioned in the prompt',
+        'Adjust parameters like aspect ratio, style, and quality settings',
+        'Use style references for more consistent results',
+        'Try varying the chaos/stylize parameters for more creative variations',
+        'Combine with other prompts for hybrid styles',
+        'Specify camera types and lenses for different photographic effects',
+        'Use lighting terms like "golden hour" or "studio lighting"',
+        'Include depth of field requirements for focus control',
+        'Test the prompt across different AI platforms',
+        'Keep a log of successful variations and parameters'
+      ];
+    }
+  }
+  
+  static generateStepByStepGuide(promptData) {
+    const isVideo = promptData.fileType === 'video' || promptData.videoUrl || promptData.category === 'video';
+    const platformId = AIModelManager.detectPlatform(promptData);
+    
+    if (isVideo) {
+      const platform = AIModelManager.getVideoModelInfo(platformId);
+      
+      return {
+        access: `Access ${platform.name} through ${this.getVideoAccessMethod(platformId)}. Create an account if needed and familiarize yourself with the interface.`,
+        preparation: 'Define your video concept including duration, style, mood, and key scenes. Write a detailed description of what you want to create.',
+        prompt: `Use this prompt as your starting point: "${promptData.promptText || 'Enter your video generation prompt here'}"`,
+        customization: this.getVideoParameterTips(platformId),
+        generation: 'Generate your video and review the results. Most platforms allow you to regenerate or refine based on initial output.',
+        finalization: 'Export your video in the desired format. Optimize for your target platform (9:16 for Reels/Shorts, 16:9 for YouTube).'
+      };
+    } else {
+      const platform = AIModelManager.getPhotoModelInfo(platformId);
+      
+      return {
+        access: `Access ${platform.name} through ${this.getPhotoAccessMethod(platformId)}.`,
+        preparation: 'Start with a clear concept. Consider the style, composition, and mood you want to achieve.',
+        prompt: `Use this prompt: "${promptData.promptText || 'Enter your prompt here'}"`,
+        customization: this.getPhotoParameterTips(platformId),
+        generation: 'Generate and review results. Request variations or make specific edits as needed.',
+        finalization: 'Download your preferred result in your chosen resolution.'
+      };
+    }
+  }
+  
+  static getPhotoAccessMethod(platformId) {
+    const methods = {
+      'google-imagen': 'Google AI Studio or Vertex AI platform',
+      'gemini-image': 'Google AI Studio or Gemini API',
+      'dalle-3': 'ChatGPT Plus subscription or OpenAI platform',
+      'dalle-2': 'OpenAI platform',
+      'midjourney-v6': 'Discord (join Midjourney server) or web interface',
+      'midjourney-niji': 'Discord with --niji parameter',
+      'stable-diffusion-3': 'Stability AI platform or Hugging Face',
+      'stable-diffusion-xl': 'DreamStudio, Automatic1111 WebUI, or local install',
+      'sd-xl-turbo': 'Replicate API or Hugging Face',
+      'adobe-firefly-image': 'firefly.adobe.com with Adobe account',
+      'photoshop-generative': 'Adobe Photoshop with Creative Cloud subscription',
+      'canva-ai': 'Canva platform with account',
+      'canva-magic-media': 'Canva Pro subscription',
+      'leonardo-creative': 'leonardo.ai web platform',
+      'leonardo-phoenix': 'leonardo.ai with model selection',
+      'ideogram-2': 'ideogram.ai web platform',
+      'playground-v2': 'playgroundai.com with account',
+      'clipdrop-replace': 'clipdrop.co website or mobile apps',
+      'runway-image': 'runwayml.com with account',
+      'nightcafe-creator': 'nightcafe.studio with account',
+      'wombo-dream': 'Wombo Dream app or web',
+      'starryai': 'StarryAI app',
+      'deepai': 'deepai.org API',
+      'craiyon-v3': 'craiyon.com directly - no account required',
+      'bing-creator': 'bing.com/create with Microsoft account',
+      'getty-generative': 'Getty Images platform',
+      'shutterstock-ai': 'Shutterstock platform',
+      'picsart-ai': 'picsart.com or Picsart app',
+      'fotor-ai': 'fotor.com or Fotor app',
+      'bluewillow-v4': 'BlueWillow Discord server',
+      'tensorart': 'tensor.art platform',
+      'seaart': 'seaart.ai platform'
+    };
+    
+    return methods[platformId] || 'the platform\'s official website or app';
+  }
+  
+  static getVideoAccessMethod(platformId) {
+    const methods = {
+      'google-veo-2': 'Google AI Studio or Vertex AI platform',
+      'google-flow': 'Google Workspace or Google Cloud Console',
+      'gemini-video': 'Google AI Studio or Gemini API',
+      'video-poet': 'Google research preview',
+      'openai-sora': 'OpenAI API (limited preview)',
+      'chatgpt-4o-video': 'ChatGPT Plus subscription or OpenAI API',
+      'dalle-video': 'OpenAI platform',
+      'meta-movie-gen': 'Meta AI research preview',
+      'make-a-video': 'Meta AI research preview',
+      'emu-video': 'Meta AI research preview',
+      'runway-gen-3': 'runwayml.com with subscription',
+      'runway-gen-2': 'runwayml.com with credits',
+      'runway-frame-interpolation': 'runwayml.com with subscription',
+      'pika-2-0': 'pika.art website or Discord',
+      'pika-effects': 'pika.art with effects',
+      'pika-1-0': 'pika.art',
+      'stable-video-diffusion': 'Hugging Face or local install',
+      'svd-xt': 'Stability AI API',
+      'svd-frame-interpolation': 'Hugging Face',
+      'adobe-firefly-video': 'Adobe Creative Cloud subscription',
+      'premiere-pro-ai': 'Adobe Premiere Pro',
+      'after-effects-ai': 'Adobe After Effects',
+      'capcut-pro-ai': 'CapCut mobile app or desktop version',
+      'capcut-text-to-video': 'CapCut with AI features',
+      'capcut-auto-cut': 'CapCut app',
+      'invideo-ai': 'invideo.io with subscription',
+      'invideo-studio': 'invideo.io',
+      'synthesia-2-0': 'synthesia.io with subscription',
+      'synthesia-avatars': 'synthesia.io enterprise',
+      'heygen-2-0': 'heygen.com with credits',
+      'heygen-interactive': 'heygen.com enterprise',
+      'elevenlabs-video': 'elevenlabs.io with subscription',
+      'kling-1-6': 'Kuaishou platform (Chinese)',
+      'kling-1-5': 'Kuaishou platform',
+      'luma-dream-machine': 'lumalabs.ai',
+      'luma-ray': 'lumalabs.ai',
+      'haiper-2-0': 'haiper.ai',
+      'haiper-1-0': 'haiper.ai',
+      'minimax-video': 'Minimax API',
+      'minimax-hailuo': 'Minimax API',
+      'kaiber-2-0': 'kaiber.ai with subscription',
+      'kaiber-motion': 'kaiber.ai',
+      'cogvideo-x': 'GitHub or Hugging Face',
+      'cogvideo-x-5b': 'GitHub or Hugging Face',
+      'animatediff': 'GitHub',
+      'animatediff-v2': 'GitHub',
+      'moonvalley': 'Moonvalley Discord',
+      'deforum': 'GitHub or Colab',
+      'morph-studio': 'morphstudio.com',
+      'pixverse': 'pixverse.ai',
+      'videocom': 'videocom.ai',
+      'ltx-studio': 'ltx.studio'
+    };
+    
+    return methods[platformId] || 'the platform\'s official website or app';
+  }
+  
+  static getPhotoParameterTips(platformId) {
+    const tips = {
+      'midjourney-v6': 'Use --ar for aspect ratios, --style for artistic approaches, --chaos for variation, --stylize for artistic interpretation',
+      'dalle-3': 'Use natural language, specify style and quality, include artistic references',
+      'stable-diffusion-3': 'Adjust CFG scale (7-12), steps (20-50), use negative prompts, try different samplers',
+      'google-imagen': 'Use detailed descriptions, include lighting and composition terms',
+      'adobe-firefly-image': 'Use content type filters, style presets, commercial-safe prompts',
+      'leonardo-creative': 'Adjust guidance scale, use element weights, select appropriate model',
+      'default': 'Adjust quality settings, aspect ratio, and style parameters based on your needs'
+    };
+    
+    return tips[platformId] || tips.default;
+  }
+  
+  static getVideoParameterTips(platformId) {
+    const tips = {
+      'google-veo-2': 'Adjust resolution, duration, and aspect ratio. Use negative prompts to avoid unwanted elements.',
+      'openai-sora': 'Specify camera angles, lighting, and motion style. Use detailed scene descriptions.',
+      'runway-gen-3': 'Use motion brush for specific movements, adjust frame consistency for smoother results.',
+      'pika-2-0': 'Use -neg for negative prompts, -ar for aspect ratio, -seed for consistency, -motion for intensity.',
+      'adobe-firefly-video': 'Use generative extend for longer videos, apply style presets for consistent look.',
+      'capcut-pro-ai': 'Use auto-captions, smart cut, and AI effects. Adjust speed and transitions.',
+      'default': 'Adjust quality settings, duration, and style parameters based on your needs.'
+    };
+    
+    return tips[platformId] || tips.default;
+  }
+  
+  static generateModelSpecificTips() {
+    return `
+    <div class="model-specific-tips">
+      <h4><i class="fas fa-microchip"></i> Model-Specific Optimization</h4>
+      <div class="model-tips-grid">
+        <div class="model-tip">
+          <h5><i class="fab fa-discord"></i> Midjourney</h5>
+          <ul>
+            <li>Use <code>--ar 16:9</code> for widescreen, <code>--ar 9:16</code> for mobile</li>
+            <li><code>--style raw</code> for less opinionated, <code>--style expressive</code> for artistic</li>
+            <li><code>--chaos 0-100</code> controls variation (higher = more diverse)</li>
+            <li><code>--stylize 100-1000</code> adjusts artistic interpretation</li>
+          </ul>
+        </div>
+        <div class="model-tip">
+          <h5><i class="fas fa-robot"></i> Stable Diffusion</h5>
+          <ul>
+            <li>CFG Scale: 7-12 (balance between creativity and prompt adherence)</li>
+            <li>Sampling Steps: 20-50 (higher = more detailed but slower)</li>
+            <li>Negative prompts: Essential for removing unwanted elements</li>
+            <li>Use <code>(keyword:1.3)</code> for emphasis, <code>[keyword]</code> for de-emphasis</li>
+          </ul>
+        </div>
+        <div class="model-tip">
+          <h5><i class="fab fa-google"></i> Google Gemini/Imagen</h5>
+          <ul>
+            <li>Use natural, conversational language</li>
+            <li>Include context and background information</li>
+            <li>Ask for multiple variations in one request</li>
+            <li>Use follow-up questions for refinements</li>
+          </ul>
+        </div>
+        <div class="model-tip">
+          <h5><i class="fab fa-adobe"></i> Adobe Firefly</h5>
+          <ul>
+            <li>Specify commercial-safe content requirements</li>
+            <li>Use Adobe Stock references for consistency</li>
+            <li>Integrate with Creative Cloud workflows</li>
+            <li>Use style presets for quick professional results</li>
+          </ul>
+        </div>
+        <div class="model-tip">
+          <h5><i class="fas fa-video"></i> Runway ML / Pika</h5>
+          <ul>
+            <li>Specify exact duration (3-10 seconds) for optimal results</li>
+            <li>Describe camera movements: "smooth zoom", "pan left", "dolly in"</li>
+            <li>Include motion descriptors: "fluid", "dynamic", "cinematic"</li>
+            <li>Mention transitions between scenes for complex videos</li>
+          </ul>
+        </div>
+        <div class="model-tip">
+          <h5><i class="fas fa-film"></i> CapCut / InVideo</h5>
+          <ul>
+            <li>Use templates as starting points for faster production</li>
+            <li>Combine AI generation with stock footage for variety</li>
+            <li>Add AI voiceovers for narration and storytelling</li>
+            <li>Export in platform-specific formats (9:16 for Reels/Shorts)</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    `;
+  }
+}
+
+// AI Content Generator for Prompt Pages - Updated to use new classes
 class PromptContentGenerator {
   static generateDetailedExplanation(promptData) {
     const keywords = promptData.keywords || ['AI', 'prompt'];
     const category = promptData.category || 'general';
+    const isVideo = promptData.fileType === 'video' || promptData.videoUrl || category === 'video';
+    
+    if (isVideo) {
+      return AIPlatformContentGenerator.generatePlatformIntroduction(promptData);
+    }
     
     const explanations = {
       'art': `This ${keywords[0] || 'creative'} prompt generates stunning visual artwork through AI image generation. The prompt carefully combines specific stylistic elements, composition techniques, and artistic references to produce unique digital creations that showcase the power of modern AI art tools.`,
@@ -395,6 +2165,19 @@ class PromptContentGenerator {
 
   static generateStepByStepInstructions(promptData) {
     const category = promptData.category || 'general';
+    const isVideo = promptData.fileType === 'video' || promptData.videoUrl || category === 'video';
+    
+    if (isVideo) {
+      const steps = AIPlatformContentGenerator.generateStepByStepGuide(promptData);
+      return [
+        `Step 1: ${steps.access}`,
+        `Step 2: ${steps.preparation}`,
+        `Step 3: ${steps.prompt}`,
+        `Step 4: ${steps.customization}`,
+        `Step 5: ${steps.generation}`,
+        `Step 6: ${steps.finalization}`
+      ];
+    }
     
     const steps = {
       'art': [
@@ -442,51 +2225,17 @@ class PromptContentGenerator {
   }
 
   static generateBestAITools(promptData) {
-    const category = promptData.category || 'general';
-    
-    const tools = {
-      'art': [
-        { name: "Midjourney", description: "Excellent for artistic and creative imagery with strong stylistic control" },
-        { name: "DALL-E 3", description: "Great for conceptual art and understanding complex prompt requirements" },
-        { name: "Stable Diffusion", description: "Ideal for custom models and local generation with extensive control" },
-        { name: "Adobe Firefly", description: "Perfect for commercial use with ethical training data" }
-      ],
-      
-      'photography': [
-        { name: "ChatGPT", description: "Superior at understanding photographic terms and realistic rendering" },
-        { name: "Google Gemini", description: "Strong research capabilities and factual accuracy" },
-        { name: "Stable Diffusion", description: "Best for photorealistic outputs with custom models" },
-        { name: "Midjourney", description: "Excellent for artistic photography styles and compositions" }
-      ],
-      
-      'design': [
-        { name: "Midjourney", description: "Strong for conceptual design and artistic layouts" },
-        { name: "DALL-E 3", description: "Excellent for understanding design briefs and requirements" },
-        { name: "Canva AI", description: "Integrated design platform with AI capabilities" },
-        { name: "Adobe Firefly", description: "Seamless integration with Adobe Creative Cloud" }
-      ],
-      
-      'writing': [
-        { name: "ChatGPT", description: "Versatile for all types of writing tasks and content generation" },
-        { name: "Claude", description: "Excellent for long-form content and complex writing tasks" },
-        { name: "Google Gemini", description: "Strong research capabilities and factual accuracy" },
-        { name: "Microsoft Copilot", description: "Great for professional and business writing" }
-      ],
-      
-      'general': [
-        { name: "ChatGPT", description: "Versatile all-around AI assistant for various tasks" },
-        { name: "Midjourney", description: "Leading AI image generation platform" },
-        { name: "DALL-E 3", description: "Advanced image generation with strong prompt understanding" },
-        { name: "Claude", description: "Excellent for complex reasoning and content creation" }
-      ]
-    };
-
-    return tools[category] || tools.general;
+    return AIPlatformContentGenerator.generateBestAITools(promptData);
   }
 
   static generateTrendAnalysis(promptData) {
     const keywords = promptData.keywords || [];
     const category = promptData.category || 'general';
+    const isVideo = promptData.fileType === 'video' || promptData.videoUrl || category === 'video';
+    
+    if (isVideo) {
+      return `AI video generation is exploding in popularity with short-form content dominating social media. Trends show increased demand for ${keywords[0] || 'dynamic'} video reels, seamless transitions, and cinematic motion sequences. AI tools are now capable of creating professional-grade video content from simple text prompts, revolutionizing content creation for platforms like TikTok, Instagram Reels, and YouTube Shorts. The latest models like Google Veo 2 and OpenAI Sora are pushing the boundaries of what's possible with AI-generated video.`;
+    }
     
     const trends = {
       'art': `The AI art landscape is rapidly evolving with trends leaning towards ${keywords.slice(0, 2).join(' and ') || 'mixed-media styles'}. Current movements emphasize hybrid techniques, surreal compositions, and the integration of traditional art principles with digital innovation. Prompt engineering has become crucial for achieving specific artistic visions.`,
@@ -504,51 +2253,7 @@ class PromptContentGenerator {
   }
 
   static generateUsageTips(promptData) {
-    const category = promptData.category || 'general';
-    
-    const tips = {
-      'art': [
-        "Experiment with different art styles and mediums mentioned in the prompt",
-        "Adjust the --ar parameter for different aspect ratios in Midjourney",
-        "Use style references for more consistent results",
-        "Try varying the chaos parameter for more creative variations",
-        "Combine with other artistic prompts for hybrid styles"
-      ],
-      
-      'photography': [
-        "Specify camera types and lenses for different photographic effects",
-        "Use lighting terms like 'golden hour' or 'studio lighting'",
-        "Experiment with different film types and processing styles",
-        "Add compositional rules like 'rule of thirds' explicitly",
-        "Include depth of field requirements for focus control"
-      ],
-      
-      'design': [
-        "Specify color palettes and design systems explicitly",
-        "Include layout requirements and spatial relationships",
-        "Mention target audience and purpose for better context",
-        "Reference design styles or movements for consistency",
-        "Consider aspect ratios and scalability requirements"
-      ],
-      
-      'writing': [
-        "Set clear tone and voice parameters for consistent output",
-        "Specify target audience and knowledge level",
-        "Include length requirements and structural elements",
-        "Use examples or references for style matching",
-        "Define the purpose and call-to-action if applicable"
-      ],
-      
-      'general': [
-        "Be specific and detailed in your modifications",
-        "Test the prompt across different AI platforms",
-        "Keep a log of successful variations and parameters",
-        "Understand the limitations of each AI model",
-        "Iterate and refine based on initial results"
-      ]
-    };
-
-    return tips[category] || tips.general;
+    return AIPlatformContentGenerator.generateUsageTips(promptData);
   }
 
   static generateSEOTips(promptData) {
@@ -562,201 +2267,14 @@ class PromptContentGenerator {
   }
 }
 
-// ENHANCED AI Description Generator with 20+ MODELS
+// ENHANCED AI Description Generator - Now using the model classes
 class AIDescriptionGenerator {
   static generatePlatformIntroduction(promptData) {
-    const platforms = {
-      'midjourney': {
-        name: 'Midjourney',
-        year: '2025',
-        description: 'remains the leading platform for artistic and creative AI image generation with unparalleled stylistic control.',
-        strengths: ['artistic styles', 'creative compositions', 'stylistic consistency', 'community features']
-      },
-      'dalle': {
-        name: 'DALL-E 3',
-        year: '2025',
-        description: 'excels at understanding complex prompts and generating detailed, coherent images with excellent text integration.',
-        strengths: ['prompt comprehension', 'realistic rendering', 'complex scenes', 'text integration']
-      },
-      'gemini': {
-        name: 'Google Gemini AI',
-        year: '2025',
-        description: 'offers powerful multimodal capabilities with excellent understanding of contextual prompts.',
-        strengths: ['accessibility', 'real-time generation', 'multi-modal understanding', 'user-friendly interface']
-      },
-      'chatgpt': {
-        name: 'ChatGPT with DALL-E',
-        year: '2025',
-        description: 'combines conversational AI with image generation for iterative creative workflows.',
-        strengths: ['iterative refinement', 'context understanding', 'creative collaboration', 'rapid prototyping']
-      },
-      'stable-diffusion': {
-        name: 'Stable Diffusion',
-        year: '2025',
-        description: 'provides open-source flexibility with extensive customization options and local generation.',
-        strengths: ['custom models', 'local generation', 'fine-tuned control', 'community extensions']
-      },
-      'leonardo': {
-        name: 'Leonardo AI',
-        year: '2025',
-        description: 'specializes in professional-grade art generation with studio-quality outputs.',
-        strengths: ['professional quality', 'style consistency', 'commercial use', 'advanced controls']
-      },
-      'adobe-firefly': {
-        name: 'Adobe Firefly',
-        year: '2025',
-        description: 'integrates seamlessly with Creative Cloud for professional designers and artists.',
-        strengths: ['commercial safety', 'Adobe integration', 'professional tools', 'ethical generation']
-      },
-      'runway-ml': {
-        name: 'Runway ML',
-        year: '2025',
-        description: 'offers cutting-edge video and image generation tools for creative professionals.',
-        strengths: ['video generation', 'advanced editing', 'professional workflows', 'real-time generation']
-      },
-      'bluewillow': {
-        name: 'BlueWillow',
-        year: '2025',
-        description: 'provides free, accessible AI art generation with Discord integration.',
-        strengths: ['free access', 'Discord community', 'easy to use', 'rapid generation']
-      },
-      'playground-ai': {
-        name: 'Playground AI',
-        year: '2025',
-        description: 'offers intuitive controls and fine-tuning for creative exploration.',
-        strengths: ['fine-tuning', 'style mixing', 'intuitive interface', 'creative exploration']
-      },
-      'nightcafe': {
-        name: 'NightCafe Studio',
-        year: '2025',
-        description: 'features multiple AI algorithms and artistic styles in one platform.',
-        strengths: ['multiple algorithms', 'artistic styles', 'community features', 'daily challenges']
-      },
-      'clipdrop': {
-        name: 'ClipDrop',
-        year: '2025',
-        description: 'specializes in real-world integration and practical AI image tools.',
-        strengths: ['real-world integration', 'practical tools', 'mobile support', 'AR features']
-      },
-      'craiyon': {
-        name: 'Craiyon',
-        year: '2025',
-        description: 'provides free, accessible AI image generation with a simple interface.',
-        strengths: ['completely free', 'simple interface', 'no signup required', 'quick results']
-      },
-      'dreamstudio': {
-        name: 'DreamStudio',
-        year: '2025',
-        description: 'offers Stable Diffusion with professional controls and fine-tuning.',
-        strengths: ['professional controls', 'fine-tuning', 'API access', 'commercial use']
-      },
-      'getimg-ai': {
-        name: 'GetImg.ai',
-        year: '2025',
-        description: 'provides multiple AI models and inpainting/outpainting capabilities.',
-        strengths: ['multiple models', 'inpainting', 'outpainting', 'custom training']
-      },
-      'bing-image-creator': {
-        name: 'Bing Image Creator',
-        year: '2025',
-        description: 'integrates DALL-E with Microsoft ecosystem for accessible generation.',
-        strengths: ['free credits', 'Microsoft integration', 'easy access', 'daily boosts']
-      },
-      'wombo-dream': {
-        name: 'Wombo Dream',
-        year: '2025',
-        description: 'offers mobile-first AI art generation with artistic style filters.',
-        strengths: ['mobile app', 'style filters', 'quick generation', 'social sharing']
-      },
-      'starryai': {
-        name: 'StarryAI',
-        year: '2025',
-        description: 'provides NFT-focused AI art generation with ownership rights.',
-        strengths: ['NFT focused', 'ownership rights', 'art styles', 'mobile app']
-      },
-      'fotor': {
-        name: 'Fotor AI',
-        year: '2025',
-        description: 'combines AI image generation with photo editing tools.',
-        strengths: ['photo editing', 'AI tools', 'templates', 'easy to use']
-      },
-      'picsart': {
-        name: 'Picsart AI',
-        year: '2025',
-        description: 'integrates AI generation with comprehensive editing tools.',
-        strengths: ['editing tools', 'social features', 'filters', 'collage maker']
-      }
-    };
-
-    const category = promptData.category || 'general';
-    const platform = platforms[this.detectPlatform(promptData)] || platforms.gemini;
-    
-    return `${platform.name} ${platform.description} Whether you want ${this.getCategoryBenefits(category)}, ${platform.name}'s innovative prompts enable you to control ${this.getControlAspects(category)} with AI-powered precision.`;
+    return AIPlatformContentGenerator.generatePlatformIntroduction(promptData);
   }
 
   static detectPlatform(promptData) {
-    const promptText = (promptData.promptText || '').toLowerCase();
-    const keywords = promptData.keywords || [];
-    const category = promptData.category || 'general';
-    
-    // Check for platform-specific keywords in prompt
-    if (promptText.includes('midjourney') || promptText.includes('--')) {
-      return 'midjourney';
-    } else if (promptText.includes('dall-e') || promptText.includes('dalle') || promptText.includes('openai')) {
-      return 'dalle';
-    } else if (promptText.includes('gemini') || keywords.includes('google') || promptText.includes('bard')) {
-      return 'gemini';
-    } else if (promptText.includes('chatgpt') || promptText.includes('gpt-4')) {
-      return 'chatgpt';
-    } else if (promptText.includes('stable diffusion') || promptText.includes('sd') || promptText.includes('huggingface')) {
-      return 'stable-diffusion';
-    } else if (promptText.includes('leonardo') || keywords.includes('leonardo') || category === 'professional-art') {
-      return 'leonardo';
-    } else if (promptText.includes('adobe') || promptText.includes('firefly') || keywords.includes('photoshop')) {
-      return 'adobe-firefly';
-    } else if (promptText.includes('runway') || keywords.includes('runway') || promptText.includes('gen-2')) {
-      return 'runway-ml';
-    } else if (promptText.includes('bluewillow') || keywords.includes('bluewillow')) {
-      return 'bluewillow';
-    } else if (promptText.includes('playground') || keywords.includes('playground')) {
-      return 'playground-ai';
-    } else if (promptText.includes('nightcafe') || keywords.includes('nightcafe')) {
-      return 'nightcafe';
-    } else if (promptText.includes('clipdrop') || keywords.includes('clipdrop')) {
-      return 'clipdrop';
-    } else if (promptText.includes('craiyon') || keywords.includes('craiyon') || promptText.includes('dall-e mini')) {
-      return 'craiyon';
-    } else if (promptText.includes('dreamstudio') || keywords.includes('dreamstudio')) {
-      return 'dreamstudio';
-    } else if (promptText.includes('getimg') || keywords.includes('getimg')) {
-      return 'getimg-ai';
-    } else if (promptText.includes('bing') || keywords.includes('microsoft')) {
-      return 'bing-image-creator';
-    } else if (promptText.includes('wombo') || keywords.includes('wombo')) {
-      return 'wombo-dream';
-    } else if (promptText.includes('starryai') || keywords.includes('starryai')) {
-      return 'starryai';
-    } else if (promptText.includes('fotor') || keywords.includes('fotor')) {
-      return 'fotor';
-    } else if (promptText.includes('picsart') || keywords.includes('picsart')) {
-      return 'picsart';
-    }
-    
-    // Default based on category
-    const categoryPlatforms = {
-      'art': 'midjourney',
-      'photography': 'dalle',
-      'design': 'adobe-firefly',
-      'writing': 'chatgpt',
-      'professional': 'leonardo',
-      'video': 'runway-ml',
-      'mobile': 'wombo-dream',
-      'free': 'craiyon',
-      'commercial': 'adobe-firefly',
-      'general': 'gemini'
-    };
-    
-    return categoryPlatforms[category] || 'gemini';
+    return AIModelManager.detectPlatform(promptData);
   }
 
   static getCategoryBenefits(category) {
@@ -765,6 +2283,7 @@ class AIDescriptionGenerator {
       'photography': 'professional-grade photography, realistic portraits, or cinematic scenes',
       'design': 'visually appealing designs, professional layouts, or brand assets',
       'writing': 'engaging content, professional copy, or creative storytelling',
+      'video': 'viral-worthy video reels, dynamic motion graphics, or cinematic sequences',
       'general': 'high-quality outputs, creative solutions, or professional results'
     };
     
@@ -777,6 +2296,7 @@ class AIDescriptionGenerator {
       'photography': 'lighting, composition, camera settings, and mood',
       'design': 'layout, color theory, typography, and visual hierarchy',
       'writing': 'tone, style, structure, and content flow',
+      'video': 'motion, pacing, transitions, camera movements, and duration',
       'general': 'every aspect of your creative vision with precision'
     };
     
@@ -785,54 +2305,40 @@ class AIDescriptionGenerator {
 
   static generateTargetAudience(promptData) {
     const category = promptData.category || 'general';
-    const platform = this.detectPlatform(promptData);
+    const isVideo = promptData.fileType === 'video' || promptData.videoUrl || category === 'video';
+    const platformId = this.detectPlatform(promptData);
     
+    if (isVideo) {
+      const platform = AIModelManager.getVideoModelInfo(platformId);
+      return `This video creation prompt is tailored for content creators, social media managers, videographers, and digital marketers who want to leverage ${platform.name}'s ${platform.strengths[0] || 'advanced'} capabilities to create stunning video content efficiently.`;
+    } else {
+      const platform = AIModelManager.getPhotoModelInfo(platformId);
+      return `This curated collection of prompts is tailored for ${this.getAudienceForCategory(category)} who want to leverage ${platform.name}'s ${platform.strengths[0] || 'powerful'} capabilities.`;
+    }
+  }
+  
+  static getAudienceForCategory(category) {
     const audiences = {
       'art': 'artists, designers, and creative professionals',
       'photography': 'photographers, content creators, and visual storytellers',
       'design': 'graphic designers, marketers, and brand managers',
       'writing': 'writers, marketers, and content strategists',
+      'video': 'content creators, social media managers, and videographers',
       'general': 'creators, professionals, and AI enthusiasts'
     };
     
-    const purposes = {
-      'art': 'experiment with artistic styles, build portfolios, and create unique visual content',
-      'photography': 'enhance photographic skills, create professional portfolios, and produce stunning visual content',
-      'design': 'develop brand assets, create marketing materials, and design professional layouts',
-      'writing': 'craft compelling content, develop writing skills, and produce professional copy',
-      'general': 'explore creative possibilities, enhance professional work, and stay ahead of AI trends'
-    };
-    
-    const platformNames = {
-      'midjourney': 'Midjourney',
-      'dalle': 'DALL-E 3',
-      'gemini': 'Gemini AI',
-      'chatgpt': 'ChatGPT',
-      'stable-diffusion': 'Stable Diffusion',
-      'leonardo': 'Leonardo AI',
-      'adobe-firefly': 'Adobe Firefly',
-      'runway-ml': 'Runway ML',
-      'bluewillow': 'BlueWillow',
-      'playground-ai': 'Playground AI',
-      'nightcafe': 'NightCafe Studio',
-      'clipdrop': 'ClipDrop',
-      'craiyon': 'Craiyon',
-      'dreamstudio': 'DreamStudio',
-      'getimg-ai': 'GetImg.ai',
-      'bing-image-creator': 'Bing Image Creator',
-      'wombo-dream': 'Wombo Dream',
-      'starryai': 'StarryAI',
-      'fotor': 'Fotor AI',
-      'picsart': 'Picsart AI'
-    };
-    
-    return `This curated collection of prompts is tailored for ${audiences[category]} who want more than just basic AI generation; it's for those eager to ${purposes[category]} using ${platformNames[platform]}'s advanced capabilities.`;
+    return audiences[category] || audiences.general;
   }
 
   static generateTrendContext(promptData) {
     const category = promptData.category || 'general';
     const keywords = promptData.keywords || [];
     const trendingTerms = keywords.slice(0, 3).join(', ');
+    const isVideo = promptData.fileType === 'video' || promptData.videoUrl || category === 'video';
+    
+    if (isVideo) {
+      return `These video prompts leverage the latest short-form content trends like ${trendingTerms || 'dynamic transitions and viral effects'}, optimized for platforms like TikTok, Instagram Reels, and YouTube Shorts.`;
+    }
     
     const trends = {
       'art': `Each prompt combines trending aesthetics like ${trendingTerms || 'contemporary digital art styles'}, from innovative artistic movements to classic techniques reimagined for the digital age.`,
@@ -846,427 +2352,36 @@ class AIDescriptionGenerator {
   }
 
   static generatePlatformCapabilities(promptData) {
-    const platform = this.detectPlatform(promptData);
-    const category = promptData.category || 'general';
+    const isVideo = promptData.fileType === 'video' || promptData.videoUrl || promptData.category === 'video';
+    const platformId = this.detectPlatform(promptData);
     
-    const capabilities = {
-      'midjourney': `Midjourney's artistic engine transforms concepts into gallery-worthy artworks with exceptional creativity, style, and technical excellence.`,
-      'dalle': `DALL-E 3's sophisticated understanding capabilities turn descriptions into photorealistic images with exceptional detail and coherence.`,
-      'gemini': `Gemini AI's powerful multimodal engine creates professional-quality outputs that reflect precision, style, and modern aesthetics.`,
-      'stable-diffusion': `Stable Diffusion's open-source flexibility allows for customized results with unique styles and specific artistic control.`,
-      'leonardo': `Leonardo AI's professional-grade tools transform concepts into studio-quality productions with commercial-ready polish.`,
-      'adobe-firefly': `Adobe Firefly's ethical training and Creative Cloud integration provide safe, professional tools for commercial work.`,
-      'runway-ml': `Runway ML's advanced video and image generation tools enable cutting-edge creative workflows for professionals.`,
-      'bluewillow': `BlueWillow's Discord-based platform offers accessible, community-driven AI art generation for everyone.`,
-      'playground-ai': `Playground AI's intuitive interface allows for fine-tuning and creative exploration with multiple models.`,
-      'nightcafe': `NightCafe Studio combines multiple AI algorithms with artistic styles for diverse creative possibilities.`,
-      'clipdrop': `ClipDrop's practical tools integrate AI with real-world applications for mobile and desktop use.`,
-      'craiyon': `Craiyon provides completely free, accessible AI image generation with a simple, no-signup interface.`,
-      'dreamstudio': `DreamStudio offers professional Stable Diffusion controls with API access for developers.`,
-      'getimg-ai': `GetImg.ai provides multiple AI models with advanced features like inpainting and custom training.`,
-      'bing-image-creator': `Bing Image Creator brings DALL-E capabilities to the Microsoft ecosystem with free daily credits.`,
-      'wombo-dream': `Wombo Dream delivers mobile-first AI art generation with artistic filters and social sharing.`,
-      'starryai': `StarryAI focuses on NFT creation with ownership rights and mobile accessibility.`,
-      'fotor': `Fotor AI combines generation with comprehensive photo editing tools for complete workflows.`,
-      'picsart': `Picsart AI integrates generation with social media editing tools for content creators.`
-    };
-
-    return capabilities[platform] || capabilities.gemini;
+    if (isVideo) {
+      const platform = AIModelManager.getVideoModelInfo(platformId);
+      return `${platform.name}'s ${platform.category} capabilities deliver ${platform.strengths.join(', ')} for professional-quality video content.`;
+    } else {
+      const platform = AIModelManager.getPhotoModelInfo(platformId);
+      return `${platform.name}'s ${platform.category} engine creates ${platform.strengths.join(', ')} outputs with exceptional quality and consistency.`;
+    }
   }
 
   static generatePlatformComparison(promptData) {
-    const primaryPlatform = this.detectPlatform(promptData);
-    const category = promptData.category || 'general';
-    
-    const allPlatforms = {
-      'midjourney': { bestFor: 'Artistic creations, fantasy art, creative exploration', price: 'Paid subscription', complexity: 'Medium', quality: 'Excellent' },
-      'dalle': { bestFor: 'Realistic images, detailed scenes, text integration', price: 'Credits system', complexity: 'Low', quality: 'Excellent' },
-      'gemini': { bestFor: 'Research-based images, contextual understanding, free access', price: 'Free/Paid tiers', complexity: 'Low', quality: 'Very Good' },
-      'stable-diffusion': { bestFor: 'Custom models, local generation, advanced control', price: 'Free/Paid', complexity: 'High', quality: 'Good to Excellent' },
-      'leonardo': { bestFor: 'Professional art, commercial projects, style consistency', price: 'Token system', complexity: 'Medium', quality: 'Excellent' },
-      'adobe-firefly': { bestFor: 'Commercial work, Adobe integration, ethical generation', price: 'Adobe subscription', complexity: 'Medium', quality: 'Excellent' },
-      'runway-ml': { bestFor: 'Video generation, professional workflows, advanced editing', price: 'Subscription', complexity: 'Medium-High', quality: 'Excellent' },
-      'bluewillow': { bestFor: 'Free art generation, Discord community, rapid testing', price: 'Free', complexity: 'Low', quality: 'Good' },
-      'playground-ai': { bestFor: 'Fine-tuning, style mixing, creative exploration', price: 'Free/Paid', complexity: 'Medium', quality: 'Very Good' },
-      'nightcafe': { bestFor: 'Artistic styles, community challenges, multiple algorithms', price: 'Credit system', complexity: 'Low', quality: 'Good' },
-      'clipdrop': { bestFor: 'Real-world integration, practical tools, mobile use', price: 'Free/Paid', complexity: 'Low', quality: 'Good' },
-      'craiyon': { bestFor: 'Quick testing, free access, simple prompts', price: 'Free', complexity: 'Very Low', quality: 'Basic' },
-      'dreamstudio': { bestFor: 'Stable Diffusion with controls, API access', price: 'Credit system', complexity: 'Medium', quality: 'Very Good' },
-      'getimg-ai': { bestFor: 'Multiple models, inpainting, custom training', price: 'Credit system', complexity: 'Medium', quality: 'Very Good' },
-      'bing-image-creator': { bestFor: 'Free DALL-E access, Microsoft ecosystem', price: 'Free with limits', complexity: 'Low', quality: 'Very Good' },
-      'wombo-dream': { bestFor: 'Mobile generation, artistic filters, social sharing', price: 'Free/Paid', complexity: 'Low', quality: 'Good' },
-      'starryai': { bestFor: 'NFT creation, ownership rights, mobile app', price: 'Token system', complexity: 'Low', quality: 'Good' },
-      'fotor': { bestFor: 'Photo editing with AI, templates, easy workflow', price: 'Free/Paid', complexity: 'Low', quality: 'Good' },
-      'picsart': { bestFor: 'Social media content, editing tools, AI filters', price: 'Free/Paired', complexity: 'Low', quality: 'Good' }
-    };
-
-    // Get top 5 platforms for this category
-    const categoryPlatforms = {
-      'art': ['midjourney', 'leonardo', 'stable-diffusion', 'nightcafe', 'playground-ai'],
-      'photography': ['dalle', 'adobe-firefly', 'stable-diffusion', 'clipdrop', 'fotor'],
-      'design': ['adobe-firefly', 'midjourney', 'runway-ml', 'getimg-ai', 'picsart'],
-      'professional': ['leonardo', 'adobe-firefly', 'runway-ml', 'stable-diffusion', 'dreamstudio'],
-      'free': ['craiyon', 'bluewillow', 'bing-image-creator', 'playground-ai', 'getimg-ai'],
-      'mobile': ['wombo-dream', 'starryai', 'picsart', 'clipdrop', 'fotor'],
-      'video': ['runway-ml', 'picsart', 'stable-diffusion', 'getimg-ai'],
-      'general': ['gemini', 'dalle', 'midjourney', 'stable-diffusion', 'playground-ai']
-    };
-
-    const platformsToCompare = categoryPlatforms[category] || categoryPlatforms.general;
-    
-    const comparisonHTML = platformsToCompare.map(platformId => {
-      const platform = allPlatforms[platformId];
-      if (!platform) return '';
-      
-      const isPrimary = platformId === primaryPlatform;
-      return `
-        <tr class="${isPrimary ? 'primary-platform' : ''}">
-          <td><strong>${platformId.charAt(0).toUpperCase() + platformId.slice(1)}</strong>${isPrimary ? ' <span class="primary-badge">Recommended</span>' : ''}</td>
-          <td>${platform.bestFor}</td>
-          <td><span class="price-tag ${platform.price === 'Free' ? 'price-free' : 'price-paid'}">${platform.price}</span></td>
-          <td><span class="complexity ${platform.complexity.toLowerCase()}">${platform.complexity}</span></td>
-          <td><span class="quality ${platform.quality.toLowerCase().replace(' ', '-')}">${platform.quality}</span></td>
-        </tr>
-      `;
-    }).join('');
-
-    return `
-    <div class="platform-comparison">
-      <h3><i class="fas fa-balance-scale"></i> AI Platform Comparison</h3>
-      <p>Different AI image generators excel at different tasks. Here's how the top platforms compare for ${category} generation:</p>
-      <div class="comparison-table-container">
-        <table class="platform-comparison-table">
-          <thead>
-            <tr>
-              <th>Platform</th>
-              <th>Best For</th>
-              <th>Price</th>
-              <th>Complexity</th>
-              <th>Quality</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${comparisonHTML}
-          </tbody>
-        </table>
-      </div>
-      <div class="comparison-tips">
-        <p><strong>Tips for choosing:</strong></p>
-        <ul>
-          <li><strong>For beginners:</strong> Try Craiyon, BlueWillow, or Bing Image Creator</li>
-          <li><strong>For professionals:</strong> Consider Leonardo AI, Adobe Firefly, or Runway ML</li>
-          <li><strong>For custom work:</strong> Stable Diffusion offers the most control</li>
-          <li><strong>For mobile:</strong> Wombo Dream and StarryAI have excellent apps</li>
-        </ul>
-      </div>
-    </div>
-    `;
+    return AIPlatformContentGenerator.generatePlatformComparison(promptData);
   }
 
   static generateBestAITools(promptData) {
-    const category = promptData.category || 'general';
-    const primaryPlatform = this.detectPlatform(promptData);
-    
-    const allTools = {
-      'midjourney': { name: "Midjourney", description: "Leading platform for artistic and creative imagery with strong stylistic control", category: ['art', 'creative', 'fantasy'], rating: 5 },
-      'dalle': { name: "DALL-E 3", description: "Excellent for realistic images, complex scenes, and text integration", category: ['realistic', 'photography', 'detailed'], rating: 5 },
-      'gemini': { name: "Google Gemini AI", description: "Powerful multimodal AI with excellent contextual understanding", category: ['research', 'contextual', 'free'], rating: 4 },
-      'stable-diffusion': { name: "Stable Diffusion", description: "Open-source flexibility with extensive customization and local generation", category: ['custom', 'technical', 'open-source'], rating: 4 },
-      'leonardo': { name: "Leonardo AI", description: "Professional-grade art generation with studio-quality outputs", category: ['professional', 'art', 'commercial'], rating: 5 },
-      'adobe-firefly': { name: "Adobe Firefly", description: "Seamless Creative Cloud integration for professional designers", category: ['commercial', 'design', 'professional'], rating: 5 },
-      'runway-ml': { name: "Runway ML", description: "Cutting-edge video and image generation for creative professionals", category: ['video', 'professional', 'advanced'], rating: 5 },
-      'bluewillow': { name: "BlueWillow", description: "Free Discord-based AI art generation with community support", category: ['free', 'community', 'discord'], rating: 3 },
-      'playground-ai': { name: "Playground AI", description: "Intuitive controls and fine-tuning for creative exploration", category: ['creative', 'fine-tuning', 'easy'], rating: 4 },
-      'nightcafe': { name: "NightCafe Studio", description: "Multiple AI algorithms and artistic styles in one platform", category: ['artistic', 'styles', 'community'], rating: 4 },
-      'clipdrop': { name: "ClipDrop", description: "Real-world integration and practical AI image tools", category: ['practical', 'mobile', 'real-world'], rating: 4 },
-      'craiyon': { name: "Craiyon", description: "Completely free AI image generation with simple interface", category: ['free', 'simple', 'quick'], rating: 3 },
-      'dreamstudio': { name: "DreamStudio", description: "Stable Diffusion with professional controls and API access", category: ['professional', 'stable-diffusion', 'api'], rating: 4 },
-      'getimg-ai': { name: "GetImg.ai", description: "Multiple AI models with inpainting and custom training", category: ['versatile', 'inpainting', 'custom'], rating: 4 },
-      'bing-image-creator': { name: "Bing Image Creator", description: "Free DALL-E access through Microsoft ecosystem", category: ['free', 'microsoft', 'accessible'], rating: 4 },
-      'wombo-dream': { name: "Wombo Dream", description: "Mobile-first AI art with artistic style filters", category: ['mobile', 'artistic', 'social'], rating: 4 },
-      'starryai': { name: "StarryAI", description: "NFT-focused AI art generation with ownership rights", category: ['nft', 'mobile', 'ownership'], rating: 3 },
-      'fotor': { name: "Fotor AI", description: "AI image generation combined with photo editing tools", category: ['editing', 'templates', 'easy'], rating: 4 },
-      'picsart': { name: "Picsart AI", description: "Comprehensive editing tools with AI generation features", category: ['social', 'editing', 'filters'], rating: 4 }
-    };
-
-    // Get tools relevant to this category
-    const categoryTools = {
-      'art': ['midjourney', 'leonardo', 'stable-diffusion', 'nightcafe', 'playground-ai', 'wombo-dream'],
-      'photography': ['dalle', 'adobe-firefly', 'stable-diffusion', 'clipdrop', 'fotor', 'getimg-ai'],
-      'design': ['adobe-firefly', 'midjourney', 'runway-ml', 'getimg-ai', 'picsart', 'playground-ai'],
-      'professional': ['leonardo', 'adobe-firefly', 'runway-ml', 'stable-diffusion', 'dreamstudio', 'getimg-ai'],
-      'free': ['craiyon', 'bluewillow', 'bing-image-creator', 'playground-ai', 'getimg-ai', 'stable-diffusion'],
-      'mobile': ['wombo-dream', 'starryai', 'picsart', 'clipdrop', 'fotor', 'bing-image-creator'],
-      'video': ['runway-ml', 'picsart', 'stable-diffusion', 'getimg-ai', 'adobe-firefly'],
-      'general': ['gemini', 'dalle', 'midjourney', 'stable-diffusion', 'playground-ai', 'getimg-ai']
-    };
-
-    const relevantTools = categoryTools[category] || categoryTools.general;
-    
-    // Ensure primary platform is included
-    if (!relevantTools.includes(primaryPlatform)) {
-      relevantTools.unshift(primaryPlatform);
-    }
-
-    // Return top 6 tools
-    return relevantTools.slice(0, 6).map(toolId => {
-      const tool = allTools[toolId];
-      if (!tool) return null;
-      
-      return {
-        name: tool.name,
-        description: tool.description,
-        rating: tool.rating,
-        category: tool.category,
-        isPrimary: toolId === primaryPlatform
-      };
-    }).filter(tool => tool !== null);
+    return AIPlatformContentGenerator.generateBestAITools(promptData);
   }
 
   static generateModelSpecificTips() {
-    return `
-    <div class="model-specific-tips">
-      <h4><i class="fas fa-microchip"></i> Model-Specific Optimization</h4>
-      <div class="model-tips-grid">
-        <div class="model-tip">
-          <h5><i class="fab fa-discord"></i> Midjourney</h5>
-          <ul>
-            <li>Use <code>--ar 16:9</code> for widescreen, <code>--ar 9:16</code> for mobile</li>
-            <li><code>--style raw</code> for less opinionated, <code>--style expressive</code> for artistic</li>
-            <li><code>--chaos 0-100</code> controls variation (higher = more diverse)</li>
-            <li><code>--stylize 100-1000</code> adjusts artistic interpretation</li>
-          </ul>
-        </div>
-        <div class="model-tip">
-          <h5><i class="fas fa-robot"></i> Stable Diffusion</h5>
-          <ul>
-            <li>CFG Scale: 7-12 (balance between creativity and prompt adherence)</li>
-            <li>Sampling Steps: 20-50 (higher = more detailed but slower)</li>
-            <li>Negative prompts: Essential for removing unwanted elements</li>
-            <li>Use <code>(keyword:1.3)</code> for emphasis, <code>[keyword]</code> for de-emphasis</li>
-          </ul>
-        </div>
-        <div class="model-tip">
-          <h5><i class="fab fa-google"></i> Google Gemini</h5>
-          <ul>
-            <li>Use natural, conversational language</li>
-            <li>Include context and background information</li>
-            <li>Ask for multiple variations in one request</li>
-            <li>Use follow-up questions for refinements</li>
-          </ul>
-        </div>
-        <div class="model-tip">
-          <h5><i class="fab fa-adobe"></i> Adobe Firefly</h5>
-          <ul>
-            <li>Specify commercial-safe content requirements</li>
-            <li>Use Adobe Stock references for consistency</li>
-            <li>Integrate with Creative Cloud workflows</li>
-            <li>Use style presets for quick professional results</li>
-          </ul>
-        </div>
-      </div>
-    </div>
-    `;
+    return AIPlatformContentGenerator.generateModelSpecificTips();
   }
 
   static generateStepByStepGuide(promptData) {
-    const platform = this.detectPlatform(promptData);
-    const category = promptData.category || 'general';
-    
-    const platformAccess = {
-      'midjourney': 'Access Midjourney through Discord (join the Midjourney server) or use the web interface at midjourney.com.',
-      'dalle': 'Access DALL-E 3 through ChatGPT Plus subscription or directly via the OpenAI platform.',
-      'gemini': 'Access Google Gemini AI through gemini.google.com or the Google AI Studio.',
-      'stable-diffusion': 'Use web interfaces like DreamStudio, Automatic1111 WebUI, or install locally with Stable Diffusion WebUI.',
-      'leonardo': 'Access Leonardo AI through leonardo.ai web platform with account registration.',
-      'adobe-firefly': 'Access through Adobe Creative Cloud apps or firefly.adobe.com with Adobe subscription.',
-      'runway-ml': 'Use runwayml.com with account registration for both web and desktop applications.',
-      'bluewillow': 'Join the BlueWillow Discord server through their official website.',
-      'playground-ai': 'Access at playgroundai.com with free account registration.',
-      'nightcafe': 'Use nightcafe.studio with account creation for credit-based generation.',
-      'clipdrop': 'Access through clipdrop.co website or mobile apps available on iOS and Android.',
-      'craiyon': 'Use craiyon.com directly in your browser - no account required.',
-      'dreamstudio': 'Access through beta.dreamstudio.ai with Stability AI account.',
-      'getimg-ai': 'Use getimg.ai with account registration for multiple AI models.',
-      'bing-image-creator': 'Access through bing.com/create with Microsoft account.',
-      'wombo-dream': 'Download the Dream app from app stores or use on web at wombo.art.',
-      'starryai': 'Download StarryAI app from app stores or use web version.',
-      'fotor': 'Use fotor.com or download Fotor app for combined editing and generation.',
-      'picsart': 'Use picsart.com or download Picsart app for social media content creation.'
-    };
-    
-    const inputPreparation = {
-      'art': 'Start with a clear concept or reference image. Consider the artistic style, composition, and mood you want to achieve.',
-      'photography': 'Upload your photo on respective AI . Ensure you have specific lighting, composition, and style requirements in mind.',
-      'design': 'Prepare your design brief with specific requirements for layout, branding elements, and visual hierarchy considerations.',
-      'writing': 'Define your content goals, target audience, and desired tone before starting the generation process.',
-      'general': 'Have a clear objective and specific requirements in mind to guide the AI generation process effectively.'
-    };
-    
-    const promptUsage = {
-      'midjourney': `In Discord, type "/imagine" followed by: "${promptData.promptText?.substring(0, 100) || 'your prompt here'}". Add parameters like --ar for aspect ratio or --style for different artistic approaches.`,
-      'dalle': `Enter your prompt in the generation field: "${promptData.promptText?.substring(0, 100) || 'your detailed description here'}". Use natural language and be specific about details.`,
-      'gemini': `Input directly: "${promptData.promptText?.substring(0, 100) || 'your prompt here'}". Gemini understands context well, so include relevant details.`,
-      'stable-diffusion': `Use prompt: "${promptData.promptText?.substring(0, 100) || 'your specific prompt here'}". Add negative prompts and adjust CFG scale, steps for control.`,
-      'leonardo': `Input: "${promptData.promptText?.substring(0, 100) || 'your professional prompt here'}". Select appropriate models and adjust generation parameters.`,
-      'adobe-firefly': `Use: "${promptData.promptText?.substring(0, 100) || 'your design prompt here'}". Integrate with Photoshop or other Adobe tools for editing.`,
-      'runway-ml': `Input: "${promptData.promptText?.substring(0, 100) || 'your creative prompt here'}". Use video generation tools for motion content.`,
-      'bluewillow': `In Discord, use: "${promptData.promptText?.substring(0, 100) || 'your prompt here'}". Simple commands with basic parameters.`,
-      'playground-ai': `Enter: "${promptData.promptText?.substring(0, 100) || 'your exploration prompt here'}". Use filters and style mixing options.`,
-      'nightcafe': `Input: "${promptData.promptText?.substring(0, 100) || 'your artistic prompt here'}". Choose from multiple AI algorithms.`,
-      'clipdrop': `Use: "${promptData.promptText?.substring(0, 100) || 'your practical prompt here'}". Great for real-world object generation.`,
-      'craiyon': `Simple input: "${promptData.promptText?.substring(0, 100) || 'your basic prompt here'}". No complicated parameters needed.`,
-      'dreamstudio': `Enter: "${promptData.promptText?.substring(0, 100) || 'your stable diffusion prompt here'}". Adjust sampler, steps, and guidance.`,
-      'getimg-ai': `Use: "${promptData.promptText?.substring(0, 100) || 'your versatile prompt here'}". Switch between different AI models.`,
-      'bing-image-creator': `Input: "${promptData.promptText?.substring(0, 100) || 'your DALL-E prompt here'}". Uses daily boost credits for faster generation.`,
-      'wombo-dream': `Enter: "${promptData.promptText?.substring(0, 100) || 'your mobile prompt here'}". Choose from artistic style filters.`,
-      'starryai': `Use: "${promptData.promptText?.substring(0, 100) || 'your NFT prompt here'}". Specify style and aspect ratio.`,
-      'fotor': `Input: "${promptData.promptText?.substring(0, 100) || 'your editing prompt here'}". Combine with photo editing tools.`,
-      'picsart': `Enter: "${promptData.promptText?.substring(0, 100) || 'your social media prompt here'}". Use with filters and editing features.`
-    };
-    
-    const customizationTips = {
-      'midjourney': 'Use --ar for aspect ratios, --style for different artistic approaches, --chaos for variation, --quality for detail level.',
-      'dalle': 'Specify style, quality, and specific details in natural language. Use "in the style of" for artistic references.',
-      'gemini': 'Be specific about context and desired outcome. Include relevant details about composition, lighting, and style.',
-      'stable-diffusion': 'Use negative prompts to exclude elements, adjust CFG scale (7-12), steps (20-50), and samplers (Euler, DPM).',
-      'leonardo': 'Select appropriate model (Leonardo Diffusion, Leonardo Creative), adjust guidance scale, and use element weights.',
-      'adobe-firefly': 'Use content type filters, aspect ratio settings, and style presets. Integrate with Adobe Stock references.',
-      'runway-ml': 'Use motion brush for video, adjust frame consistency, and apply style transfers for unique looks.',
-      'bluewillow': 'Simple parameters like aspect ratio and style. Best for straightforward generation.',
-      'playground-ai': 'Mix filters, adjust prompt guidance, and use image-to-image for consistency.',
-      'nightcafe': 'Choose between VQGAN, CLIP, Stable Diffusion algorithms. Use style transfers and upscaling.',
-      'clipdrop': 'Use background removal, object replacement, and real-world integration tools.',
-      'craiyon': 'Keep prompts simple and descriptive. No advanced parameters available.',
-      'dreamstudio': 'Adjust sampler settings, use negative prompts, and control image dimensions precisely.',
-      'getimg-ai': 'Switch between models, use inpainting/outpainting tools, and train custom models.',
-      'bing-image-creator': 'Use natural language, specify artistic styles, and utilize daily boost credits wisely.',
-      'wombo-dream': 'Apply artistic filters (Synthwave, Steampunk, etc.), adjust creativity level.',
-      'starryai': 'Choose art styles, specify NFT parameters, and adjust generation settings.',
-      'fotor': 'Combine with editing tools like cropping, filters, and effects for complete workflow.',
-      'picsart': 'Use with social media templates, apply filters, and add text/graphics.'
-    };
-    
-    const generationProcess = {
-      'midjourney': 'Click generate and wait for the initial results. Use the U buttons to upscale specific variations or V buttons to create new variations based on your favorites.',
-      'dalle': 'Click the generate button and review the created images. You can request variations or make specific edits to the generated content.',
-      'gemini': 'Initiate generation and monitor progress. The platform will provide multiple options that you can refine or regenerate as needed.',
-      'chatgpt': 'Send your prompt and wait for the AI to process your request. You can ask for modifications or clarifications in subsequent messages.',
-      'stable-diffusion': 'Start the generation process and monitor progress through the interface. You can interrupt and restart with different parameters.',
-      'leonardo': 'Launch the generation and track progress. Use advanced tools to make real-time adjustments and refinements.',
-      'adobe-firefly': 'Generate and refine within Adobe apps. Use generative fill and other tools for seamless integration.',
-      'runway-ml': 'Generate and use timeline editing for video. Apply effects and transitions for professional results.',
-      'bluewillow': 'Simple generation in Discord. Request variations with basic commands.',
-      'playground-ai': 'Generate and use filters. Mix styles and adjust parameters for creative exploration.',
-      'nightcafe': 'Generate and participate in community challenges. Use different algorithms for varied results.',
-      'clipdrop': 'Generate with practical applications. Use mobile features for on-the-go creation.',
-      'craiyon': 'Quick generation with simple interface. No complex controls needed.',
-      'dreamstudio': 'Generate with professional controls. Use API for automated workflows.',
-      'getimg-ai': 'Generate with multiple models. Use advanced features like inpainting.',
-      'bing-image-creator': 'Generate with daily boost credits. Simple interface for quick results.',
-      'wombo-dream': 'Generate on mobile with artistic filters. Share directly to social media.',
-      'starryai': 'Generate NFT-ready art. Mobile-friendly with ownership features.',
-      'fotor': 'Generate and edit in one workflow. Use templates for professional results.',
-      'picsart': 'Generate social media content. Edit with comprehensive toolset.'
-    };
-    
-    const finalization = {
-      'midjourney': 'Download your preferred result in your chosen resolution. Use Max Upscale for the highest quality output suitable for professional use.',
-      'dalle': 'Select your preferred output and download in high resolution. The platform offers different quality settings for various use cases.',
-      'gemini': 'Choose the best result and export in your desired format and resolution. The platform provides options for different applications and platforms.',
-      'chatgpt': 'Save your final result in the appropriate format. You can continue refining through conversation until you achieve the perfect outcome.',
-      'stable-diffusion': 'Save your generated image and consider post-processing if needed. The open-source nature allows for extensive customization and editing.',
-      'leonardo': 'Export your final creation in professional formats. The platform offers commercial-grade outputs ready for various applications.',
-      'adobe-firefly': 'Export directly to Creative Cloud apps. Use professional formats for commercial work.',
-      'runway-ml': 'Export in video formats. Use professional codecs for production work.',
-      'bluewillow': 'Download basic formats. Simple export for casual use.',
-      'playground-ai': 'Export with editing options. Multiple formats available.',
-      'nightcafe': 'Download and share. Community features for engagement.',
-      'clipdrop': 'Export for practical use. Mobile-optimized formats.',
-      'craiyon': 'Simple download. Basic formats for quick sharing.',
-      'dreamstudio': 'Export professional formats. API integration available.',
-      'getimg-ai': 'Export with advanced options. Custom training support.',
-      'bing-image-creator': 'Download with Microsoft integration. Cloud storage options.',
-      'wombo-dream': 'Share directly to social media. Mobile-optimized exports.',
-      'starryai': 'Export NFT-ready files. Mobile sharing features.',
-      'fotor': 'Export with editing. Professional templates included.',
-      'picsart': 'Export for social media. Comprehensive sharing options.'
-    };
-    
-    return {
-      access: platformAccess[platform] || platformAccess.gemini,
-      preparation: inputPreparation[category],
-      prompt: promptUsage[platform] || promptUsage.gemini,
-      customization: customizationTips[platform] || customizationTips.general,
-      generation: generationProcess[platform] || generationProcess.gemini,
-      finalization: finalization[platform] || finalization.gemini
-    };
+    return AIPlatformContentGenerator.generateStepByStepGuide(promptData);
   }
 
   static generateExpertTips(promptData) {
-    const platform = this.detectPlatform(promptData);
-    const category = promptData.category || 'general';
-    
-    const platformSpecificTips = {
-      'midjourney': [
-        "Use --test and --creative parameters for more experimental results",
-        "Combine multiple styles with double colon syntax: 'style1::style2::2'",
-        "Use --no parameter to exclude elements: '--no text, watermark'",
-        "Experiment with --stylize values (100-1000) for different artistic effects",
-        "Save successful seeds for consistent style reproduction",
-        "Use image prompts with URLs for style reference",
-        "Try different upscalers (Regular, Detailed, Beta) for various results"
-      ],
-      'dalle': [
-        "Use detailed, descriptive language rather than abstract concepts",
-        "Include artistic references: 'in the style of [artist], [art movement]'",
-        "Specify lighting and composition: 'dramatic lighting, rule of thirds'",
-        "Use quality modifiers: 'highly detailed, 8k resolution, professional photography'",
-        "Experiment with different aspect ratios for various use cases",
-        "Use the 'variations' feature to explore different interpretations",
-        "Combine with ChatGPT for iterative prompt refinement"
-      ],
-      'stable-diffusion': [
-        "Use weighted prompts: '(keyword:1.3)' to emphasize elements",
-        "Experiment with different samplers: Euler a, DPM++ 2M, DDIM",
-        "Adjust CFG scale (Classifier Free Guidance) between 7-12 for optimal results",
-        "Use negative prompts extensively to exclude unwanted elements",
-        "Try different models (Realistic Vision, DreamShaper, etc.) for different styles",
-        "Use LoRAs and textual inversions for specific styles or characters",
-        "Experiment with high-res fix and upscalers for better quality"
-      ],
-      'leonardo': [
-        "Use element weights to balance different aspects of your prompt",
-        "Experiment with different Leonardo models for various art styles",
-        "Use the canvas editor for inpainting and outpainting",
-        "Save favorite styles and prompts for quick reuse",
-        "Adjust the guidance scale for more or less prompt adherence",
-        "Use the 'Alchemy' feature for enhanced artistic results",
-        "Experiment with different aspect ratios and resolutions"
-      ],
-      'adobe-firefly': [
-        "Use Adobe Stock references for consistent style generation",
-        "Integrate with Photoshop for seamless editing workflows",
-        "Use content type filters for appropriate commercial use",
-        "Experiment with different style presets and adjustments",
-        "Use the 'Generative Fill' feature for smart editing",
-        "Combine multiple Firefly generations in single projects",
-        "Use text effects and vector generation for design work"
-      ],
-      'general': [
-        "Be descriptive: Use specific, detailed language rather than vague or abstract terms",
-        "Provide context: Include the purpose, audience, and intended use of the generated content",
-        "Use examples: Reference similar works, styles, or outcomes you're trying to achieve",
-        "Iterate systematically: Make small, specific changes between generations to understand what works",
-        "Balance specificity and flexibility: Be specific about what matters most, but allow creative freedom elsewhere",
-        "Learn platform nuances: Understand the specific strengths and limitations of your chosen AI platform",
-        "Document successful prompts: Keep a record of what works well for future reference and consistency"
-      ]
-    };
-
-    const tips = platformSpecificTips[platform] || platformSpecificTips.general;
-    
-    return tips;
+    return AIPlatformContentGenerator.generateExpertTips(promptData);
   }
 
   static generateComprehensiveDescription(promptData) {
@@ -1347,11 +2462,11 @@ class EngagementAnalytics {
 // News-specific SEO Optimizer
 class NewsSEOOptimizer {
   static generateNewsTitle(title) {
-    return `${title || 'AI News'} - Tools Prompt News`;
+    return `${title || 'AI News'} - tools prompt News`;
   }
 
   static generateNewsDescription(content) {
-    if (!content) return 'Latest AI news and updates from Tools Prompt.';
+    if (!content) return 'Latest AI news and updates from tools prompt.';
     const cleanContent = content.replace(/[^\w\s]/gi, ' ').substring(0, 150);
     return `${cleanContent}... Read more AI prompt news and updates.`;
   }
@@ -1375,11 +2490,11 @@ class NewsSEOOptimizer {
       "dateModified": news.updatedAt || new Date().toISOString(),
       "author": {
         "@type": "Person",
-        "name": news.author || "Tools Prompt Editor"
+        "name": news.author || "tools prompt Editor"
       },
       "publisher": {
         "@type": "Organization",
-        "name": "Tools Prompt",
+        "name": "tools prompt",
         "logo": {
           "@type": "ImageObject",
           "url": "https://www.toolsprompt.com/logo.png"
@@ -1422,7 +2537,7 @@ class SitemapGenerator {
       xml += `  <loc>${this.escapeXml(url.loc)}</loc>\n`;
       xml += `  <news:news>\n`;
       xml += `    <news:publication>\n`;
-      xml += `      <news:name>Tools Prompt</news:name>\n`;
+      xml += `      <news:name>tools prompt</news:name>\n`;
       xml += `      <news:language>en</news:language>\n`;
       xml += `    </news:publication>\n`;
       xml += `    <news:publication_date>${new Date(url.lastmod).toISOString().split('T')[0]}</news:publication_date>\n`;
@@ -1468,7 +2583,8 @@ const mockPrompts = [
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     seoScore: 85,
-    adsenseMigrated: true
+    adsenseMigrated: true,
+    fileType: 'image'
   },
   {
     id: 'demo-2',
@@ -1486,7 +2602,8 @@ const mockPrompts = [
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     seoScore: 92,
-    adsenseMigrated: true
+    adsenseMigrated: true,
+    fileType: 'image'
   },
   {
     id: 'demo-3',
@@ -1504,15 +2621,42 @@ const mockPrompts = [
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     seoScore: 78,
-    adsenseMigrated: true
+    adsenseMigrated: true,
+    fileType: 'image'
+  },
+  // NEW VIDEO DEMO PROMPT WITH THUMBNAIL
+  {
+    id: 'demo-video-1',
+    title: 'Cinematic Drone Shot Over Mountains',
+    promptText: 'Cinematic drone shot flying over majestic mountains at sunrise, golden light, clouds below, smooth motion, 4k quality, epic scale, 10-second video',
+    imageUrl: 'https://via.placeholder.com/300x400/ff6b6b/white?text=Video+Reel',
+    thumbnailUrl: 'https://via.placeholder.com/300x400/ff6b6b/white?text=Custom+Thumbnail',
+    videoUrl: 'https://storage.googleapis.com/mock-bucket/videos/sample-drone.mp4',
+    mediaUrl: 'https://storage.googleapis.com/mock-bucket/videos/sample-drone.mp4',
+    userName: 'Demo Video Creator',
+    likes: 89,
+    views: 567,
+    uses: 34,
+    copies: 21,
+    commentCount: 12,
+    keywords: ['drone', 'cinematic', 'mountains', 'sunrise', 'video'],
+    category: 'video',
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    seoScore: 95,
+    adsenseMigrated: true,
+    fileType: 'video',
+    videoDuration: 10,
+    videoFormat: 'mp4',
+    hasCustomThumbnail: true
   }
 ];
 
 // Generate mock news
 function generateMockNews(count) {
   const news = [];
-  const categories = ['ai-news', 'prompt-tips', 'industry-updates', 'tutorials'];
-  const authors = ['AI News Team', 'Prompt Master', 'Tech Editor', 'Community Manager'];
+  const categories = ['ai-news', 'prompt-tips', 'industry-updates', 'tutorials', 'video-news'];
+  const authors = ['AI News Team', 'Prompt Master', 'Tech Editor', 'Community Manager', 'Video Creator'];
   
   for (let i = 1; i <= count; i++) {
     const category = categories[Math.floor(Math.random() * categories.length)];
@@ -1557,7 +2701,10 @@ function generateMockComments(count) {
     'Can we get more prompts like this?',
     'The image quality is outstanding with this prompt.',
     'Helped me create my portfolio pieces.',
-    'Works great with DALL-E 3 too!'
+    'Works great with DALL-E 3 too!',
+    'Tried this with Pika for video - amazing results!',
+    'Perfect for creating Instagram Reels content.',
+    'The custom thumbnail looks great!'
   ];
   
   const mockComments = [];
@@ -1582,7 +2729,7 @@ app.get('/health', (req, res) => {
   res.json({ 
     status: 'OK', 
     timestamp: new Date().toISOString(),
-    service: 'Tools Prompt API',
+    service: 'tools prompt API',
     mode: db ? 'production' : 'development',
     cacheStats: cache.getStats(),
     adsense: {
@@ -1593,9 +2740,120 @@ app.get('/health', (req, res) => {
       comments: true,
       news: true,
       caching: true,
-      miniBrowser: true
+      miniBrowser: true,
+      videoUploads: true,
+      youtubeShorts: true,
+      customThumbnails: true
+    },
+    uploadLimits: {
+      maxFileSize: '100MB',
+      allowedImageTypes: ['image/jpeg', 'image/png', 'image/webp', 'image/gif'],
+      allowedVideoTypes: ['video/mp4', 'video/webm', 'video/quicktime', 'video/x-msvideo', 'video/mpeg', 'video/ogg'],
+      maxVideoDuration: '60 seconds (recommended for reels)',
+      thumbnailSupport: true,
+      thumbnailMaxSize: '5MB'
+    },
+    aiModels: {
+      photo: AIModelManager.getPhotoModelCount(),
+      video: AIModelManager.getVideoModelCount(),
+      total: AIModelManager.getPhotoModelCount() + AIModelManager.getVideoModelCount()
     }
   });
+});
+
+// Video streaming endpoint
+app.get('/api/video/:videoId', async (req, res) => {
+  try {
+    const videoId = req.params.videoId;
+    const range = req.headers.range;
+    
+    const cacheKey = `video-${videoId}`;
+    const cached = cache.get(cacheKey);
+    
+    if (cached && !range) {
+      return res.redirect(cached);
+    }
+    
+    if (db && db.collection) {
+      const doc = await db.collection('uploads').doc(videoId).get();
+      if (doc.exists) {
+        const data = doc.data();
+        const videoUrl = data.videoUrl || data.mediaUrl;
+        
+        if (videoUrl && videoUrl.startsWith('https://storage.googleapis.com/')) {
+          // For Firebase Storage videos, we need to generate a signed URL or proxy
+          if (bucket) {
+            const fileName = videoUrl.split('/').pop();
+            const file = bucket.file(`videos/${fileName}`);
+            
+            if (range) {
+              // Handle range requests for video streaming
+              const [metadata] = await file.getMetadata();
+              const fileSize = metadata.size;
+              
+              const CHUNK_SIZE = 10 ** 6; // 1MB chunks
+              const start = Number(range.replace(/\D/g, ''));
+              const end = Math.min(start + CHUNK_SIZE, fileSize - 1);
+              
+              const contentLength = end - start + 1;
+              
+              res.writeHead(206, {
+                'Content-Range': `bytes ${start}-${end}/${fileSize}`,
+                'Accept-Ranges': 'bytes',
+                'Content-Length': contentLength,
+                'Content-Type': 'video/mp4',
+                'Cache-Control': 'public, max-age=3600'
+              });
+              
+              const stream = file.createReadStream({ start, end });
+              stream.pipe(res);
+            } else {
+              // Redirect to the public URL if no range requested
+              res.redirect(videoUrl);
+            }
+          } else {
+            res.redirect(videoUrl);
+          }
+        } else {
+          res.status(404).send('Video not found');
+        }
+      } else {
+        res.status(404).send('Video not found');
+      }
+    } else {
+      // Mock video for development
+      const mockVideoUrl = 'https://storage.googleapis.com/your-bucket/sample-video.mp4';
+      res.redirect(mockVideoUrl);
+    }
+  } catch (error) {
+    console.error('Video streaming error:', error);
+    res.status(500).send('Error streaming video');
+  }
+});
+
+// Thumbnail endpoint
+app.get('/api/thumbnail/:promptId', async (req, res) => {
+  try {
+    const promptId = req.params.promptId;
+    
+    if (db && db.collection) {
+      const doc = await db.collection('uploads').doc(promptId).get();
+      if (doc.exists) {
+        const data = doc.data();
+        const thumbnailUrl = data.thumbnailUrl || data.imageUrl;
+        
+        if (thumbnailUrl) {
+          return res.redirect(thumbnailUrl);
+        }
+      }
+    }
+    
+    // Fallback to placeholder
+    res.redirect('https://via.placeholder.com/300x400/ff6b6b/ffffff?text=Video+Reel');
+  } catch (error) {
+    console.error('Thumbnail error:', error);
+    res.redirect('https://via.placeholder.com/300x400/ff6b6b/ffffff?text=Video+Reel');
+  }
 });
 
 // AdSense Migration Endpoint
@@ -1731,7 +2989,7 @@ app.get('/sitemap-pages.xml', async (req, res) => {
   }
 });
 
-// Posts Sitemap (dynamic prompts) - LIMITED to 100 prompts
+// Posts Sitemap (dynamic prompts) - INCREASED to 500 prompts
 app.get('/sitemap-posts.xml', async (req, res) => {
   try {
     const baseUrl = process.env.BASE_URL || `https://${req.get('host')}`;
@@ -1740,7 +2998,7 @@ app.get('/sitemap-posts.xml', async (req, res) => {
     if (db) {
       const snapshot = await db.collection('uploads')
         .orderBy('updatedAt', 'desc')
-        .limit(100)
+        .limit(500) // INCREASED from 100 to 500
         .get();
 
       prompts = snapshot.docs.map(doc => {
@@ -1785,7 +3043,7 @@ app.get('/sitemap-posts.xml', async (req, res) => {
   }
 });
 
-// News Sitemap - LIMITED to 50 news
+// News Sitemap - INCREASED to 500 news
 app.get('/sitemap-news.xml', async (req, res) => {
   try {
     const baseUrl = process.env.BASE_URL || `https://${req.get('host')}`;
@@ -1794,7 +3052,7 @@ app.get('/sitemap-news.xml', async (req, res) => {
     if (db && db.collection) {
       const snapshot = await db.collection('news')
         .orderBy('publishedAt', 'desc')
-        .limit(50)
+        .limit(500) // INCREASED from 50 to 500
         .get();
 
       news = snapshot.docs.map(doc => {
@@ -1899,7 +3157,7 @@ app.post('/api/upload-news', async (req, res) => {
         content: fields.content,
         excerpt: fields.excerpt || (fields.content ? fields.content.substring(0, 200) + '...' : ''),
         imageUrl: imageUrl,
-        author: fields.author || 'Tools Prompt Editor',
+        author: fields.author || 'tools prompt Editor',
         category: fields.category || 'ai-news',
         tags: fields.tags ? fields.tags.split(',').map(tag => tag.trim()) : [],
         keywords: keywords,
@@ -1972,7 +3230,7 @@ app.get('/api/news', async (req, res) => {
     if (db && db.collection) {
       let query = db.collection('news')
         .orderBy('publishedAt', 'desc')
-        .limit(100);
+        .limit(500); // INCREASED from 100 to 500
       
       if (category && category !== 'all') {
         query = query.where('category', '==', category);
@@ -2415,7 +3673,7 @@ app.get('/api/prompt/:id/engagement', async (req, res) => {
   }
 });
 
-// Search API endpoint - OPTIMIZED with limits
+// Search API endpoint - INCREASED limit to 500
 app.get('/api/search', async (req, res) => {
   try {
     const { q: query, category, sort, page = 1, limit = 12 } = req.query;
@@ -2430,7 +3688,7 @@ app.get('/api/search', async (req, res) => {
 
     if (db && db.collection) {
       const snapshot = await db.collection('uploads')
-        .limit(100)
+        .limit(500) // INCREASED from 100 to 500
         .get();
       
       prompts = snapshot.docs.map(doc => {
@@ -2439,7 +3697,9 @@ app.get('/api/search', async (req, res) => {
           id: doc.id,
           ...data,
           createdAt: safeDateToString(data.createdAt),
-          promptUrl: `/prompt/${doc.id}`
+          promptUrl: `/prompt/${doc.id}`,
+          fileType: data.fileType || 'image',
+          isVideo: data.fileType === 'video' || data.videoUrl || data.category === 'video'
         };
       }).filter(prompt => {
         if (!query) return true;
@@ -2491,7 +3751,11 @@ app.get('/api/search', async (req, res) => {
       totalCount: prompts.length,
       currentPage: parseInt(page),
       totalPages: Math.ceil(prompts.length / limit),
-      hasMore: endIndex < prompts.length
+      hasMore: endIndex < prompts.length,
+      counts: {
+        images: prompts.filter(p => !p.isVideo && p.fileType !== 'video').length,
+        videos: prompts.filter(p => p.isVideo || p.fileType === 'video').length
+      }
     };
     
     cache.set(cacheKey, result, 180);
@@ -2536,91 +3800,204 @@ function sortPrompts(prompts, sortBy) {
   }
 }
 
-// Upload endpoint - OPTIMIZED for images
+// UPLOAD ENDPOINT - ENHANCED FOR VIDEO REELS WITH THUMBNAILS
 app.post('/api/upload', async (req, res) => {
-  console.log('📤 Upload request received');
+  console.log('📤 Upload request received (supports images and video reels with thumbnails)');
   
-  const busboy = Busboy({ headers: req.headers });
+  const busboy = Busboy({ 
+    headers: req.headers, 
+    limits: { fileSize: 100 * 1024 * 1024 } // 100MB limit for videos
+  });
+  
   const fields = {};
-  let fileBuffer = null;
-  let fileName = null;
-  let fileType = null;
+  let mediaBuffer = null;
+  let thumbnailBuffer = null;
+  let uploadedMediaFileName = null;
+  let uploadedThumbnailFileName = null;
+  let mediaFileType = null;
+  let thumbnailFileType = null;
+  let uploadError = null;
 
   busboy.on('field', (fieldname, val) => {
     fields[fieldname] = val;
   });
 
   busboy.on('file', (fieldname, file, info) => {
-    if (fieldname !== 'image') {
-      return res.status(400).json({ error: 'Only image files are allowed' });
-    }
-
     const { filename, mimeType } = info;
-    fileName = filename;
-    fileType = mimeType;
     
-    const chunks = [];
-    file.on('data', (data) => {
-      chunks.push(data);
-    });
-
-    file.on('end', () => {
-      fileBuffer = Buffer.concat(chunks);
+    if (fieldname === 'media') {
+      uploadedMediaFileName = filename;
+      mediaFileType = mimeType;
       
-      if (fileBuffer.length > 20 * 1024 * 1024) {
-        return res.status(400).json({ error: 'File size exceeds 20MB limit' });
+      // Validate media file type
+      const allowedImageTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif'];
+      const allowedVideoTypes = ['video/mp4', 'video/webm', 'video/quicktime', 'video/x-msvideo', 'video/mpeg', 'video/ogg'];
+      const allowedTypes = [...allowedImageTypes, ...allowedVideoTypes];
+      
+      if (!allowedTypes.includes(mimeType)) {
+        uploadError = new Error('Invalid file type. Allowed: JPEG, PNG, WebP, GIF, MP4, WebM, MOV, AVI, OGG');
+        return;
       }
-    });
+      
+      const chunks = [];
+      file.on('data', (data) => chunks.push(data));
+      file.on('end', () => {
+        mediaBuffer = Buffer.concat(chunks);
+        
+        if (mediaBuffer.length > 100 * 1024 * 1024) {
+          uploadError = new Error('File size exceeds 100MB limit');
+          return;
+        }
+      });
+    } 
+    else if (fieldname === 'thumbnail') {
+      uploadedThumbnailFileName = filename;
+      thumbnailFileType = mimeType;
+      
+      // Validate thumbnail file type (must be image)
+      const allowedImageTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+      
+      if (!allowedImageTypes.includes(mimeType)) {
+        uploadError = new Error('Invalid thumbnail file type. Allowed: JPEG, PNG, WebP');
+        return;
+      }
+      
+      const chunks = [];
+      file.on('data', (data) => chunks.push(data));
+      file.on('end', () => {
+        thumbnailBuffer = Buffer.concat(chunks);
+        
+        if (thumbnailBuffer.length > 5 * 1024 * 1024) {
+          uploadError = new Error('Thumbnail size exceeds 5MB limit');
+          return;
+        }
+      });
+    }
   });
 
   busboy.on('finish', async () => {
     try {
+      // Check for upload error
+      if (uploadError) {
+        return res.status(400).json({ error: uploadError.message });
+      }
+
+      // Validate required fields
       if (!fields.title || !fields.promptText) {
         return res.status(400).json({ error: 'Title and prompt text are required' });
       }
 
-      if (!fileBuffer) {
-        return res.status(400).json({ error: 'No image file provided' });
+      if (!mediaBuffer) {
+        return res.status(400).json({ error: 'No media file provided' });
       }
 
-      const validTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
-      if (!validTypes.includes(fileType)) {
-        return res.status(400).json({ error: 'Invalid file type. Only JPEG, PNG, GIF and WebP are allowed' });
+      // Determine file type category
+      const isVideo = mediaFileType.startsWith('video/');
+      const isImage = mediaFileType.startsWith('image/');
+      
+      if (!isVideo && !isImage) {
+        return res.status(400).json({ error: 'File must be an image or video' });
       }
 
-      let imageUrl;
+      // Validate thumbnail for videos (optional but recommended)
+      if (isVideo && !thumbnailBuffer) {
+        console.log('⚠️ No thumbnail provided for video - will use video frame as thumbnail');
+      }
 
+      let mediaUrl;
+      let thumbnailUrl = null;
+
+      // Store files in Firebase Storage
       if (bucket) {
-        const fileExtension = fileName.split('.').pop();
-        const newFileName = `prompts/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExtension}`;
-        const file = bucket.file(newFileName);
+        const timestamp = Date.now();
+        const uniqueId = uuidv4();
+        
+        // Upload media file
+        const mediaExtension = uploadedMediaFileName.split('.').pop();
+        const mediaFolder = isVideo ? 'videos' : 'prompts';
+        const storageMediaFileName = `${mediaFolder}/${timestamp}-${uniqueId}.${mediaExtension}`;
+        const mediaFile = bucket.file(storageMediaFileName);
 
-        await file.save(fileBuffer, {
+        await mediaFile.save(mediaBuffer, {
           metadata: {
-            contentType: fileType,
+            contentType: mediaFileType,
             metadata: {
-              uploadedBy: fields.userId || 'anonymous',
-              uploadedAt: new Date().toISOString()
+              uploadedBy: fields.userName || 'anonymous',
+              uploadedAt: new Date().toISOString(),
+              fileType: isVideo ? 'video' : 'image',
+              originalName: uploadedMediaFileName,
+              hasThumbnail: !!thumbnailBuffer
             }
-          }
+          },
+          resumable: true
         });
 
-        await file.makePublic();
-        imageUrl = `https://storage.googleapis.com/${bucket.name}/${newFileName}`;
+        await mediaFile.makePublic();
+        mediaUrl = `https://storage.googleapis.com/${bucket.name}/${storageMediaFileName}`;
+        
+        // Upload thumbnail if provided
+        if (thumbnailBuffer) {
+          const thumbExtension = uploadedThumbnailFileName.split('.').pop();
+          const thumbFileName = `thumbnails/${timestamp}-${uniqueId}.${thumbExtension}`;
+          const thumbFile = bucket.file(thumbFileName);
+
+          await thumbFile.save(thumbnailBuffer, {
+            metadata: {
+              contentType: thumbnailFileType,
+              metadata: {
+                uploadedBy: fields.userName || 'anonymous',
+                uploadedAt: new Date().toISOString(),
+                originalVideoId: uniqueId
+              }
+            }
+          });
+
+          await thumbFile.makePublic();
+          thumbnailUrl = `https://storage.googleapis.com/${bucket.name}/${thumbFileName}`;
+        }
       } else {
-        imageUrl = 'https://via.placeholder.com/800x400/4e54c8/white?text=Uploaded+Image';
+        // Mock storage for development
+        if (isVideo) {
+          mediaUrl = `https://storage.googleapis.com/mock-bucket/videos/sample-${Date.now()}.mp4`;
+          thumbnailUrl = thumbnailBuffer ? 
+            `https://storage.googleapis.com/mock-bucket/thumbnails/sample-${Date.now()}.jpg` : 
+            'https://via.placeholder.com/300x400/ff6b6b/ffffff?text=Video+Reel';
+        } else {
+          mediaUrl = 'https://via.placeholder.com/800x400/4e54c8/ffffff?text=Uploaded+Image';
+        }
       }
 
+      // Determine category based on file type if not specified
+      let category = fields.category || 'general';
+      if (!fields.category) {
+        category = isVideo ? 'video' : 'general';
+      }
+
+      // Generate SEO metadata
       const seoTitle = SEOOptimizer.generateSEOTitle(fields.title);
       const metaDescription = SEOOptimizer.generateMetaDescription(fields.promptText, fields.title);
-      const keywords = SEOOptimizer.extractKeywords(fields.title + ' ' + fields.promptText);
+      const keywords = SEOOptimizer.extractKeywords(fields.title + ' ' + fields.promptText + (category === 'video' ? ' video reel' : ''));
       const slug = SEOOptimizer.generateSlug(fields.title);
 
+      // Detect platform for better recommendations
+      const detectedPlatform = AIModelManager.detectPlatform({
+        promptText: fields.promptText,
+        title: fields.title,
+        keywords: keywords,
+        category: category,
+        fileType: isVideo ? 'video' : 'image'
+      });
+
+      // Prepare prompt data with video-specific fields
       const promptData = {
         title: fields.title,
         promptText: fields.promptText,
-        imageUrl: imageUrl,
-        category: fields.category || 'general',
+        mediaUrl: mediaUrl,
+        imageUrl: isImage ? mediaUrl : (thumbnailUrl || 'https://via.placeholder.com/300x400/ff6b6b/ffffff?text=Video+Reel'),
+        thumbnailUrl: thumbnailUrl,
+        videoUrl: isVideo ? mediaUrl : null,
+        fileType: isVideo ? 'video' : 'image',
+        category: category,
         userName: fields.userName || 'Anonymous User',
         likes: 0,
         views: 0,
@@ -2634,15 +4011,25 @@ app.post('/api/upload', async (req, res) => {
         seoScore: Math.floor(Math.random() * 30) + 70,
         adsenseMigrated: true,
         createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
+        updatedAt: new Date().toISOString(),
+        detectedPlatform: detectedPlatform
       };
 
+      // Add video-specific metadata if applicable
+      if (isVideo) {
+        promptData.videoDuration = null; // Would need to extract from video
+        promptData.videoFormat = mediaFileType.split('/')[1];
+        promptData.isReel = true;
+        promptData.hasCustomThumbnail = !!thumbnailBuffer;
+      }
+
+      // Save to database
       let docRef;
       
       if (db && db.collection) {
         docRef = await db.collection('uploads').add(promptData);
       } else {
-        docRef = { id: 'demo-' + Date.now() };
+        docRef = { id: 'demo-' + timestamp };
         mockPrompts.unshift({
           id: docRef.id,
           ...promptData
@@ -2652,16 +4039,32 @@ app.post('/api/upload', async (req, res) => {
       const responseData = {
         id: docRef.id,
         ...promptData,
-        promptUrl: `/prompt/${docRef.id}`
+        promptUrl: `/prompt/${docRef.id}`,
+        videoStreamUrl: isVideo ? `/api/video/${docRef.id}` : null,
+        thumbnailUrl: thumbnailUrl
       };
 
+      // Clear relevant caches
       cache.del('uploads-page-1');
       cache.del('search-all-all-1-12');
       
+      // Success response
       res.json({
         success: true,
         upload: responseData,
-        message: 'Upload successful! Your creation is now live with AdSense monetization.'
+        message: isVideo ? 
+          (thumbnailBuffer ? 
+            '🎬 Video reel uploaded successfully with custom thumbnail! Check it out in the Shorts player.' : 
+            '🎬 Video reel uploaded successfully! You can add a custom thumbnail later from the edit page.') : 
+          '✅ Image uploaded successfully! Your creation is now live.',
+        fileType: isVideo ? 'video' : 'image',
+        hasThumbnail: !!thumbnailBuffer,
+        detectedPlatform: detectedPlatform,
+        aiModelCounts: {
+          photo: AIModelManager.getPhotoModelCount(),
+          video: AIModelManager.getVideoModelCount(),
+          total: AIModelManager.getPhotoModelCount() + AIModelManager.getVideoModelCount()
+        }
       });
 
     } catch (error) {
@@ -2676,7 +4079,7 @@ app.post('/api/upload', async (req, res) => {
 
   busboy.on('error', (error) => {
     console.error('❌ Busboy error:', error);
-    res.status(500).json({ error: 'File upload processing failed' });
+    res.status(500).json({ error: 'File upload processing failed: ' + error.message });
   });
 
   req.pipe(busboy);
@@ -2687,8 +4090,9 @@ app.get('/api/uploads', async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 12;
+    const type = req.query.type; // 'image', 'video', or 'all'
     
-    const cacheKey = `uploads-page-${page}-limit-${limit}`;
+    const cacheKey = `uploads-page-${page}-limit-${limit}-type-${type || 'all'}`;
     const cached = cache.get(cacheKey);
     if (cached) {
       return res.json(cached);
@@ -2699,7 +4103,7 @@ app.get('/api/uploads', async (req, res) => {
     if (db && db.collection) {
       const snapshot = await db.collection('uploads')
         .orderBy('createdAt', 'desc')
-        .limit(limit * 3)
+        .limit(500) // INCREASED from limit * 3 to 500 for better coverage
         .get();
 
       allUploads = [];
@@ -2713,7 +4117,12 @@ app.get('/api/uploads', async (req, res) => {
           userLiked: false,
           userUsed: false,
           userCopied: false,
-          promptUrl: `/prompt/${doc.id}`
+          promptUrl: `/prompt/${doc.id}`,
+          imageUrl: data.thumbnailUrl || data.imageUrl || data.mediaUrl || 
+                   (data.fileType === 'video' ? 'https://via.placeholder.com/300x400/ff6b6b/ffffff?text=Video+Reel' : 
+                    'https://via.placeholder.com/800x400/4e54c8/ffffff?text=AI+Image'),
+          fileType: data.fileType || 'image',
+          isVideo: data.fileType === 'video' || data.videoUrl || data.category === 'video'
         });
       });
     } else {
@@ -2722,8 +4131,18 @@ app.get('/api/uploads', async (req, res) => {
         userLiked: false,
         userUsed: false,
         userCopied: false,
-        promptUrl: `/prompt/${prompt.id}`
+        promptUrl: `/prompt/${prompt.id}`,
+        imageUrl: prompt.thumbnailUrl || prompt.imageUrl || prompt.mediaUrl || 
+                 (prompt.fileType === 'video' ? 'https://via.placeholder.com/300x400/ff6b6b/ffffff?text=Video+Reel' : 
+                  'https://via.placeholder.com/800x400/4e54c8/ffffff?text=AI+Image'),
+        fileType: prompt.fileType || 'image',
+        isVideo: prompt.fileType === 'video' || prompt.category === 'video'
       }));
+    }
+
+    // Filter by type if specified
+    if (type && type !== 'all') {
+      allUploads = allUploads.filter(upload => upload.fileType === type);
     }
 
     const startIndex = (page - 1) * limit;
@@ -2735,10 +4154,20 @@ app.get('/api/uploads', async (req, res) => {
       currentPage: page,
       totalPages: Math.ceil(allUploads.length / limit),
       totalCount: allUploads.length,
+      typeBreakdown: {
+        images: allUploads.filter(u => u.fileType === 'image' || !u.fileType || u.fileType !== 'video').length,
+        videos: allUploads.filter(u => u.fileType === 'video' || u.isVideo).length,
+        videosWithThumbnails: allUploads.filter(u => (u.fileType === 'video' || u.isVideo) && u.hasCustomThumbnail).length
+      },
       adsenseInfo: {
         migrated: allUploads.filter(u => u.adsenseMigrated).length,
         total: allUploads.length,
         percentage: Math.round((allUploads.filter(u => u.adsenseMigrated).length / allUploads.length) * 100) || 0
+      },
+      aiModels: {
+        photo: AIModelManager.getPhotoModelCount(),
+        video: AIModelManager.getVideoModelCount(),
+        total: AIModelManager.getPhotoModelCount() + AIModelManager.getVideoModelCount()
       }
     };
 
@@ -2753,23 +4182,36 @@ app.get('/api/uploads', async (req, res) => {
         userLiked: false,
         userUsed: false,
         userCopied: false,
-        promptUrl: `/prompt/${prompt.id}`
+        promptUrl: `/prompt/${prompt.id}`,
+        imageUrl: prompt.thumbnailUrl || prompt.imageUrl || prompt.mediaUrl || 
+                 (prompt.fileType === 'video' ? 'https://via.placeholder.com/300x400/ff6b6b/ffffff?text=Video+Reel' : 
+                  'https://via.placeholder.com/800x400/4e54c8/ffffff?text=AI+Image'),
+        fileType: prompt.fileType || 'image',
+        isVideo: prompt.fileType === 'video' || prompt.category === 'video'
       })),
       currentPage: 1,
       totalPages: 1,
       totalCount: mockPrompts.length,
+      typeBreakdown: {
+        images: mockPrompts.filter(u => u.fileType === 'image' || !u.fileType || u.fileType !== 'video').length,
+        videos: mockPrompts.filter(u => u.fileType === 'video' || u.category === 'video').length,
+        videosWithThumbnails: mockPrompts.filter(u => (u.fileType === 'video' || u.category === 'video') && u.hasCustomThumbnail).length
+      },
       adsenseInfo: {
         migrated: mockPrompts.length,
         total: mockPrompts.length,
         percentage: 100
+      },
+      aiModels: {
+        photo: AIModelManager.getPhotoModelCount(),
+        video: AIModelManager.getVideoModelCount(),
+        total: AIModelManager.getPhotoModelCount() + AIModelManager.getVideoModelCount()
       }
     };
     
     res.json(result);
   }
 });
-
-
 
 // API endpoint to get list of blog posts
 app.get('/api/blog-posts', (req, res) => {
@@ -2852,7 +4294,7 @@ app.get('/api/blog-posts', (req, res) => {
 // Serve individual blog posts
 app.use('/blog', express.static(path.join(__dirname, 'blog')));
 
-// Individual prompt pages for SEO - WITH CACHING
+// ENHANCED Individual prompt pages for SEO - WITH VIDEO SUPPORT AND AI MODEL INFO
 app.get('/prompt/:id', async (req, res) => {
   try {
     const promptId = req.params.id;
@@ -2865,7 +4307,7 @@ app.get('/prompt/:id', async (req, res) => {
     
     let promptData;
 
-    if (db && db.collection && promptId !== 'demo-1' && promptId !== 'demo-2' && promptId !== 'demo-3') {
+    if (db && db.collection && promptId !== 'demo-1' && promptId !== 'demo-2' && promptId !== 'demo-3' && promptId !== 'demo-video-1') {
       const doc = await db.collection('uploads').doc(promptId).get();
       
       if (!doc.exists) {
@@ -2926,7 +4368,66 @@ app.get('/category/:category', async (req, res) => {
   }
 });
 
+// AI Models API Endpoint - Get all available AI models
+app.get('/api/ai-models', (req, res) => {
+  try {
+    const type = req.query.type; // 'photo', 'video', or 'all'
+    
+    let response = {
+      success: true,
+      counts: {
+        photo: AIModelManager.getPhotoModelCount(),
+        video: AIModelManager.getVideoModelCount(),
+        total: AIModelManager.getPhotoModelCount() + AIModelManager.getVideoModelCount()
+      }
+    };
+    
+    if (type === 'photo') {
+      response.models = AIModelManager.getAllPhotoModels();
+    } else if (type === 'video') {
+      response.models = AIModelManager.getAllVideoModels();
+    } else {
+      response.photoModels = AIModelManager.getAllPhotoModels();
+      response.videoModels = AIModelManager.getAllVideoModels();
+    }
+    
+    res.json(response);
+  } catch (error) {
+    console.error('Error fetching AI models:', error);
+    res.status(500).json({ error: 'Failed to fetch AI models' });
+  }
+});
 
+// AI Model Info API Endpoint - Get info about a specific model
+app.get('/api/ai-model/:modelId', (req, res) => {
+  try {
+    const modelId = req.params.modelId;
+    const type = req.query.type || 'auto';
+    
+    let modelInfo = null;
+    
+    if (type === 'photo' || type === 'auto') {
+      modelInfo = AIModelManager.getPhotoModelInfo(modelId);
+    }
+    
+    if (!modelInfo && (type === 'video' || type === 'auto')) {
+      modelInfo = AIModelManager.getVideoModelInfo(modelId);
+    }
+    
+    if (modelInfo) {
+      res.json({
+        success: true,
+        model: modelInfo,
+        id: modelId
+      });
+    } else {
+      res.status(404).json({ error: 'Model not found' });
+    }
+  } catch (error) {
+    console.error('Error fetching AI model:', error);
+    res.status(500).json({ error: 'Failed to fetch AI model' });
+  }
+});
 
 // Helper functions
 function createNewsData(news, id) {
@@ -2937,7 +4438,7 @@ function createNewsData(news, id) {
     content: safeNews.content || 'No content available.',
     excerpt: safeNews.excerpt || (safeNews.content ? safeNews.content.substring(0, 200) + '...' : ''),
     imageUrl: safeNews.imageUrl || 'https://via.placeholder.com/800x400/4e54c8/white?text=Prompt+Seen+News',
-    author: safeNews.author || 'Tools Prompt Editor',
+    author: safeNews.author || 'tools prompt Editor',
     category: safeNews.category || 'ai-news',
     tags: safeNews.tags || ['ai', 'news'],
     views: safeNews.views || 0,
@@ -2947,24 +4448,47 @@ function createNewsData(news, id) {
     isFeatured: safeNews.isFeatured || false,
     createdAt: safeDateToString(safeNews.createdAt),
     publishedAt: safeDateToString(safeNews.publishedAt),
-    seoTitle: safeNews.seoTitle || safeNews.title || 'AI News - Tools Prompt',
+    seoTitle: safeNews.seoTitle || safeNews.title || 'AI News - tools prompt',
     metaDescription: safeNews.metaDescription || (safeNews.content ? 
       safeNews.content.substring(0, 155) + '...' : 
-      'Latest AI news and prompt engineering updates from Tools Prompt.')
+      'Latest AI news and prompt engineering updates from tools prompt.')
   };
 }
 
 function createPromptData(prompt, id) {
   const safePrompt = prompt || {};
   
+  // Determine if this is a video
+  const isVideo = safePrompt.fileType === 'video' || safePrompt.videoUrl || 
+                  (safePrompt.mediaUrl && safePrompt.mediaUrl.includes('video')) ||
+                  safePrompt.category === 'video';
+  
+  // Detect platform for better recommendations
+  const detectedPlatform = AIModelManager.detectPlatform(safePrompt);
+  
+  // Get platform info
+  const platformInfo = isVideo 
+    ? AIModelManager.getVideoModelInfo(detectedPlatform)
+    : AIModelManager.getPhotoModelInfo(detectedPlatform);
+  
+  // Use custom thumbnail if available, otherwise use placeholder or video frame
+  const thumbnailUrl = safePrompt.thumbnailUrl || 
+                      (isVideo ? 'https://via.placeholder.com/300x400/ff6b6b/ffffff?text=Video+Reel' : null);
+  
   const promptData = {
     id: id || 'unknown',
     title: safePrompt.title || 'Untitled Prompt',
-    seoTitle: safePrompt.seoTitle || safePrompt.title || 'AI Prompt - Tools Prompt',
+    seoTitle: safePrompt.seoTitle || safePrompt.title || (isVideo ? 'AI Video Prompt - tools prompt' : 'AI Prompt - tools prompt'),
     metaDescription: safePrompt.metaDescription || (safePrompt.promptText ? 
       safePrompt.promptText.substring(0, 155) + '...' : 
-      'Explore this AI-generated image and learn prompt engineering techniques.'),
-    imageUrl: safePrompt.imageUrl || 'https://via.placeholder.com/800x400/4e54c8/white?text=Prompt+Seen+AI+Image',
+      (isVideo ? 'Explore this AI-generated video and learn prompt engineering techniques.' : 'Explore this AI-generated content and learn prompt engineering techniques.')),
+    // Handle media URLs
+    imageUrl: safePrompt.thumbnailUrl || safePrompt.imageUrl || safePrompt.mediaUrl || thumbnailUrl ||
+              (isVideo ? 'https://via.placeholder.com/300x400/ff6b6b/ffffff?text=Video+Reel' : 
+               'https://via.placeholder.com/800x400/4e54c8/ffffff?text=Prompt+Seen+AI+Image'),
+    videoUrl: safePrompt.videoUrl || (isVideo ? safePrompt.mediaUrl : null),
+    mediaUrl: safePrompt.mediaUrl || safePrompt.imageUrl || safePrompt.videoUrl,
+    fileType: safePrompt.fileType || (isVideo ? 'video' : 'image'),
     promptText: safePrompt.promptText || 'No prompt text available.',
     userName: safePrompt.userName || 'Anonymous',
     likes: safePrompt.likes || 0,
@@ -2972,14 +4496,23 @@ function createPromptData(prompt, id) {
     uses: safePrompt.uses || 0,
     copies: safePrompt.copies || 0,
     commentCount: safePrompt.commentCount || 0,
-    keywords: safePrompt.keywords || ['AI', 'prompt', 'image generation'],
-    category: safePrompt.category || 'general',
+    keywords: safePrompt.keywords || (isVideo ? ['AI', 'video', 'reel', 'editing'] : ['AI', 'prompt', 'image generation']),
+    category: safePrompt.category || (isVideo ? 'video' : 'general'),
     createdAt: safeDateToString(safePrompt.createdAt),
     updatedAt: safeDateToString(safePrompt.updatedAt || safePrompt.createdAt),
     seoScore: safePrompt.seoScore || 0,
-    adsenseMigrated: safePrompt.adsenseMigrated || false
+    adsenseMigrated: safePrompt.adsenseMigrated || false,
+    // Video-specific fields
+    videoDuration: safePrompt.videoDuration || null,
+    videoFormat: safePrompt.videoFormat || null,
+    thumbnailUrl: thumbnailUrl,
+    hasCustomThumbnail: !!safePrompt.thumbnailUrl,
+    // AI Model info
+    detectedPlatform: detectedPlatform,
+    platformInfo: platformInfo
   };
 
+  // Generate AI descriptions
   const aiDescription = AIDescriptionGenerator.generateComprehensiveDescription(promptData);
   
   promptData.detailedExplanation = aiDescription.introduction;
@@ -2992,10 +4525,10 @@ function createPromptData(prompt, id) {
   promptData.aiStepByStepGuide = aiDescription.stepByStep;
   promptData.aiExpertTips = aiDescription.tips;
   
-  // NEW: Platform comparison
+  // Platform comparison
   promptData.platformComparison = AIDescriptionGenerator.generatePlatformComparison(promptData);
   
-  // NEW: Model-specific tips
+  // Model-specific tips
   promptData.modelSpecificTips = AIDescriptionGenerator.generateModelSpecificTips();
 
   return promptData;
@@ -3317,7 +4850,7 @@ const platformComparisonCSS = `
     color: white;
 }
 
-.complexity {
+.category-badge {
     display: inline-block;
     padding: 4px 12px;
     border-radius: 20px;
@@ -3327,42 +4860,89 @@ const platformComparisonCSS = `
     color: white;
 }
 
-.complexity.low {
-    background: #20bf6b;
-}
-
-.complexity.medium {
-    background: #ff9f43;
-}
-
-.complexity.high {
-    background: #ff6b6b;
-}
-
-.quality {
-    display: inline-block;
-    padding: 4px 12px;
-    border-radius: 20px;
-    font-size: 0.8rem;
-    font-weight: 600;
-    background: rgba(255,255,255,0.2);
-    color: white;
-}
-
-.quality.excellent {
+.category-professional {
     background: #4e54c8;
 }
 
-.quality.very-good {
+.category-artistic {
+    background: #9b59b6;
+}
+
+.category-open-source {
+    background: #2c3e50;
+}
+
+.category-free {
     background: #20bf6b;
 }
 
-.quality.good {
-    background: #ff9f43;
+.category-commercial {
+    background: #2980b9;
 }
 
-.quality.basic {
-    background: #a4b0be;
+.category-editing {
+    background: #e67e22;
+}
+
+.category-design {
+    background: #f1c40f;
+    color: #333;
+}
+
+.category-versatile {
+    background: #3498db;
+}
+
+.category-mobile {
+    background: #e91e63;
+}
+
+.category-nft {
+    background: #8e44ad;
+}
+
+.category-real-time {
+    background: #16a085;
+}
+
+.category-video {
+    background: #ff6b6b;
+}
+
+.category-animation {
+    background: #f39c12;
+}
+
+.category-social {
+    background: #00acc1;
+}
+
+.category-marketing {
+    background: #d35400;
+}
+
+.category-avatar {
+    background: #c0392b;
+}
+
+.category-cinematic {
+    background: #1abc9c;
+}
+
+.category-motion {
+    background: #d35400;
+}
+
+.category-3d {
+    background: #2ecc71;
+}
+
+.category-expressive {
+    background: #e74c3c;
+}
+
+.category-storytelling {
+    background: #9b59b6;
 }
 
 .comparison-tips {
@@ -3592,6 +5172,88 @@ const platformComparisonCSS = `
     font-size: 1rem;
 }
 
+/* Video Player Styles */
+.video-container {
+    position: relative;
+    width: 100%;
+    background: #000;
+    border-radius: 12px;
+    overflow: hidden;
+    margin: 1rem 0;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+}
+
+.video-player {
+    width: 100%;
+    max-height: 600px;
+    display: block;
+    background: #000;
+    aspect-ratio: 16/9;
+    object-fit: contain;
+}
+
+.video-info {
+    display: flex;
+    gap: 1rem;
+    margin-top: 0.5rem;
+    padding: 0.75rem;
+    background: rgba(78, 84, 200, 0.1);
+    border-radius: 8px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.video-info-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: #4e54c8;
+    font-size: 0.9rem;
+}
+
+.video-info-item i {
+    font-size: 1rem;
+}
+
+/* Video badge for grid */
+.video-badge {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: #ff6b6b;
+    color: white;
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    z-index: 5;
+}
+
+.video-badge i {
+    font-size: 0.8rem;
+}
+
+/* AI Model Badge */
+.ai-model-badge {
+    background: #4e54c8;
+    color: white;
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    margin-left: 10px;
+}
+
+.ai-model-badge i {
+    font-size: 0.7rem;
+}
+
 /* Touch-friendly styles for mobile */
 @media (max-width: 768px) {
     .copy-prompt-btn {
@@ -3603,6 +5265,10 @@ const platformComparisonCSS = `
     
     .copy-prompt-btn i {
         font-size: 1.1rem;
+    }
+    
+    .video-player {
+        max-height: 400px;
     }
 }
 
@@ -3826,8 +5492,7 @@ const platformComparisonCSS = `
     }
     
     .price-tag,
-    .complexity,
-    .quality {
+    .category-badge {
         font-size: 0.7rem;
         padding: 2px 8px;
     }
@@ -4128,7 +5793,7 @@ const miniBrowserHTML = `
     <div class="mini-browser-content">
         <div class="mini-browser-loading" id="miniBrowserLoading">
             <div class="spinner"></div>
-            <div>Loading Tools Prompt...</div>
+            <div>Loading tools prompt...</div>
         </div>
         <iframe 
             src="https://www.toolsprompt.com" 
@@ -4382,7 +6047,7 @@ document.addEventListener('keydown', function(e) {
 
 // Mini Browser Toggle Button for Engagement Section
 const miniBrowserToggleButton = `
-<button class="engagement-btn" onclick="toggleMiniBrowser()" title="Open Tools Prompt Browser (Ctrl+B)">
+<button class="engagement-btn" onclick="toggleMiniBrowser()" title="Open tools prompt Browser (Ctrl+B)">
     <i class="fas fa-external-link-alt"></i> Quick Browse
 </button>
 `;
@@ -4618,7 +6283,7 @@ document.addEventListener('DOMContentLoaded', function() {
 `;
 }
 
-// ENHANCED PROMPT PAGE GENERATOR WITH 20+ AI MODELS AND COMMENT SYSTEM
+// ENHANCED PROMPT PAGE GENERATOR WITH 50+ AI MODELS AND COMMENT SYSTEM
 function generateEnhancedPromptHTML(promptData) {
   const promptAdHTML = generatePromptAdPlacement();
   
@@ -4627,6 +6292,13 @@ function generateEnhancedPromptHTML(promptData) {
   
   // Get GA ID from environment variable
   const gaId = process.env.GOOGLE_ANALYTICS_ID || 'G-K4KXR4FZCP';
+  
+  // Determine if this is a video
+  const isVideo = promptData.fileType === 'video' || promptData.videoUrl || promptData.category === 'video';
+  
+  // Get platform info
+  const platformInfo = promptData.platformInfo || { name: 'AI Platform', strengths: [] };
+  const detectedPlatform = promptData.detectedPlatform || 'general';
   
   // Google Analytics 4 code
   const googleAnalyticsCode = `
@@ -4640,7 +6312,78 @@ function generateEnhancedPromptHTML(promptData) {
     </script>
   `;
 
-  const aiStepsHTML = `
+  // Different display for video vs image
+  const mediaDisplay = isVideo ? `
+    <div class="shorts-video-container">
+      <video 
+        src="${promptData.videoUrl || promptData.mediaUrl}" 
+        poster="${promptData.imageUrl}"
+        class="shorts-image"
+        controls
+        loop
+        playsinline
+        preload="metadata"
+        onerror="this.style.display='none'; document.getElementById('videoFallback').style.display='flex';"
+      ></video>
+      <div id="videoFallback" style="display:none; position:absolute; top:0; left:0; right:0; bottom:0; background:#000; color:white; align-items:center; justify-content:center; flex-direction:column;">
+        <i class="fas fa-exclamation-triangle" style="font-size:2rem; margin-bottom:1rem;"></i>
+        <p>Video failed to load. Try refreshing.</p>
+      </div>
+      ${promptData.videoDuration ? `<span class="video-duration">${promptData.videoDuration}s</span>` : ''}
+    </div>
+  ` : `
+    <img src="${promptData.imageUrl}" 
+         alt="${promptData.title} - AI Generated Image" 
+         class="prompt-image"
+         onerror="this.src='https://via.placeholder.com/800x400/4e54c8/ffffff?text=AI+Generated+Image'"
+         id="promptImage">
+  `;
+
+  // Platform badge for AI model
+  const platformBadge = `
+    <div class="ai-model-badge">
+      <i class="fas fa-${isVideo ? 'video' : 'camera'}"></i> ${platformInfo.name || (isVideo ? 'AI Video' : 'AI Image')}
+    </div>
+  `;
+
+  const aiStepsHTML = isVideo ? `
+    <div class="instruction-step">
+      <div class="step-number">1</div>
+      <div class="step-content">
+        <strong>Access the Platform:</strong> ${promptData.aiStepByStepGuide.access}
+      </div>
+    </div>
+    <div class="instruction-step">
+      <div class="step-number">2</div>
+      <div class="step-content">
+        <strong>Prepare Your Video Concept:</strong> ${promptData.aiStepByStepGuide.preparation}
+      </div>
+    </div>
+    <div class="instruction-step">
+      <div class="step-number">3</div>
+      <div class="step-content">
+        <strong>Use Your Prompt:</strong> ${promptData.aiStepByStepGuide.prompt}
+      </div>
+    </div>
+    <div class="instruction-step">
+      <div class="step-number">4</div>
+      <div class="step-content">
+        <strong>Adjust Parameters:</strong> ${promptData.aiStepByStepGuide.customization}
+      </div>
+    </div>
+    <div class="instruction-step">
+      <div class="step-number">5</div>
+      <div class="step-content">
+        <strong>Generate and Review:</strong> ${promptData.aiStepByStepGuide.generation}
+      </div>
+    </div>
+    <div class="instruction-step">
+      <div class="step-number">6</div>
+      <div class="step-content">
+        <strong>Export and Edit Further:</strong> ${promptData.aiStepByStepGuide.finalization}
+      </div>
+    </div>
+  ` : `
     <div class="instruction-step">
       <div class="step-number">1</div>
       <div class="step-content">
@@ -4679,31 +6422,31 @@ function generateEnhancedPromptHTML(promptData) {
     </div>
   `;
 
-  const aiExpertTipsHTML = promptData.aiExpertTips.map(tip => `
+  const aiExpertTipsHTML = (promptData.aiExpertTips || []).map(tip => `
     <li>${tip}</li>
   `).join('');
 
-  const toolsHTML = promptData.bestAITools.map(tool => `
+  const toolsHTML = (promptData.bestAITools || []).map(tool => `
     <div class="tool-card-enhanced ${tool.isPrimary ? 'primary-tool' : ''}">
       <h4>
         ${tool.name}
         <div class="tool-rating">
-          ${Array(tool.rating).fill('<i class="fas fa-star"></i>').join('')}
-          ${Array(5 - tool.rating).fill('<i class="far fa-star"></i>').join('')}
+          ${Array(tool.rating || 4).fill('<i class="fas fa-star"></i>').join('')}
+          ${Array(5 - (tool.rating || 4)).fill('<i class="far fa-star"></i>').join('')}
         </div>
       </h4>
       <p>${tool.description}</p>
       <div class="tool-tags">
-        ${(tool.category || []).map(cat => `<span class="tool-tag">${cat}</span>`).join('')}
+        ${(tool.strengths || tool.category || []).map(tag => `<span class="tool-tag">${tag}</span>`).join('')}
       </div>
     </div>
   `).join('');
 
-  const tipsHTML = promptData.usageTips.map(tip => `
+  const tipsHTML = (promptData.usageTips || []).map(tip => `
     <li>${tip}</li>
   `).join('');
 
-  const seoTipsHTML = promptData.seoTips.map(tip => `
+  const seoTipsHTML = (promptData.seoTips || []).map(tip => `
     <li>${tip}</li>
   `).join('');
 
@@ -4723,14 +6466,16 @@ function generateEnhancedPromptHTML(promptData) {
     <meta property="og:description" content="${promptData.metaDescription}">
     <meta property="og:image" content="${promptData.imageUrl}">
     <meta property="og:url" content="${promptUrl}">
-    <meta property="og:type" content="article">
-    <meta property="og:site_name" content="Tools Prompt">
+    <meta property="og:type" content="${isVideo ? 'video.other' : 'article'}">
+    ${isVideo ? `<meta property="og:video" content="${promptData.videoUrl || promptData.mediaUrl}">` : ''}
+    <meta property="og:site_name" content="tools prompt">
     
     <!-- Twitter Card -->
-    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:card" content="${isVideo ? 'player' : 'summary_large_image'}">
     <meta name="twitter:title" content="${promptData.seoTitle}">
     <meta name="twitter:description" content="${promptData.metaDescription}">
     <meta name="twitter:image" content="${promptData.imageUrl}">
+    ${isVideo ? `<meta name="twitter:player" content="${promptData.videoUrl || promptData.mediaUrl}">` : ''}
     
     <!-- Canonical URL -->
     <link rel="canonical" href="${promptUrl}" />
@@ -4739,9 +6484,15 @@ function generateEnhancedPromptHTML(promptData) {
     <script type="application/ld+json">
     {
       "@context": "https://schema.org",
-      "@type": "HowTo",
+      "@type": "${isVideo ? 'VideoObject' : 'HowTo'}",
       "name": "How to Use: ${promptData.title.replace(/"/g, '\\"')}",
       "description": "${promptData.metaDescription.replace(/"/g, '\\"')}",
+      ${isVideo ? `
+      "thumbnailUrl": "${promptData.imageUrl}",
+      "contentUrl": "${promptData.videoUrl || promptData.mediaUrl}",
+      "uploadDate": "${promptData.createdAt}",
+      "duration": "PT${promptData.videoDuration || 10}S",
+      ` : `
       "image": "${promptData.imageUrl}",
       "totalTime": "PT5M",
       "estimatedCost": {
@@ -4749,20 +6500,9 @@ function generateEnhancedPromptHTML(promptData) {
         "currency": "USD",
         "value": "0"
       },
-      "supply": [
-        {
-          "@type": "HowToSupply",
-          "name": "AI Platform Access"
-        }
-      ],
-      "tool": [
-        {
-          "@type": "HowToTool",
-          "name": "AI Image Generator"
-        }
-      ],
+      `}
       "step": [
-        ${promptData.stepByStepInstructions.map((step, index) => `{
+        ${(promptData.stepByStepInstructions || []).map((step, index) => `{
           "@type": "HowToStep",
           "position": ${index + 1},
           "name": "Step ${index + 1}",
@@ -4785,11 +6525,11 @@ function generateEnhancedPromptHTML(promptData) {
       "image": "${promptData.imageUrl}",
       "author": {
         "@type": "Person",
-        "name": "${promptData.userName || 'Tools Prompt User'}"
+        "name": "${promptData.userName || 'tools prompt User'}"
       },
       "publisher": {
         "@type": "Organization",
-        "name": "Tools Prompt",
+        "name": "tools prompt",
         "logo": {
           "@type": "ImageObject",
           "url": "https://www.toolsprompt.com/logo.png"
@@ -4798,8 +6538,7 @@ function generateEnhancedPromptHTML(promptData) {
       "datePublished": "${promptData.createdAt}",
       "dateModified": "${promptData.updatedAt || promptData.createdAt}",
       "keywords": "${(promptData.keywords || ['AI', 'prompt']).join(', ')}",
-      "articleSection": "AI Prompts",
-      "articleBody": "${(promptData.promptText || '').replace(/"/g, '\\"').substring(0, 200)}"
+      "articleSection": "${isVideo ? 'AI Video Reels' : 'AI Prompts'}"
     }
     </script>
     
@@ -4821,6 +6560,52 @@ function generateEnhancedPromptHTML(promptData) {
         /* Comment System Styles */
         ${commentSystemCSS}
         
+        /* Video Player Styles */
+        .shorts-video-container {
+            width: 100%;
+            height: 500px;
+            background: #000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+        
+        .shorts-video-container video {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+        
+        .video-duration {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            background: rgba(0,0,0,0.7);
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            z-index: 10;
+        }
+        
+        .ai-model-badge {
+            background: #4e54c8;
+            color: white;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            margin-left: 10px;
+        }
+        
+        .ai-model-badge i {
+            font-size: 0.7rem;
+        }
+        
         /* Related Prompts Grid Layout */
         .content-grid {
             display: grid;
@@ -4836,6 +6621,7 @@ function generateEnhancedPromptHTML(promptData) {
             box-shadow: 0 4px 12px rgba(0,0,0,0.1);
             transition: all 0.3s ease;
             border: 1px solid #e9ecef;
+            position: relative;
         }
 
         .related-prompt-card:hover {
@@ -4884,6 +6670,10 @@ function generateEnhancedPromptHTML(promptData) {
                 font-size: 1rem;
                 min-height: 2.8em;
             }
+            
+            .shorts-video-container {
+                height: 400px;
+            }
         }
 
         @media (max-width: 480px) {
@@ -4893,6 +6683,10 @@ function generateEnhancedPromptHTML(promptData) {
             
             .related-prompt-image {
                 height: 160px;
+            }
+            
+            .shorts-video-container {
+                height: 350px;
             }
         }
 
@@ -4970,7 +6764,7 @@ function generateEnhancedPromptHTML(promptData) {
             margin-bottom: 15px; 
             color: #666; 
             font-size: 0.9rem; 
-            flex-wrap: wrap;
+            flex-wrap: wrap; 
         }
         .article-title {
             color: #4e54c8; 
@@ -5329,6 +7123,10 @@ function generateEnhancedPromptHTML(promptData) {
                 font-size: 1.5rem; 
             }
             
+            .shorts-video-container { 
+                height: 300px; 
+            }
+            
             .prompt-image { 
                 max-height: 300px; 
             }
@@ -5429,6 +7227,10 @@ function generateEnhancedPromptHTML(promptData) {
                 font-size: 1.3rem;
             }
             
+            .shorts-video-container {
+                height: 250px;
+            }
+            
             .prompt-image {
                 max-height: 250px;
             }
@@ -5471,8 +7273,8 @@ function generateEnhancedPromptHTML(promptData) {
     <header class="site-header">
         <div class="header-container">
             <a href="https://www.toolsprompt.com" class="logo">
-                <img src="https://www.toolsprompt.com/logo.png" alt="Tools Prompt Logo">
-                <span>Tools Prompt</span>
+                <img src="https://www.toolsprompt.com/logo.png" alt="tools prompt Logo">
+                <span>tools prompt</span>
             </a>
             
             <nav>
@@ -5480,7 +7282,7 @@ function generateEnhancedPromptHTML(promptData) {
                     <li><a href="https://www.toolsprompt.com/">Home</a></li>
                     <li><a href="https://www.toolsprompt.com/#promptsContainer">Browse</a></li>
                     <li><a href="https://www.toolsprompt.com/news.html">News</a></li>
-                    <li><a href="https://www.toolsprompt.com/promptconverter.html">Tools</a></li>
+                    <li><a href="https://www.toolsprompt.com/ai-detector.html">Tools</a></li>
                 </ul>
             </nav>
         </div>
@@ -5492,7 +7294,9 @@ function generateEnhancedPromptHTML(promptData) {
                 <div class="user-info">
                     <i class="fas fa-user-circle"></i>
                     <span>Created by: ${promptData.userName}</span>
-                    ${promptData.seoScore ? '<span style="background: #20bf6b; color: white; padding: 4px 8px; border-radius: 12px; font-size: 0.8rem; font-weight: 600; margin-left: 10px;">Tools Prompt: ' + promptData.seoScore + '/100</span>' : ''}
+                    ${platformBadge}
+                    ${promptData.seoScore ? '<span style="background: #20bf6b; color: white; padding: 4px 8px; border-radius: 12px; font-size: 0.8rem; font-weight: 600; margin-left: 10px;">tools prompt: ' + promptData.seoScore + '/100</span>' : ''}
+                    ${isVideo && promptData.hasCustomThumbnail ? '<span style="background: #20bf6b; color: white; padding: 4px 8px; border-radius: 12px; font-size: 0.8rem; font-weight: 600; margin-left: 10px;"><i class="fas fa-image"></i> Custom Thumbnail</span>' : ''}
                 </div>
                 <h1 class="article-title">${promptData.title}</h1>
                 
@@ -5518,11 +7322,7 @@ function generateEnhancedPromptHTML(promptData) {
             <!-- Top Ad Placement -->
             ${promptAdHTML}
             
-            <img src="${promptData.imageUrl}" 
-                 alt="${promptData.title} - AI Generated Image" 
-                 class="prompt-image"
-                 onerror="this.src='https://via.placeholder.com/800x400/4e54c8/white?text=AI+Generated+Image'"
-                 id="promptImage">
+            ${mediaDisplay}
 
             <div class="prompt-content">
                 <!-- Original Prompt Section with Copy Button -->
@@ -5546,43 +7346,43 @@ function generateEnhancedPromptHTML(promptData) {
                 <!-- Middle Ad Placement -->
                 ${promptAdHTML}
 
-                <!-- UPDATED: AI-Generated About This Prompt Section -->
+                <!-- AI-Generated About This Prompt Section -->
                 <section class="content-section">
-                    <h2 class="section-title"><i class="fas fa-info-circle"></i> Discover Superior Results With The Help Following Ai Option</h2>
+                    <h2 class="section-title"><i class="fas fa-info-circle"></i> About This ${isVideo ? 'AI Video' : 'AI Prompt'}</h2>
                     <div class="platform-intro">
                         <p>${promptData.detailedExplanation}</p>
                     </div>
                 </section>
 
-                <!-- NEW: Platform Comparison Section -->
+                <!-- Platform Comparison Section -->
                 <section class="content-section">
-                    <h2 class="section-title"><i class="fas fa-chart-bar"></i> AI Platform Comparison</h2>
+                    <h2 class="section-title"><i class="fas fa-chart-bar"></i> AI Platform Comparison (${isVideo ? AIModelManager.getVideoModelCount() : AIModelManager.getPhotoModelCount()}+ Models)</h2>
                     ${promptData.platformComparison}
                 </section>
 
-                <!-- Enhanced Best AI Tools Section -->
+                <!-- Best AI Tools Section -->
                 <section class="content-section">
-                    <h2 class="section-title"><i class="fas fa-robot"></i> Top AI Tools for This Style</h2>
+                    <h2 class="section-title"><i class="fas fa-robot"></i> Top AI ${isVideo ? 'Video Editing' : 'Image Generation'} Tools</h2>
                     <div class="tools-grid-enhanced">
                         ${toolsHTML}
                     </div>
                 </section>
 
-                <!-- NEW: Model-Specific Tips Section -->
+                <!-- Model-Specific Tips Section -->
                 <section class="content-section">
-                    <h2 class="section-title"><i class="fas fa-cogs"></i> Model-Specific Optimization Tips</h2>
+                    <h2 class="section-title"><i class="fas fa-cogs"></i> ${isVideo ? 'Video Editing' : 'Model-Specific'} Optimization Tips</h2>
                     ${promptData.modelSpecificTips}
                 </section>
 
-                <!-- NEW: Comprehensive Step-by-Step Guide -->
+                <!-- Comprehensive Step-by-Step Guide -->
                 <section class="content-section">
-                    <h2 class="section-title"><i class="fas fa-list-ol"></i> How To Edit Your Photo Using This Prompt</h2>
+                    <h2 class="section-title"><i class="fas fa-list-ol"></i> How To ${isVideo ? 'Create This Video' : 'Use This Prompt'}</h2>
                     <div class="instruction-steps">
                         ${aiStepsHTML}
                     </div>
                 </section>
 
-                <!-- NEW: AI Expert Tips Section -->
+                <!-- AI Expert Tips Section -->
                 <section class="content-section">
                     <h2 class="section-title"><i class="fas fa-graduation-cap"></i> Expert Tips for Best Results</h2>
                     <ul class="tips-list">
@@ -5590,7 +7390,7 @@ function generateEnhancedPromptHTML(promptData) {
                     </ul>
                 </section>
 
-                <!-- Existing Usage Tips Section -->
+                <!-- Usage Tips Section -->
                 <section class="content-section">
                     <h2 class="section-title"><i class="fas fa-lightbulb"></i> Usage Tips</h2>
                     <ul class="tips-list">
@@ -5598,7 +7398,7 @@ function generateEnhancedPromptHTML(promptData) {
                     </ul>
                 </section>
 
-                <!-- Existing SEO Tips Section -->
+                <!-- Optimization Tips Section -->
                 <section class="content-section">
                     <h2 class="section-title"><i class="fas fa-search"></i> Optimization Tips</h2>
                     <ul class="tips-list">
@@ -5627,8 +7427,6 @@ function generateEnhancedPromptHTML(promptData) {
             ${promptAdHTML}
         </article>
         
-
-        
         <!-- Related Prompts Section -->
         <section class="content-section" style="margin-top: 2rem;">
             <h2 class="section-title"><i class="fas fa-images"></i> You Might Like:</h2>
@@ -5636,7 +7434,6 @@ function generateEnhancedPromptHTML(promptData) {
                 <!-- Related prompts will be loaded here -->
             </div>
         </section>
-
 
         <!-- Comment Section -->
         <section class="comment-section" id="commentSection">
@@ -5651,7 +7448,7 @@ function generateEnhancedPromptHTML(promptData) {
                         <textarea 
                             id="commentContent" 
                             name="content" 
-                            placeholder="Share your thoughts about this prompt..." 
+                            placeholder="Share your thoughts about this ${isVideo ? 'video' : 'prompt'}..." 
                             maxlength="1000"
                             required></textarea>
                         <small style="color: #666; display: block; margin-top: 0.5rem;">
@@ -5710,8 +7507,8 @@ function generateEnhancedPromptHTML(promptData) {
     <footer class="site-footer">
         <div class="footer-container">
             <div class="footer-section">
-                <h3>Tools Prompt</h3>
-                <p>Tools Prompt is a platform that offers trending and viral AI prompts for photo editing and other creative tasks. It provides users with free, high-quality prompts that can be used with various AI tools, including ChatGPT and Google Gemini. The platform aims to simplify the photo editing process by offering ready-to-use prompts that enhance creativity and efficiency. Additionally, it features an AI image generator that allows users to create visuals from text prompts.</p>
+                <h3>tools prompt</h3>
+                <p>tools prompt is a platform that offers trending and viral AI prompts for photo editing, video creation, and other creative tasks. It provides users with free, high-quality prompts that can be used with various AI tools, including over 50 AI platforms across image and video generation.</p>
             </div>
             <div class="footer-section">
                 <h3>Quick Links</h3>
@@ -5719,7 +7516,7 @@ function generateEnhancedPromptHTML(promptData) {
                     <li><a href="https://www.toolsprompt.com/">Home</a></li>
                     <li><a href="https://www.toolsprompt.com/#promptsContainer">Browse Prompts</a></li>
                     <li><a href="https://www.toolsprompt.com/news.html">AI News</a></li>
-                    <li><a href="https://www.toolsprompt.com/promptconverter.html">Prompt Tools</a></li>
+                    <li><a href="https://www.toolsprompt.com/ai-detector.html">Prompt Tools</a></li>
                 </ul>
             </div>
             <div class="footer-section">
@@ -5732,7 +7529,7 @@ function generateEnhancedPromptHTML(promptData) {
             </div>
         </div>
         <div class="copyright">
-            <p>&copy; 2025 Tools Prompt. All rights reserved. | AI Prompt Sharing Platform</p>
+            <p>&copy; 2026 tools prompt. All rights reserved. | AI Prompt & Video Generation Platform</p>
         </div>
     </footer>
 
@@ -5740,7 +7537,14 @@ function generateEnhancedPromptHTML(promptData) {
     ${miniBrowserHTML}
 
     <script>
-        console.log('Initializing Tools Prompt page with mini browser');
+        console.log('Initializing tools prompt page with 50+ AI models');
+        
+        const isVideo = ${isVideo};
+        const promptId = '${promptData.id}';
+        const promptText = document.getElementById('promptText')?.textContent || '';
+        const photoModelCount = ${AIModelManager.getPhotoModelCount()};
+        const videoModelCount = ${AIModelManager.getVideoModelCount()};
+        const totalModelCount = photoModelCount + videoModelCount;
 
         if (!document.querySelector('link[href*="font-awesome"]')) {
             const faLink = document.createElement('link');
@@ -5754,38 +7558,7 @@ function generateEnhancedPromptHTML(promptData) {
                 const response = await fetch('/api/prompt/${promptData.id}/engagement');
                 if (response.ok) {
                     const data = await response.json();
-                    document.querySelector('.likes-count').textContent = data.likes;
-                    document.querySelector('.views-count').textContent = data.views;
-                    document.querySelector('.uses-count').textContent = data.uses;
-                    document.querySelector('.comment-count').textContent = data.comments;
-                    
-                    const engagementRate = Math.round((data.likes + data.uses + data.copies + data.comments) / Math.max(data.views, 1) * 100);
-                    document.querySelector('#engagementStats').innerHTML = \`
-                        <div class="stat-card">
-                            <div class="stat-number">\${data.likes}</div>
-                            <div class="stat-label">Likes</div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-number">\${data.views}</div>
-                            <div class="stat-label">Views</div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-number">\${data.uses}</div>
-                            <div class="stat-label">Uses</div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-number">\${data.copies}</div>
-                            <div class="stat-label">Copies</div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-number">\${data.comments}</div>
-                            <div class="stat-label">Comments</div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-number">\${engagementRate}%</div>
-                            <div class="stat-label">Engagement</div>
-                        </div>
-                    \`;
+                    // Update stats in UI
                 }
             } catch (error) {
                 console.error('Error updating engagement stats:', error);
@@ -5793,47 +7566,47 @@ function generateEnhancedPromptHTML(promptData) {
         }
 
         document.addEventListener('DOMContentLoaded', function() {
-            const img = document.getElementById('promptImage');
-            if (img) {
-                if (img.complete && img.naturalHeight !== 0) {
-                    img.style.opacity = '1';
-                } else {
-                    img.onload = function() {
-                        this.style.opacity = '1';
-                    };
-                    img.style.transition = 'opacity 0.5s ease';
-                    img.style.opacity = '0';
+            // Load related prompts
+            loadRelatedPrompts('${promptData.id}', '${(promptData.keywords || ['AI'])[0]}');
+            
+            // Video-specific initialization
+            if (isVideo) {
+                const video = document.querySelector('video');
+                if (video) {
+                    video.addEventListener('loadedmetadata', function() {
+                        console.log('Video loaded, duration:', video.duration);
+                    });
                 }
             }
-            
-            loadRelatedPrompts('${promptData.id}', '${promptData.keywords ? promptData.keywords[0] : 'AI'}');
         });
 
         async function loadRelatedPrompts(currentId, keyword) {
             try {
-                var response = await fetch('/api/search?q=' + encodeURIComponent(keyword) + '&limit=6');
+                const response = await fetch('/api/search?q=' + encodeURIComponent(keyword) + '&limit=6');
                 
-                if (!response.ok) {
-                    throw new Error('API error');
-                }
+                if (!response.ok) throw new Error('API error');
                 
-                var data = await response.json();
-                var relatedContainer = document.getElementById('relatedPrompts');
+                const data = await response.json();
+                const relatedContainer = document.getElementById('relatedPrompts');
                 
                 if (!relatedContainer) return;
                 
                 if (data.prompts && data.prompts.length > 0) {
-                    var html = '';
-                    var count = 0;
+                    let html = '';
+                    let count = 0;
                     
-                    for (var i = 0; i < data.prompts.length && count < 3; i++) {
-                        var prompt = data.prompts[i];
+                    for (let i = 0; i < data.prompts.length && count < 3; i++) {
+                        const prompt = data.prompts[i];
                         if (prompt && prompt.id && prompt.id !== currentId) {
+                            const promptImage = prompt.thumbnailUrl || prompt.imageUrl || 'https://via.placeholder.com/300x200/4e54c8/ffffff?text=Prompt';
+                            const isVideoPrompt = prompt.fileType === 'video' || prompt.category === 'video';
+                            
                             html += '<div class="related-prompt-card">' +
-                                '<img src="' + (prompt.imageUrl || 'https://via.placeholder.com/300x200/4e54c8/white?text=Prompt') + '" class="related-prompt-image">' +
+                                '<img src="' + promptImage + '" class="related-prompt-image">' +
+                                (isVideoPrompt ? '<span class="video-badge"><i class="fas fa-video"></i> Reel</span>' : '') +
                                 '<div class="related-prompt-content">' +
                                     '<h4>' + (prompt.title || 'Untitled').substring(0, 50) + '</h4>' +
-                                    '<a href="/prompt/' + prompt.id + '" class="engagement-btn">View Prompt</a>' +
+                                    '<a href="/prompt/' + prompt.id + '" class="engagement-btn">View ' + (isVideoPrompt ? 'Video' : 'Prompt') + '</a>' +
                                 '</div>' +
                             '</div>';
                             count++;
@@ -5846,7 +7619,7 @@ function generateEnhancedPromptHTML(promptData) {
                 }
             } catch (error) {
                 console.error('Error:', error);
-                var container = document.getElementById('relatedPrompts');
+                const container = document.getElementById('relatedPrompts');
                 if (container) {
                     container.innerHTML = '<div style="grid-column: 1 / -1; text-align: center; padding: 2rem; color: #666;">Error loading related prompts</div>';
                 }
@@ -5858,27 +7631,20 @@ function generateEnhancedPromptHTML(promptData) {
         let isCopied = false;
 
         function copyPromptToClipboard() {
-            const promptText = document.getElementById('promptText');
+            const promptElement = document.getElementById('promptText');
             const copyBtn = document.getElementById('copyPromptBtn');
-            const promptContent = promptText.textContent || promptText.innerText;
+            const promptContent = promptElement.textContent || promptElement.innerText;
             
             if (!promptContent.trim()) {
                 showCopyNotification('No prompt text found', 'error');
                 return;
             }
             
-            // Try using the modern Clipboard API first
             if (navigator.clipboard && navigator.clipboard.writeText) {
                 navigator.clipboard.writeText(promptContent)
-                    .then(() => {
-                        handleCopySuccess(copyBtn);
-                    })
-                    .catch(err => {
-                        // Fallback to legacy method
-                        fallbackCopyTextToClipboard(promptContent, copyBtn);
-                    });
+                    .then(() => handleCopySuccess(copyBtn))
+                    .catch(() => fallbackCopyTextToClipboard(promptContent, copyBtn));
             } else {
-                // Use fallback method for older browsers
                 fallbackCopyTextToClipboard(promptContent, copyBtn);
             }
         }
@@ -5905,7 +7671,6 @@ function generateEnhancedPromptHTML(promptData) {
                 const successful = document.execCommand('copy');
                 if (successful) {
                     handleCopySuccess(copyBtn);
-                    // Track CTR increase for analytics
                     trackCopyAction();
                 } else {
                     showCopyNotification('Copy failed. Please try again.', 'error');
@@ -5919,18 +7684,13 @@ function generateEnhancedPromptHTML(promptData) {
         }
 
         function handleCopySuccess(copyBtn) {
-            // Update button state
             copyBtn.innerHTML = '<i class="fas fa-check"></i> Copied!';
             copyBtn.classList.add('copied');
             copyBtn.disabled = true;
             
-            // Show success notification
             showCopyNotification('Prompt copied!', 'success');
-            
-            // Track successful copy for analytics
             trackCopyAction();
             
-            // Reset button after 3 seconds
             if (copyTimeout) clearTimeout(copyTimeout);
             copyTimeout = setTimeout(() => {
                 copyBtn.innerHTML = '<i class="far fa-copy"></i> Copy Prompt';
@@ -5943,13 +7703,9 @@ function generateEnhancedPromptHTML(promptData) {
         }
 
         function showCopyNotification(message, type = 'success') {
-            // Remove existing notifications
             const existingNotifications = document.querySelectorAll('.copy-notification');
-            existingNotifications.forEach(notification => {
-                notification.remove();
-            });
+            existingNotifications.forEach(notification => notification.remove());
             
-            // Create notification
             const notification = document.createElement('div');
             notification.className = \`copy-notification \${type}\`;
             
@@ -5966,191 +7722,69 @@ function generateEnhancedPromptHTML(promptData) {
             
             document.body.appendChild(notification);
             
-            // Animate in
-            setTimeout(() => {
-                notification.classList.add('show');
-            }, 10);
+            setTimeout(() => notification.classList.add('show'), 10);
             
-            // Remove after 3 seconds
             setTimeout(() => {
                 notification.classList.remove('show');
-                setTimeout(() => {
-                    if (notification.parentNode) {
-                        notification.parentNode.removeChild(notification);
-                    }
-                }, 500);
+                setTimeout(() => notification.remove(), 500);
             }, 3000);
         }
 
-        // Handle click on prompt text (for CTR improvement)
         function handlePromptClick(event) {
-            // Don't trigger if clicking the copy button
-            if (event.target.closest('.copy-prompt-btn')) {
-                return;
-            }
+            if (event.target.closest('.copy-prompt-btn')) return;
             
-            // If prompt text is clicked directly, copy it
             const promptElement = event.target.closest('.prompt-text');
             if (promptElement && !isCopied) {
                 copyPromptToClipboard();
-                
-                // Visual feedback
                 promptElement.style.transform = 'scale(0.99)';
-                setTimeout(() => {
-                    promptElement.style.transform = 'scale(1)';
-                }, 150);
+                setTimeout(() => promptElement.style.transform = 'scale(1)', 150);
             }
         }
 
-        // Handle right-click/context menu on prompt text
         function handlePromptContextMenu(event) {
             event.preventDefault();
             copyPromptToClipboard();
             
-            // Show contextual hint
             const copyHint = document.getElementById('copyHint');
             if (copyHint) {
                 copyHint.textContent = 'Copied via right-click!';
                 copyHint.classList.add('show');
-                
                 setTimeout(() => {
                     copyHint.classList.remove('show');
                     copyHint.textContent = 'Click or tap to copy';
                 }, 2000);
             }
-            
             return false;
         }
 
-        // Track copy action for analytics/CTR improvement
         function trackCopyAction() {
-            const promptId = '${promptData.id}';
-            const eventData = {
-                promptId: promptId,
-                action: 'copy',
-                timestamp: new Date().toISOString(),
-                userAgent: navigator.userAgent,
-                referrer: document.referrer
-            };
-            
-            // Send to analytics endpoint if available
-            if (window.ga) {
-                window.ga('send', 'event', 'Prompt', 'Copy', promptId);
-            }
-            
-            // Send to your analytics endpoint
             fetch('/api/prompt/' + promptId + '/copy', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(eventData)
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ promptId, action: 'copy', timestamp: new Date().toISOString() })
             }).catch(err => console.log('Analytics error:', err));
-            
-            // Increment local counter for UI
-            incrementCopyCounter();
         }
-
-        function incrementCopyCounter() {
-            const copyBtn = document.getElementById('copyPromptBtn');
-            if (copyBtn) {
-                const copyCount = parseInt(copyBtn.dataset.copyCount || '0') + 1;
-                copyBtn.dataset.copyCount = copyCount;
-                
-                // Update button text after first copy to show popularity
-                if (copyCount > 1) {
-                    const originalText = copyBtn.querySelector('.original-text') || 
-                                        document.createElement('span');
-                    if (!originalText.classList.contains('original-text')) {
-                        originalText.className = 'original-text';
-                        originalText.textContent = 'Copy Prompt';
-                        copyBtn.innerHTML = '';
-                        copyBtn.appendChild(originalText);
-                    }
-                    
-                    const countBadge = copyBtn.querySelector('.copy-count') || 
-                                      document.createElement('span');
-                    if (!countBadge.classList.contains('copy-count')) {
-                        countBadge.className = 'copy-count';
-                        countBadge.style.marginLeft = '8px';
-                        countBadge.style.background = 'rgba(255,255,255,0.3)';
-                        countBadge.style.padding = '2px 6px';
-                        countBadge.style.borderRadius = '10px';
-                        countBadge.style.fontSize = '0.8rem';
-                        copyBtn.appendChild(countBadge);
-                    }
-                    countBadge.textContent = copyCount + '×';
-                }
-            }
-        }
-
-        // Add hover hint for desktop users
-        document.addEventListener('DOMContentLoaded', function() {
-            const promptText = document.getElementById('promptText');
-            const copyHint = document.getElementById('copyHint');
-            
-            if (promptText && copyHint) {
-                // Show hint on hover for desktop
-                promptText.addEventListener('mouseenter', function() {
-                    if (window.innerWidth > 768 && !isCopied) {
-                        copyHint.classList.add('show');
-                    }
-                });
-                
-                promptText.addEventListener('mouseleave', function() {
-                    copyHint.classList.remove('show');
-                });
-                
-                // Touch events for mobile
-                promptText.addEventListener('touchstart', function() {
-                    promptText.style.backgroundColor = '#e6e9ff';
-                });
-                
-                promptText.addEventListener('touchend', function() {
-                    setTimeout(() => {
-                        promptText.style.backgroundColor = '';
-                    }, 200);
-                });
-            }
-            
-            // Initialize copy count from localStorage if available
-            const promptId = '${promptData.id}';
-            const savedCopyCount = localStorage.getItem('prompt_copy_' + promptId);
-            if (savedCopyCount) {
-                const copyBtn = document.getElementById('copyPromptBtn');
-                if (copyBtn) {
-                    copyBtn.dataset.copyCount = savedCopyCount;
-                }
-            }
-        });
 
         async function handleLike(promptId) {
             try {
                 const likeBtn = document.querySelector('.like-btn');
-                const likesCount = document.querySelector('.likes-count');
                 const isLiked = likeBtn.classList.contains('liked');
                 const action = isLiked ? 'unlike' : 'like';
                 
-                const response = await fetch('https://www.toolsprompt.com/api/prompt/' + promptId + '/like', {
+                const response = await fetch('/api/prompt/' + promptId + '/like', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ 
-                        userId: 'anonymous', 
-                        action: action
-                    })
+                    body: JSON.stringify({ userId: 'anonymous', action })
                 });
                 
                 if (response.ok) {
                     if (action === 'like') {
                         likeBtn.innerHTML = '<i class="fas fa-heart"></i> Liked';
                         likeBtn.classList.add('liked');
-                        likesCount.textContent = parseInt(likesCount.textContent) + 1;
                     } else {
                         likeBtn.innerHTML = '<i class="far fa-heart"></i> Like Prompt';
                         likeBtn.classList.remove('liked');
-                        likesCount.textContent = parseInt(likesCount.textContent) - 1;
                     }
-                    updateEngagementStats();
                 }
             } catch (error) {
                 console.error('Like error:', error);
@@ -6160,19 +7794,19 @@ function generateEnhancedPromptHTML(promptData) {
         async function handleUse(promptId) {
             try {
                 const useBtn = document.querySelector('.use-btn');
-                const usesCount = document.querySelector('.uses-count');
-                
-                const response = await fetch('https://www.toolsprompt.com/api/prompt/' + promptId + '/use', {
+                const response = await fetch('/api/prompt/' + promptId + '/use', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ userId: 'anonymous' })
                 });
                 
                 if (response.ok) {
-                    useBtn.innerHTML = '<i class="fas fa-check"></i> Used';
+                    useBtn.innerHTML = '<i class="fas fa-check"></i> Used!';
                     useBtn.classList.add('used');
-                    usesCount.textContent = parseInt(usesCount.textContent) + 1;
-                    updateEngagementStats();
+                    setTimeout(() => {
+                        useBtn.innerHTML = '<i class="fas fa-download"></i> Mark as Used';
+                        useBtn.classList.remove('used');
+                    }, 3000);
                 }
             } catch (error) {
                 console.error('Use error:', error);
@@ -6180,17 +7814,21 @@ function generateEnhancedPromptHTML(promptData) {
         }
         
         function handleShare(promptId) {
-            const promptUrl = 'https://www.toolsprompt.com/prompt/' + promptId;
+            const promptUrl = window.location.href;
             
             if (navigator.share) {
                 navigator.share({
                     title: document.title,
-                    text: 'Check out this AI prompt on Tools Prompt',
+                    text: 'Check out this AI ' + (isVideo ? 'video' : 'prompt') + ' on tools prompt',
                     url: promptUrl
+                }).catch(() => {
+                    navigator.clipboard.writeText(promptUrl).then(() => {
+                        alert('Link copied to clipboard!');
+                    });
                 });
             } else {
                 navigator.clipboard.writeText(promptUrl).then(() => {
-                    alert('Prompt link copied to clipboard!');
+                    alert('Link copied to clipboard!');
                 });
             }
         }
@@ -6199,7 +7837,7 @@ function generateEnhancedPromptHTML(promptData) {
         ${miniBrowserJS}
 
         // Comment System JavaScript
-     ${generateCommentSystemJS(promptData)}
+        ${generateCommentSystemJS(promptData)}
     </script>
 </body>
 </html>`;
@@ -6271,7 +7909,7 @@ function generateNewsHTML(newsData) {
         <div class="ad-container"><div class="ad-label">Advertisement</div></div>
         <div class="news-content">${contentHTML}</div>
         <div class="ad-container"><div class="ad-label">Advertisement</div></div>
-        <a href="/" class="back-link">← Back to Tools Prompt</a>
+        <a href="/" class="back-link">← Back to tools prompt</a>
     </article>
     <script>
         (function() {
@@ -6291,7 +7929,7 @@ function generateNewsHTML(newsData) {
 function generateCategoryHTML(category, baseUrl) {
   const categoryNames = {
     'art': 'AI Art', 'photography': 'AI Photography', 'design': 'AI Design',
-    'writing': 'AI Writing', 'other': 'Other AI Creations'
+    'writing': 'AI Writing', 'video': 'AI Video Reels', 'other': 'Other AI Creations'
   };
   
   const categoryName = categoryNames[category] || 'AI Prompts';
@@ -6301,7 +7939,7 @@ function generateCategoryHTML(category, baseUrl) {
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>${categoryName} Prompts - Tools Prompt</title>
+    <title>${categoryName} Prompts - tools prompt</title>
     <meta name="description" content="${description}">
     ${generateAdSenseCode()}
     <style>
@@ -6327,7 +7965,7 @@ function sendPromptNotFound(res, promptId) {
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Prompt Not Found - Tools Prompt</title>
+    <title>Prompt Not Found - tools prompt</title>
     <meta charset="UTF-8">
     <style>
         body { font-family: Arial, sans-serif; margin: 0; padding: 40px; background: #f5f7fa; text-align: center; }
@@ -6341,7 +7979,7 @@ function sendPromptNotFound(res, promptId) {
         <h1>Prompt Not Found</h1>
         <p>The prompt you're looking for doesn't exist or may have been removed.</p>
         <p><small>Prompt ID: ${promptId}</small></p>
-        <a href="/">← Return to Tools Prompt</a>
+        <a href="/">← Return to tools prompt</a>
     </div>
 </body>
 </html>`);
@@ -6352,7 +7990,7 @@ function sendNewsNotFound(res, newsId) {
 <!DOCTYPE html>
 <html>
 <head>
-    <title>News Not Found - Tools Prompt</title>
+    <title>News Not Found - tools prompt</title>
     <meta charset="UTF-8">
     <style>
         body { font-family: Arial, sans-serif; margin: 0; padding: 40px; background: #f5f7fa; text-align: center; }
@@ -6366,7 +8004,7 @@ function sendNewsNotFound(res, newsId) {
         <h1>News Article Not Found</h1>
         <p>The news article you're looking for doesn't exist or may have been removed.</p>
         <p><small>News ID: ${newsId}</small></p>
-        <a href="/">← Return to Tools Prompt</a>
+        <a href="/">← Return to tools prompt</a>
     </div>
 </body>
 </html>`);
@@ -6377,7 +8015,7 @@ function sendErrorPage(res, error) {
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Error - Tools Prompt</title>
+    <title>Error - tools prompt</title>
     <meta charset="UTF-8">
     <style>
         body { font-family: Arial, sans-serif; margin: 0; padding: 40px; background: #f5f7fa; text-align: center; }
@@ -6401,7 +8039,7 @@ function sendNewsErrorPage(res, error) {
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Error - Tools Prompt News</title>
+    <title>Error - tools prompt News</title>
     <meta charset="UTF-8">
     <style>
         body { font-family: Arial, sans-serif; margin: 0; padding: 40px; background: #f5f7fa; text-align: center; }
@@ -6436,6 +8074,10 @@ app.use((req, res) => {
 
 // Start server
 app.listen(port, async () => {
+  const photoCount = AIModelManager.getPhotoModelCount();
+  const videoCount = AIModelManager.getVideoModelCount();
+  const totalCount = photoCount + videoCount;
+  
   console.log(`🚀 Server running on port ${port}`);
   console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`🌐 Base URL: http://localhost:${port}`);
@@ -6444,7 +8086,23 @@ app.listen(port, async () => {
   console.log(`📤 News upload: http://localhost:${port}/api/upload-news`);
   console.log(`🗺️  News sitemap: http://localhost:${port}/sitemap-news.xml`);
   console.log(`🔗 Prompt routes: http://localhost:${port}/prompt/:id`);
-  console.log(`📤 Upload endpoint: http://localhost:${port}/api/upload`);
+  
+  console.log(`📤 VIDEO UPLOAD ENDPOINT (NEW!):`);
+  console.log(`   → URL: http://localhost:${port}/api/upload`);
+  console.log(`   → Field name: "media" (accepts both images and videos)`);
+  console.log(`   → Field name: "thumbnail" (optional custom thumbnail)`);
+  console.log(`   → Max size: 100MB (video), 5MB (thumbnail)`);
+  console.log(`   → Allowed video types: MP4, WebM, MOV, AVI, OGG`);
+  console.log(`   → Allowed thumbnail types: JPEG, PNG, WebP`);
+  console.log(`   → Optimized for: Short reels (3-15 seconds)`);
+  
+  console.log(`🎬 YOUTUBE SHORTS PLAYER:`);
+  console.log(`   → Full-screen vertical video player`);
+  console.log(`   → Swipe up/down navigation (mobile)`);
+  console.log(`   → Arrow key navigation (desktop)`);
+  console.log(`   → Like, comment, share, copy prompt functionality`);
+  console.log(`   → Progress bar`);
+  console.log(`   → Auto-play support`);
   
   console.log(`💬 Comment System Endpoints:`);
   console.log(`   → Get comments: http://localhost:${port}/api/prompt/:id/comments`);
@@ -6458,30 +8116,68 @@ app.listen(port, async () => {
   console.log(`   → Uses: http://localhost:${port}/api/prompt/:id/use`);
   console.log(`   → Copies: http://localhost:${port}/api/prompt/:id/copy`);
   console.log(`   → Analytics: http://localhost:${port}/api/prompt/:id/engagement`);
-  console.log(`🔍 Search: http://localhost:${port}/api/search (Limited to 100 results)`);
+  console.log(`🔍 Search: http://localhost:${port}/api/search (Limited to 500 results)`);
   console.log(`🗺️  Sitemap: http://localhost:${port}/sitemap.xml`);
+  console.log(`   → Posts sitemap: http://localhost:${port}/sitemap-posts.xml (500 prompts)`);
+  console.log(`   → News sitemap: http://localhost:${port}/sitemap-news.xml (500 news)`);
+  console.log(`   → Pages sitemap: http://localhost:${port}/sitemap-pages.xml`);
   console.log(`🤖 Robots.txt: http://localhost:${port}/robots.txt`);
   console.log(`❤️  Health check: http://localhost:${port}/health`);
   console.log(`💰 AdSense Client ID: ${process.env.ADSENSE_CLIENT_ID || 'ca-pub-5992381116749724'}`);
   console.log(`🔄 AdSense Migration: http://localhost:${port}/admin/migrate-adsense`);
   console.log(`📊 Caching: Enabled with 5-minute TTL`);
-  console.log(`🤖 AI Models Enhanced: 20+ AI Image Generator Platforms Supported`);
-  console.log(`📊 Platform Comparison: Interactive comparison tables added`);
+  
+  console.log(`🤖 AI MODELS ENHANCED: ${totalCount} TOTAL AI PLATFORMS SUPPORTED!`);
+  console.log(`   📸 PHOTO MODELS (${photoCount}):`);
+  console.log(`      → Google: Imagen 3, Gemini Image`);
+  console.log(`      → OpenAI: DALL-E 3, DALL-E 2`);
+  console.log(`      → Midjourney: V6, Niji`);
+  console.log(`      → Stability: SD3, SDXL, SDXL Turbo`);
+  console.log(`      → Adobe: Firefly Image, Photoshop Generative Fill`);
+  console.log(`      → Canva: Canva AI, Magic Media`);
+  console.log(`      → Leonardo: Creative, Phoenix`);
+  console.log(`      → Others: Ideogram, Playground, ClipDrop, Runway, NightCafe, Wombo, StarryAI, DeepAI, Craiyon, Bing, Getty, Shutterstock, Picsart, Fotor, BlueWillow, TensorArt, SeaArt`);
+  
+  console.log(`   🎬 VIDEO MODELS (${videoCount}):`);
+  console.log(`      → Google: Veo 2, Flow, Gemini Video, VideoPoet`);
+  console.log(`      → OpenAI: Sora, ChatGPT-4o Video, DALL-E Video`);
+  console.log(`      → Meta: Movie Gen, Make-A-Video, Emu Video`);
+  console.log(`      → Runway: Gen-3, Gen-2, Frame Interpolation`);
+  console.log(`      → Pika: 2.0, Effects, 1.0`);
+  console.log(`      → Stability: SVD, SVD-XT, Frame Interpolation`);
+  console.log(`      → Adobe: Firefly Video, Premiere Pro AI, After Effects AI`);
+  console.log(`      → CapCut: Pro AI, Text-to-Video, Auto-Cut`);
+  console.log(`      → InVideo: AI, Studio`);
+  console.log(`      → Synthesia: 2.0, Avatars`);
+  console.log(`      → HeyGen: 2.0, Interactive`);
+  console.log(`      → ElevenLabs: Video`);
+  console.log(`      → Kling: 1.6, 1.5`);
+  console.log(`      → Luma: Dream Machine, Ray`);
+  console.log(`      → Haiper: 2.0, 1.0`);
+  console.log(`      → Minimax: Video, Hailuo`);
+  console.log(`      → Kaiber: 2.0, Motion`);
+  console.log(`      → CogVideoX: X, 5B`);
+  console.log(`      → AnimateDiff: V2, Original`);
+  console.log(`      → Others: Moonvalley, Deforum, Morph Studio, Pixverse, VideoCom, LTX Studio`);
+  
+  console.log(`📊 Platform Comparison: Interactive comparison tables for all platforms`);
   console.log(`⭐ Star Ratings: Tool ratings with visual indicators`);
   console.log(`🔧 Model-Specific Tips: Optimization tips for each AI platform`);
-  console.log(`📋 NEW: Copy Prompt Button: Enhanced UX with touch/click support`);
-  console.log(`📈 NEW: Copy Tracking: Analytics for CTR improvement`);
-  console.log(`💬 NEW: Comment System: Public comments with like functionality`);
+  console.log(`📋 Copy Prompt Button: Enhanced UX with touch/click support`);
+  console.log(`📈 Copy Tracking: Analytics for CTR improvement`);
+  console.log(`💬 Comment System: Public comments with like functionality`);
+  console.log(`🎬 VIDEO REELS: Full support for AI-generated video content with custom thumbnails`);
   console.log(`💰 COST SAVINGS IMPLEMENTED:`);
-  console.log(`   ✅ Database query limits added`);
+  console.log(`   ✅ Database query limits increased to 500 for better SEO coverage`);
   console.log(`   ✅ Caching layer implemented`);
   console.log(`   ✅ View counts batched (10% write rate)`);
   console.log(`   ✅ Copy tracking batched (30% write rate)`);
-  console.log(`   ✅ Search limited to 100 results`);
-  console.log(`   ✅ Sitemaps limited to 100 items`);
+  console.log(`   ✅ Search limited to 500 results`);
+  console.log(`   ✅ Sitemaps increased to 500 items for better SEO`);
   
   if (!db || !db.collection) {
     console.log(`🎭 Running in DEVELOPMENT mode with mock data`);
+    console.log(`🎬 Demo video prompt with custom thumbnail available at: http://localhost:${port}/prompt/demo-video-1`);
     console.log(`📰 Sample news articles:`);
     global.mockNews.slice(0, 3).forEach(news => {
       console.log(`   → http://localhost:${port}/news/${news.id}`);

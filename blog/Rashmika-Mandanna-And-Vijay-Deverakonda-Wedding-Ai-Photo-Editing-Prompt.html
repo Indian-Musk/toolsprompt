@@ -1,0 +1,667 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rashmika Mandanna And Vijay Deverakonda Wedding Ai Photo Editing Prompt | ToolsPrompt</title>
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+        }
+
+        body {
+            background-color: #f8fafc;
+            color: #1e293b;
+            min-height: 100vh;
+        }
+
+        .nav-bar {
+            background: white;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+        }
+
+        .nav-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0.75rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            text-decoration: none;
+            color: #1e293b;
+            font-weight: 700;
+            font-size: 1.2rem;
+        }
+
+        .logo img {
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 2rem;
+            list-style: none;
+        }
+
+        .nav-links a {
+            text-decoration: none;
+            color: #64748b;
+            font-weight: 500;
+            transition: color 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .nav-links a:hover,
+        .nav-links a.active {
+            color: #667eea;
+        }
+
+        .page-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 3rem 1rem;
+            text-align: center;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+
+        .page-header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+            font-weight: 700;
+        }
+
+        .page-header p {
+            font-size: 1.2rem;
+            opacity: 0.95;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .blog-post-container {
+            max-width: 800px;
+            margin: 3rem auto;
+            padding: 0 2rem;
+        }
+
+        .post-header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .post-date {
+            font-size: 1.1rem;
+            color: #667eea;
+            margin-bottom: 15px;
+        }
+
+        .post-title {
+            font-size: 2.8rem;
+            margin-bottom: 20px;
+            background: linear-gradient(135deg, #667eea, #ff6b6b);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .post-meta {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            color: #64748b;
+            font-size: 0.95rem;
+        }
+
+        .post-image {
+            width: 100%;
+            height: 450px;
+            border-radius: 15px;
+            background-size: cover;
+            background-position: center;
+            margin: 2rem 0;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+        }
+
+        .post-content {
+            background: white;
+            padding: 40px;
+            border-radius: 15px;
+            box-shadow: 0 5px 25px rgba(0, 0, 0, 0.08);
+            line-height: 1.8;
+            font-size: 1.1rem;
+        }
+
+        .post-content h2 {
+            color: #667eea;
+            margin: 30px 0 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #f0f4f8;
+        }
+
+        .post-content h3 {
+            color: #667eea;
+            margin: 25px 0 10px;
+        }
+
+        .post-content p {
+            margin-bottom: 20px;
+        }
+
+        .post-content ul, .post-content ol {
+            padding-left: 30px;
+            margin-bottom: 20px;
+        }
+
+        .post-content li {
+            margin-bottom: 10px;
+        }
+
+        .post-content blockquote {
+            border-left: 4px solid #667eea;
+            background: rgba(102, 126, 234, 0.05);
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 0 8px 8px 0;
+            font-style: italic;
+        }
+
+        .prompt-box {
+            background: #f0f4f8;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px 0;
+            border-left: 4px solid #ff6b6b;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .prompt-box::before {
+            content: '"';
+            position: absolute;
+            top: -20px;
+            left: 10px;
+            font-size: 6rem;
+            color: rgba(102, 126, 234, 0.1);
+            font-family: serif;
+            line-height: 1;
+        }
+
+        .prompt-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+        }
+
+        .copy-btn {
+            background: rgba(102, 126, 234, 0.1);
+            color: #667eea;
+            border: none;
+            padding: 5px 15px;
+            border-radius: 20px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .copy-btn:hover {
+            background: #667eea;
+            color: white;
+        }
+
+        .result-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin: 30px 0;
+        }
+
+        .result-card {
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .result-image {
+            height: 200px;
+            background-size: cover;
+            background-position: center;
+        }
+
+        .result-description {
+            padding: 15px;
+            background: white;
+        }
+
+        .post-tags {
+            display: flex;
+            gap: 10px;
+            margin-top: 40px;
+            flex-wrap: wrap;
+        }
+
+        .post-tags a {
+            background: rgba(102, 126, 234, 0.1);
+            color: #667eea;
+            padding: 8px 15px;
+            border-radius: 30px;
+            text-decoration: none;
+            font-size: 0.9rem;
+            transition: all 0.3s ease;
+        }
+
+        .post-tags a:hover {
+            background: #667eea;
+            color: white;
+        }
+
+        .author-card {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 5px 25px rgba(0, 0, 0, 0.08);
+            margin-top: 50px;
+        }
+
+        .author-avatar {
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+            background-size: cover;
+            background-position: center;
+            flex-shrink: 0;
+        }
+
+        .author-info h3 {
+            color: #1e293b;
+            margin-bottom: 10px;
+        }
+
+        .social-links {
+            display: flex;
+            gap: 15px;
+            margin-top: 10px;
+        }
+
+        .social-links a {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 40px;
+            height: 40px;
+            background: #f8fafc;
+            border-radius: 50%;
+            color: #1e293b;
+            transition: all 0.3s ease;
+        }
+
+        .social-links a:hover {
+            background: #667eea;
+            color: white;
+            transform: translateY(-5px);
+        }
+
+        .footer {
+            background: #1e293b;
+            color: white;
+            padding: 3rem 2rem;
+            margin-top: 4rem;
+        }
+
+        .footer-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 2rem;
+        }
+
+        .footer-section h4 {
+            margin-bottom: 1rem;
+            font-size: 1.2rem;
+            color: #667eea;
+        }
+
+        .footer-section p {
+            color: #94a3b8;
+            line-height: 1.6;
+        }
+
+        .footer-section ul {
+            list-style: none;
+        }
+
+        .footer-section ul li {
+            margin-bottom: 0.5rem;
+        }
+
+        .footer-section ul li a {
+            color: #94a3b8;
+            text-decoration: none;
+            transition: color 0.2s ease;
+        }
+
+        .footer-section ul li a:hover {
+            color: white;
+        }
+
+        .copyright {
+            text-align: center;
+            margin-top: 2rem;
+            padding-top: 2rem;
+            border-top: 1px solid #334155;
+            color: #94a3b8;
+        }
+
+        @media (max-width: 768px) {
+            .nav-container {
+                flex-direction: column;
+                gap: 1rem;
+            }
+            .nav-links {
+                width: 100%;
+                justify-content: center;
+                gap: 1rem;
+            }
+            .page-header h1 {
+                font-size: 2rem;
+            }
+            .post-title {
+                font-size: 2.2rem;
+            }
+            .post-image {
+                height: 300px;
+            }
+            .post-content {
+                padding: 25px;
+            }
+            .author-card {
+                flex-direction: column;
+                text-align: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="nav-bar">
+        <div class="nav-container">
+            <a href="/" class="logo">
+                <img src="logo.png" alt="Tools Prompt Logo" onerror="this.src='https://via.placeholder.com/40x40/667eea/white?text=TP'">
+                <span>Tools Prompt</span>
+            </a>
+            
+            <ul class="nav-links">
+                <li><a href="/"><i class="fas fa-home"></i> Home</a></li>
+                <li><a href="/blog.html"><i class="fas fa-blog"></i> Blog</a></li>
+                <li><a href="/news.html"><i class="fas fa-newspaper"></i> News</a></li>
+                <li><a href="/promptconverter.html"><i class="fas fa-tools"></i> Tools</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <!-- Header -->
+    <header class="page-header">
+        <h1>Rashmika Mandanna And Vijay Deverakonda Wedding Ai Photo Editing Prompt</h1>
+        <p>Read our latest articles, guides, and tutorials about AI photo editing prompts</p>
+    </header>
+
+    <!-- Main Blog Post Content (Rashmika & Vijay Wedding theme) -->
+    <main class="blog-post-container">
+        <article>
+            <div class="post-header">
+                <div class="post-date">07.03.2026</div>
+                <h1 class="post-title">Rashmika Mandanna And Vijay Deverakonda Wedding Ai Photo Editing Prompt</h1>
+                <div class="post-meta">
+                    <span><i class="far fa-user"></i> By Toolsprompt</span>
+                </div>
+            </div>
+            
+            <div class="post-image" style="background-image: url('https://storage.googleapis.com/toolsprompt-5b07e.firebasestorage.app/prompts/1772607823302-l0mi86.png')"></div>
+            
+            <div class="post-content">
+                <p>Hello Fans & AI Creators !</p>
+                
+                <p>In this dreamy guide, we're bringing to life one of the most anticipated celebrations—the wedding of Rashmika Mandanna and Vijay Deverakonda! Using AI photo editing, you can now create stunning, cinematic wedding portraits of this beloved couple. Whether it's for fan art, social media edits, or just to imagine their fairy-tale union, these prompts will help you generate breathtaking, realistic wedding scenes.</p>
+                
+                <h2>The Rashmika-Vijay Wedding Dream</h2>
+                <p>Rashmika Mandanna, the "National Crush of India," and Vijay Deverakonda, the charismatic "Rowdy" star, have captured millions of hearts. Their real-life chemistry and massive fandoms make them a favorite subject for AI-generated wedding visuals. The perfect prompt combines their distinct features, traditional South Indian wedding aesthetics, and a cinematic, romantic atmosphere.</p>
+                
+                <blockquote>
+                    "AI lets us visualize the wedding we all secretly hope for—Rashmika's radiant smile, Vijay's intense charm, and a celebration that blends tradition with modern elegance."
+                </blockquote>
+                
+                <p>With carefully structured prompts, you can guide AI image generators to produce everything from intimate candid moments to grand ceremony scenes, complete with authentic attire, jewelry, and decor.</p>
+                
+                <h2>Anatomy of the Perfect Couple Wedding Prompt</h2>
+                <p>A successful Rashmika-Vijay wedding prompt must capture their individual likenesses and the cultural richness of a South Indian wedding. Here's a template to build upon:</p>
+                
+                <div class="prompt-box">
+                    <div class="prompt-header">
+                        <h3>Rashmika & Vijay Wedding Prompt Template</h3>
+                        <button class="copy-btn"><i class="far fa-copy"></i> Copy</button>
+                    </div>
+                    <p>Use the provided reference image as the exact subject and maintain consistent facial identity
+without alteration. Replace the yellow outfit person with my male friend dressed in an elegant
+traditional cream or muted gold kurta with subtle embroidery. Capture a close premium wedding
+portrait where Rashmika stands in the center with Vijay beside her, and my male friend stands
+slightly to her other side with respectful distance. No physical contact with Rashmika. All smiling
+warmly toward camera. Soft natural daylight, warm golden tone, shallow depth of field (85mm
+lens), blurred palm trees background, ultra-detailed silk fabrics and flower garlands, cinematic
+2026 wedding aesthetic, realistic skin tones, dignified and elegant vibe.</p>
+                </div>
+                
+                <h3>Key Elements for Their Wedding Prompts</h3>
+                <ul>
+                    <li><strong>Rashmika's Features:</strong> "bright, expressive eyes", "radiant smile", "soft dimples", "long dark hair with gajra (flowers)".</li>
+                    <li><strong>Vijay's Features:</strong> "intense yet soft gaze", "signature smolder", "well-groomed beard", "confident posture".</li>
+                    <li><strong>Wedding Attire:</strong> For Rashmika: "Kanjeevaram silk saree", "bridal lehenga", "traditional South Indian jewelry (vanki, kamarbandh, long jhumkas)". For Vijay: "silk dhoti and angavastram", "embroidered sherwani", "Mysore peta (turban)".</li>
+                    <li><strong>Ceremony Details:</strong> "exchanging garlands (jaimala)", "tying the mangalsutra", "saptapadi around the sacred fire", "blessings from elders".</li>
+                    <li><strong>Setting Options:</strong> "Mysore Palace", "ancient temple with pillars", "beachside mandap at sunset", "lavish hotel decorated with fresh flowers".</li>
+                </ul>
+                
+                <h2>Step-by-Step: Creating Their Wedding Portrait</h2>
+                
+                <h3>1. Choose Your Wedding Moment</h3>
+                <p>Decide which part of the wedding you want to depict—the ceremony, a romantic portrait, or a fun candid moment.</p>
+                
+                <h3>2. Describe Each Star Accurately</h3>
+                <p>Provide clear details that capture their essence. Example for Rashmika:</p>
+                <div class="prompt-box">
+                    <p>"Rashmika Mandanna as a bride, glowing skin, long dark hair adorned with fresh jasmine flowers (gajra), wearing a deep red Kanjeevaram silk saree with gold zari border, traditional gold temple jewelry including a long necklace and jhumkas, looking at Vijay with a shy, happy smile."</p>
+                </div>
+                
+                <p>Example for Vijay:</p>
+                <div class="prompt-box">
+                    <p>"Vijay Deverakonda as a groom, clean-shaven or with light stubble, wearing a cream-colored silk sherwani with gold embroidery, a pearl necklace, and a Mysore peta (traditional turban). He has a proud, loving expression as he looks at Rashmika."</p>
+                </div>
+                
+                <h3>3. Build the Complete Wedding Scene</h3>
+                <p>Now combine everything. Here's a comprehensive example that creates a dreamy wedding portrait:</p>
+                <div class="prompt-box">
+                    <div class="prompt-header">
+                        <h3>Viral Rashmika-Vijay Wedding Prompt</h3>
+                        <button class="copy-btn"><i class="far fa-copy"></i> Copy</button>
+                    </div>
+                    <p>
+                        Use the provided reference image as the exact subject and maintain consistent facial identity
+without alteration. Replace the yellow outfit person with my male friend dressed in an elegant
+traditional cream or muted gold kurta with subtle embroidery. Capture a close premium wedding
+portrait where Rashmika stands in the center with Vijay beside her, and my male friend stands
+slightly to her other side with respectful distance. No physical contact with Rashmika. All smiling
+warmly toward camera. Soft natural daylight, warm golden tone, shallow depth of field (85mm
+lens), blurred palm trees background, ultra-detailed silk fabrics and flower garlands, cinematic
+2026 wedding aesthetic, realistic skin tones, dignified and elegant vibe.        </p>
+                </div>
+                
+                <h2>Example Results: Dream Wedding Edits</h2>
+                <div class="result-grid">
+                    <div class="result-card">
+                        <div class="result-image" style="background-image: url('https://storage.googleapis.com/toolsprompt-5b07e.firebasestorage.app/prompts/1772607627773-98ffyr.png')"></div>
+                        <div class="result-description">
+                            <h4>The Varmala Moment</h4>
+                            <p>Exchanging garlands, playful smiles</p>
+                        </div>
+                    </div>
+
+                    <div class="result-card">
+                        <div class="result-image" style="background-image: url('https://storage.googleapis.com/toolsprompt-5b07e.firebasestorage.app/prompts/1772607513999-0mf7xb.png')"></div>
+                        <div class="result-description">
+                            <h4>Palace Romance</h4>
+                            <p>Elegant portrait at Mysore Palace</p>
+                        </div>
+                    </div>
+                    <div class="result-card">
+                        <div class="result-image" style="background-image: url('https://storage.googleapis.com/toolsprompt-5b07e.firebasestorage.app/prompts/1772607124781-9v3vmt.png')"></div>
+                        <div class="result-description">
+                            <h4>Traditional Touch</h4>
+                            <p>Rashmika in stunning Kanjeevaram, Vijay in veshti</p>
+                        </div>
+                    </div>
+                    <div class="result-card">
+                        <div class="result-image" style="background-image: url('https://storage.googleapis.com/toolsprompt-5b07e.firebasestorage.app/prompts/1772607513999-0mf7xb.png')"></div>
+                        <div class="result-description">
+                            <h4>Candid Laughter</h4>
+                            <p>A joyful moment during the ceremonies</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="post-image" style="background-image: url('https://storage.googleapis.com/toolsprompt-5b07e.firebasestorage.app/prompts/1772607513999-0mf7xb.png')"></div>
+
+                <div class="prompt-box">
+                    <div class="prompt-header">
+                        <h3>Quick Copy: Intimate Portrait</h3>
+                        <button class="copy-btn"><i class="far fa-copy"></i> Copy</button>
+                    </div>
+                    <p>
+                      Ultra-realistic candid wedding photo of a young Indian woman (exact same face as reference image, identical facial features, same face structure, same eyes, same smile, same skin tone) wearing a traditional orange heavily embroidered lehenga choli with intricate gold detailing, stylish deep neckline blouse, matching flowing dupatta, elegant jewelry including choker necklace, long necklace, earrings, bangles, and waist chain. Her long wavy brown hair flows naturally, soft glowing makeup, radiant skin, natural smile.
+She is standing between South Indian actors Vijay Deverakonda and Rashmika Mandanna in a warm affectionate group hug. Vijay Deverakonda is wearing a rich red traditional kurta with subtle gold embroidery and cream dhoti, layered red and white flower garlands. Rashmika Mandanna is wearing an elegant traditional silk saree in orange and cream tones with heavy gold jewelry and flower garlands.
+All three are smiling warmly, arms wrapped around each other naturally in a joyful wedding moment. The young woman is in the center being hugged from both sides.
+Natural outdoor South Indian wedding setup with floral mandap decor in the background, soft golden daylight, shallow depth of field, vibrant festive colors, highly detailed skin texture, realistic fabric detailing, cinematic clarity, 4k ultra HD, photorealistic, candid emotional moment, no blur on faces, perfectly sharp focus.   </p>
+                </div>
+                
+                <h2>Respectful Creation: Ethical Considerations</h2>
+                <p>When creating AI images of real celebrities, especially in a personal context like a wedding, it's important to be respectful:</p>
+                
+                <ul>
+                    <li><strong>Admiration, Not Misrepresentation:</strong> Create images as fan art and expressions of admiration, not to spread rumors or claim they are real. Clearly label them as AI-generated.</li>
+                    <li><strong>Privacy Boundaries:</strong> Avoid creating overly intimate or inappropriate scenes. Keep it tasteful and celebratory.</li>
+                    <li><strong>Disclose AI Use:</strong> Always use hashtags like #AIFanArt or #AIGenerated when sharing online. This prevents misinformation and gives context.</li>
+                    <li><strong>Celebrate Positively:</strong> Focus on the joy and beauty of the imagined celebration, respecting both stars' real-life privacy and choices.</li>
+                </ul>
+                
+                <h2>Pro Tips for Star-Studded AI Wedding Prompts</h2>
+                
+                <div class="prompt-box">
+                    <h3>Advanced Prompt Engineering</h3>
+                    <ul>
+                        <li>Specify regional styles: "Kodava wedding elements" for Rashmika's heritage, or "Telugu Brahmin style" for traditional authenticity.</li>
+                        <li>Include specific jewelry: "Manga mala (mango necklace)", "Kasula haru (coin necklace)", "oddiyanam (waist belt)".</li>
+                        <li>Add floral decor: "maligai poo (jasmine)", "samandhi (crossandra)", "marigold torans".</li>
+                        <li>Mention photography style: "like a real wedding album", "candid photography", "posed traditional portrait".</li>
+                        <li>For mood: "romantic sunset light", "glow of diyas at dusk", "soft morning light".</li>
+                    </ul>
+                </div>
+                
+                <h2>Conclusion</h2>
+                <p>The imagined wedding of Rashmika Mandanna and Vijay Deverakonda is a beautiful canvas for AI creativity. With these prompts, you can craft dreamy, respectful, and stunning visuals that celebrate their on-screen and off-screen charm. Whether you're a fan creating art or just exploring celebrity AI edits, these techniques will help you bring that fairy-tale wedding to life.</p>
+                
+                <p>So go ahead—design their perfect day, one prompt at a time. Wishing the (imaginary) couple a lifetime of happiness!</p>
+                
+                <div class="post-tags">
+                    <a href="#">RashmikaMandanna</a>
+                    <a href="#">VijayDeverakonda</a>
+                    <a href="#">AIWedding</a>
+                    <a href="#">CelebrityAI</a>
+                    <a href="#">SouthIndianWedding</a>
+                </div>
+            </div>
+            
+            <div class="author-card">
+                <div class="author-avatar" style="background-image: url('https://toolsprompt.com/logo.png')"></div>
+                <div class="author-info">
+                    <h3>Toolsprompt</h3>
+                    <p>Toolsprompt is a viral AI Photo Editing Prompt Website.</p>
+                    <div class="social-links">
+                        <a href="#"><i class="fab fa-twitter"></i></a>
+                        <a href="#"><i class="fab fa-instagram"></i></a>
+                        <a href="#"><i class="fab fa-linkedin"></i></a>
+                        <a href="#"><i class="fab fa-github"></i></a>
+                    </div>
+                </div>
+            </div>
+        </article>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="footer-content">
+            <div class="footer-section">
+                <h4>Tools Prompt</h4>
+                <p>Your source for AI photo editing prompts, tutorials, and guides. Learn how to create stunning images with AI.</p>
+            </div>
+            
+            <div class="footer-section">
+                <h4>Quick Links</h4>
+                <ul>
+                    <li><a href="/">Home</a></li>
+                    <li><a href="/blog.html">Blog</a></li>
+                    <li><a href="/news.html">News</a></li>
+                    <li><a href="/promptconverter.html">Prompt Tools</a></li>
+                </ul>
+            </div>
+            
+            <div class="footer-section">
+                <h4>Categories</h4>
+                <ul id="footerCategories">
+                    <li><a href="#" data-category="Tutorial">Tutorials</a></li>
+                    <li><a href="#" data-category="Prompts">Prompts</a></li>
+                    <li><a href="#" data-category="Guide">Guides</a></li>
+                    <li><a href="#" data-category="Tips">Tips & Tricks</a></li>
+                </ul>
+            </div>
+        </div>
+        
+        <div class="copyright">
+            <p>&copy; 2026 Toolsprompt.com All rights reserved.</p>
+        </div>
+    </footer>
+
+    <script>
+        // Copy button functionality
+        document.querySelectorAll('.copy-btn').forEach(button => {
+            button.addEventListener('click', function() {
+                const promptBox = this.closest('.prompt-box');
+                const promptText = promptBox.querySelector('p').textContent;
+                
+                navigator.clipboard.writeText(promptText).then(() => {
+                    const originalText = this.innerHTML;
+                    this.innerHTML = '<i class="fas fa-check"></i> Copied!';
+                    
+                    setTimeout(() => {
+                        this.innerHTML = originalText;
+                    }, 2000);
+                });
+            });
+        });
+    </script>
+</body>
+</html>

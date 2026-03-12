@@ -1,0 +1,2760 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5992381116749724"
+     crossorigin="anonymous"></script>
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-K4KXR4FZCP"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-K4KXR4FZCP');
+</script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Prompt Detector - Tools Prompt | Video & Photo AI Model Detection</title>
+    <meta name="description" content="Enter your prompt below and instantly discover which AI platform it's best suited for. Get detailed step-by-step guidance for creating stunning photos or viral video reels.">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        /* (Keep all your existing CSS exactly as before) */
+        :root {
+            --primary: #4e54c8;
+            --secondary: #8f94fb;
+            --accent: #ff6b6b;
+            --dark: #2d334a;
+            --light: #f8f9fa;
+            --success: #20bf6b;
+            --transition: all 0.3s ease;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background: linear-gradient(135deg, #f5f7fa 0%, #e4edf5 100%);
+            color: var(--dark);
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+
+        header {
+            background: rgba(255, 255, 255, 0.95);
+            box-shadow: 0 2px 15px rgba(0, 0, 0, 0.1);
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+            backdrop-filter: blur(10px);
+        }
+
+        nav {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--primary);
+            text-decoration: none;
+        }
+
+        .logo img {
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 25px;
+        }
+
+        .nav-links a {
+            text-decoration: none;
+            color: var(--dark);
+            font-weight: 500;
+            transition: var(--transition);
+        }
+
+        .nav-links a:hover, .nav-links a.active {
+            color: var(--primary);
+        }
+
+        .main-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+
+        .detector-header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        .detector-header h1 {
+            font-size: 2.8rem;
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 15px;
+        }
+
+        .detector-header p {
+            font-size: 1.2rem;
+            color: #666;
+            max-width: 700px;
+            margin: 0 auto;
+        }
+
+        .stats-badge {
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            color: white;
+            padding: 8px 20px;
+            border-radius: 30px;
+            display: inline-block;
+            margin-top: 20px;
+            font-weight: 600;
+        }
+
+        .stats-badge i {
+            margin-right: 8px;
+        }
+
+        .input-card {
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            margin-bottom: 30px;
+            border: 1px solid #e9ecef;
+        }
+
+        .input-card h2 {
+            color: var(--dark);
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .input-card h2 i {
+            color: var(--primary);
+        }
+
+        .prompt-input-area {
+            margin-bottom: 25px;
+        }
+
+        .prompt-input-area label {
+            display: block;
+            margin-bottom: 10px;
+            font-weight: 600;
+            color: var(--dark);
+        }
+
+        .prompt-input-area textarea {
+            width: 100%;
+            padding: 20px;
+            border: 2px solid #e9ecef;
+            border-radius: 15px;
+            font-size: 1.1rem;
+            line-height: 1.6;
+            resize: vertical;
+            min-height: 150px;
+            transition: var(--transition);
+        }
+
+        .prompt-input-area textarea:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 4px rgba(78, 84, 200, 0.1);
+        }
+
+        .platform-hints {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 25px;
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 12px;
+        }
+
+        .platform-hint-tag {
+            background: white;
+            border: 1px solid #e9ecef;
+            padding: 8px 15px;
+            border-radius: 25px;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .platform-hint-tag:hover {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+        }
+
+        .platform-hint-tag i {
+            margin-right: 5px;
+            color: var(--accent);
+        }
+
+        .button-group {
+            display: flex;
+            gap: 15px;
+            margin-top: 15px;
+            flex-wrap: wrap;
+        }
+
+        .detect-btn {
+            flex: 1;
+            min-width: 200px;
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 40px;
+            font-size: 1.2rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: var(--transition);
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            justify-content: center;
+        }
+
+        .detect-btn.photo {
+            background: linear-gradient(135deg, #20bf6b, #4cd964);
+        }
+
+        .detect-btn.video {
+            background: linear-gradient(135deg, #ff6b6b, #ff8787);
+        }
+
+        .detect-btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 25px rgba(78, 84, 200, 0.4);
+        }
+
+        .detect-btn.photo:hover {
+            box-shadow: 0 10px 25px rgba(32, 191, 107, 0.4);
+        }
+
+        .detect-btn.video:hover {
+            box-shadow: 0 10px 25px rgba(255, 107, 107, 0.4);
+        }
+
+        .detect-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .loading-animation {
+            display: none;
+            text-align: center;
+            padding: 40px;
+        }
+
+        .loading-animation.active {
+            display: block;
+        }
+
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 5px solid #f3f3f3;
+            border-top: 5px solid var(--primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .results-container {
+            display: none;
+            margin-top: 30px;
+        }
+
+        .results-container.active {
+            display: block;
+        }
+
+        .platform-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            border-radius: 20px;
+            margin-bottom: 25px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .platform-header::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            right: -50%;
+            width: 100%;
+            height: 200%;
+            background: rgba(255,255,255,0.1);
+            transform: rotate(45deg);
+        }
+
+        .platform-badge {
+            position: relative;
+            z-index: 1;
+            display: inline-block;
+            background: rgba(255,255,255,0.2);
+            padding: 8px 16px;
+            border-radius: 30px;
+            font-size: 0.9rem;
+            margin-bottom: 15px;
+            backdrop-filter: blur(10px);
+        }
+
+        .platform-name {
+            position: relative;
+            z-index: 1;
+            font-size: 2.5rem;
+            margin-bottom: 15px;
+            font-weight: 700;
+        }
+
+        .platform-category {
+            position: relative;
+            z-index: 1;
+            display: inline-block;
+            background: rgba(255,255,255,0.3);
+            padding: 5px 15px;
+            border-radius: 25px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            margin-right: 10px;
+        }
+
+        .platform-price {
+            position: relative;
+            z-index: 1;
+            display: inline-block;
+            background: var(--success);
+            padding: 5px 15px;
+            border-radius: 25px;
+            font-size: 0.9rem;
+            font-weight: 600;
+        }
+
+        .platform-description {
+            position: relative;
+            z-index: 1;
+            margin-top: 20px;
+            font-size: 1.1rem;
+            line-height: 1.7;
+            opacity: 0.9;
+        }
+
+        .type-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(255,255,255,0.25);
+            padding: 8px 20px;
+            border-radius: 30px;
+            font-size: 1rem;
+            margin-right: 10px;
+            backdrop-filter: blur(5px);
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.05);
+            border: 1px solid #e9ecef;
+            text-align: center;
+        }
+
+        .stat-card i {
+            font-size: 2rem;
+            color: var(--primary);
+            margin-bottom: 10px;
+        }
+
+        .stat-card .stat-label {
+            color: #666;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .stat-card .stat-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--dark);
+        }
+
+        .section-card {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 25px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.05);
+            border: 1px solid #e9ecef;
+        }
+
+        .section-title {
+            color: var(--dark);
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 1.5rem;
+        }
+
+        .section-title i {
+            color: var(--primary);
+        }
+
+        .strengths-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin: 15px 0;
+        }
+
+        .strength-tag {
+            background: rgba(78, 84, 200, 0.1);
+            color: var(--primary);
+            padding: 6px 15px;
+            border-radius: 25px;
+            font-size: 0.9rem;
+            font-weight: 500;
+        }
+
+        .step-guide {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .guide-step {
+            display: flex;
+            align-items: flex-start;
+            gap: 15px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 12px;
+            border-left: 4px solid var(--primary);
+        }
+
+        .step-number {
+            background: var(--primary);
+            color: white;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            flex-shrink: 0;
+        }
+
+        .step-content {
+            flex: 1;
+        }
+
+        .step-content strong {
+            color: var(--primary);
+            display: block;
+            margin-bottom: 5px;
+        }
+
+        .tips-list {
+            list-style: none;
+        }
+
+        .tips-list li {
+            padding: 12px 0;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+        }
+
+        .tips-list li i {
+            color: var(--success);
+            margin-top: 3px;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 15px;
+            margin-top: 30px;
+            flex-wrap: wrap;
+        }
+
+        .action-btn {
+            flex: 1;
+            min-width: 200px;
+            padding: 15px 25px;
+            border: none;
+            border-radius: 12px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: var(--transition);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            text-decoration: none;
+        }
+
+        .action-btn.primary {
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            color: white;
+        }
+
+        .action-btn.secondary {
+            background: white;
+            color: var(--primary);
+            border: 2px solid var(--primary);
+        }
+
+        .action-btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+        }
+
+        .error-message {
+            background: #ffebee;
+            color: #c62828;
+            padding: 20px;
+            border-radius: 12px;
+            margin-top: 20px;
+            border-left: 4px solid #c62828;
+        }
+
+        @media (max-width: 768px) {
+            .detector-header h1 {
+                font-size: 2rem;
+            }
+            
+            .platform-name {
+                font-size: 1.8rem;
+            }
+            
+            .stats-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+            
+            .action-buttons {
+                flex-direction: column;
+            }
+            
+            .action-btn {
+                width: 100%;
+            }
+            
+            .guide-step {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            
+            .nav-links {
+                display: none;
+            }
+            
+            .button-group {
+                flex-direction: column;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .detector-header h1 {
+                font-size: 1.6rem;
+            }
+            
+            .platform-header {
+                padding: 20px;
+            }
+        }
+
+        /* Platform Comparison Styles (keep as before) */
+        .platform-comparison {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 2rem;
+            border-radius: 15px;
+            margin: 2rem 0;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .platform-comparison h3 {
+            position: relative;
+            z-index: 1;
+            margin-bottom: 1rem;
+            font-size: 1.5rem;
+            color: white;
+        }
+
+        .comparison-table-container {
+            position: relative;
+            z-index: 1;
+            overflow-x: auto;
+            margin: 1.5rem 0;
+            background: rgba(255,255,255,0.1);
+            border-radius: 10px;
+            padding: 1rem;
+            backdrop-filter: blur(10px);
+        }
+
+        .platform-comparison-table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 600px;
+        }
+
+        .platform-comparison-table th {
+            background: rgba(255,255,255,0.2);
+            color: white;
+            font-weight: 600;
+            text-align: left;
+            padding: 1rem;
+            border-bottom: 2px solid rgba(255,255,255,0.3);
+        }
+
+        .platform-comparison-table td {
+            padding: 1rem;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            color: rgba(255,255,255,0.9);
+        }
+
+        .platform-comparison-table tr.primary-platform {
+            background: rgba(255,255,255,0.15);
+            border-left: 4px solid #4e54c8;
+        }
+
+        .primary-badge {
+            background: #4e54c8;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.7rem;
+            margin-left: 8px;
+        }
+
+        .price-tag {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+
+        .price-free {
+            background: #20bf6b;
+            color: white;
+        }
+
+        .price-paid {
+            background: #ff9f43;
+            color: white;
+        }
+
+        .category-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            background: rgba(255,255,255,0.2);
+            color: white;
+        }
+
+        .model-specific-tips {
+            background: #f8f9fa;
+            padding: 2rem;
+            border-radius: 15px;
+            margin: 2rem 0;
+            border: 2px solid #e9ecef;
+        }
+
+        .model-tips-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+            margin-top: 1rem;
+        }
+
+        .model-tip {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 10px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            border-top: 4px solid #4e54c8;
+        }
+
+        .model-tip h5 {
+            color: #4e54c8;
+            margin-bottom: 1rem;
+            font-size: 1.1rem;
+        }
+
+        .model-tip code {
+            background: #f1f3f9;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            color: #4e54c8;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <nav>
+            <a href="index.html" class="logo">
+                <img src="logo.png" alt="Tools Prompt Logo">
+                <span>Tools Prompt</span>
+            </a>
+            <div class="nav-links">
+                <a href="index.html"><i class="fas fa-home"></i> Home</a>
+                <a href="detect.html" class="active"><i class="fas fa-robot"></i> AI Detector</a>
+                <a href="news.html"><i class="fas fa-newspaper"></i> News</a>
+                <a href="promptconverter.html"><i class="fas fa-exchange-alt"></i> Tools</a>
+            </div>
+        </nav>
+    </header>
+
+    <main class="main-container">
+        <div class="detector-header">
+            <h1><i class="fas fa-microchip"></i> AI Prompt Detector</h1>
+            <p>Enter your prompt below and instantly discover which AI platform it's best suited for. Get detailed step-by-step guidance for creating stunning photos or viral video reels.</p>
+            <div class="stats-badge">
+                <i class="fas fa-camera"></i> 30+ Photo Models • <i class="fas fa-video"></i> 35+ Video Models • <i class="fas fa-robot"></i> 65+ Total
+            </div>
+        </div>
+
+        <div class="input-card">
+            <h2><i class="fas fa-pen-fancy"></i> Enter Your AI Prompt</h2>
+            <div class="prompt-input-area">
+                <textarea id="promptInput" placeholder="Example: A majestic dragon flying over a medieval castle, sunset lighting, highly detailed, 8K, epic fantasy art"></textarea>
+            </div>
+
+            <div class="platform-hints">
+                <span class="platform-hint-tag" onclick="addHint('midjourney')"><i class="fab fa-discord"></i> Midjourney</span>
+                <span class="platform-hint-tag" onclick="addHint('dalle-3')"><i class="fas fa-robot"></i> DALL-E 3</span>
+                <span class="platform-hint-tag" onclick="addHint('stable diffusion')"><i class="fas fa-cube"></i> Stable Diffusion</span>
+                <span class="platform-hint-tag" onclick="addHint('imagen')"><i class="fab fa-google"></i> Imagen</span>
+                <span class="platform-hint-tag" onclick="addHint('firefly')"><i class="fab fa-adobe"></i> Firefly</span>
+                <span class="platform-hint-tag" onclick="addHint('pika')"><i class="fas fa-play"></i> Pika</span>
+                <span class="platform-hint-tag" onclick="addHint('runway')"><i class="fas fa-film"></i> Runway</span>
+                <span class="platform-hint-tag" onclick="addHint('capcut')"><i class="fas fa-scissors"></i> CapCut</span>
+                <span class="platform-hint-tag" onclick="addHint('sora')"><i class="fas fa-video"></i> Sora</span>
+            </div>
+
+            <div class="button-group">
+                <button class="detect-btn photo" id="detectPhotoBtn" onclick="detectPlatform('photo')">
+                    <i class="fas fa-camera"></i> Analyze as Photo Prompt
+                </button>
+                <button class="detect-btn video" id="detectVideoBtn" onclick="detectPlatform('video')">
+                    <i class="fas fa-video"></i> Analyze as Video Prompt
+                </button>
+            </div>
+        </div>
+
+        <div class="loading-animation" id="loading">
+            <div class="spinner"></div>
+            <p style="color: #666;">Analyzing your prompt with server-side detection logic...</p>
+            <p style="font-size: 0.9rem; color: #888; margin-top: 10px;">Using exact same algorithm as /prompt/:id pages</p>
+        </div>
+
+        <div class="results-container" id="results">
+            <div class="platform-header" id="platformHeader">
+                <!-- Dynamically filled -->
+            </div>
+
+            <div class="stats-grid" id="statsGrid">
+                <!-- Dynamically filled -->
+            </div>
+
+            <div class="section-card">
+                <h3 class="section-title"><i class="fas fa-info-circle"></i> Platform Overview</h3>
+                <p id="platformOverview" style="font-size: 1.1rem; line-height: 1.7; margin-bottom: 20px;"></p>
+                <div class="strengths-list" id="strengthsList"></div>
+            </div>
+
+            <div class="section-card">
+                <h3 class="section-title"><i class="fas fa-list-ol"></i> Step-by-Step Creation Guide</h3>
+                <div class="step-guide" id="stepGuide"></div>
+            </div>
+
+            <div class="section-card">
+                <h3 class="section-title"><i class="fas fa-lightbulb"></i> Expert Tips & Best Practices</h3>
+                <ul class="tips-list" id="expertTips"></ul>
+            </div>
+
+            <div class="section-card">
+                <h3 class="section-title"><i class="fas fa-chart-line"></i> Platform-Specific Parameters</h3>
+                <p id="paramGuide" style="margin-bottom: 20px;"></p>
+                <div class="strengths-list" id="paramTags"></div>
+            </div>
+
+            <!-- Platform Comparison Section (Same as prompt pages) -->
+            <div class="section-card" id="platformComparison">
+                <h3 class="section-title"><i class="fas fa-chart-bar"></i> AI Platform Comparison</h3>
+                <div id="comparisonContent"></div>
+            </div>
+
+            <!-- Model-Specific Tips (Same as prompt pages) -->
+            <div class="section-card" id="modelSpecificTips">
+                <h3 class="section-title"><i class="fas fa-cogs"></i> Model-Specific Optimization Tips</h3>
+                <div id="modelTipsContent"></div>
+            </div>
+
+            <div class="action-buttons">
+                <button class="action-btn primary" onclick="copyPrompt()">
+                    <i class="fas fa-copy"></i> Copy This Prompt
+                </button>
+                <a href="index.html" class="action-btn secondary">
+                    <i class="fas fa-images"></i> Browse More Prompts
+                </a>
+                <button class="action-btn secondary" onclick="resetDetector()">
+                    <i class="fas fa-redo"></i> Detect New Prompt
+                </button>
+            </div>
+        </div>
+
+        <div class="error-message" id="errorMessage" style="display: none;">
+            <i class="fas fa-exclamation-triangle"></i> <span id="errorText"></span>
+        </div>
+    </main>
+
+    <footer style="background: #2d334a; color: white; padding: 30px 0; margin-top: 50px;">
+        <div class="main-container" style="text-align: center;">
+            <p>&copy; 2026 Toolsprompt.com All rights reserved. | AI Detector By Entering Prompt with step by step guide </p>
+            
+        </div>
+    </footer>
+
+    <script>
+        // ========== EXACT AI MODEL DATABASES FROM SERVER.JS ==========
+        const AI_PHOTO_MODELS = {
+            'google-imagen': {
+                name: 'Google Imagen 3',
+                description: 'Google\'s most advanced text-to-image model with photorealistic quality',
+                strengths: ['photorealistic', 'detailed rendering', 'text integration'],
+                bestFor: 'Photorealistic images, product visualization',
+                price: 'Free/Paid tiers',
+                releaseDate: '2025',
+                category: 'professional',
+                accessMethod: 'Google AI Studio or Vertex AI platform',
+                paramTips: 'Use detailed descriptions, include lighting and composition terms. Adjust quality settings for best results.',
+                icon: 'fab fa-google'
+            },
+            'gemini-image': {
+                name: 'Gemini Image Generation',
+                description: 'Google Gemini\'s integrated image generation with multimodal understanding',
+                strengths: ['multimodal', 'contextual understanding', 'fast generation'],
+                bestFor: 'Concept art, rapid prototyping',
+                price: 'Free/Paid tiers',
+                releaseDate: '2025',
+                category: 'versatile',
+                accessMethod: 'Google AI Studio or Gemini API',
+                paramTips: 'Use natural, conversational language. Include context and background information.',
+                icon: 'fab fa-google'
+            },
+            'dalle-3': {
+                name: 'DALL-E 3',
+                description: 'OpenAI\'s leading image generation model with exceptional prompt comprehension',
+                strengths: ['prompt accuracy', 'creative composition', 'detail'],
+                bestFor: 'Artistic creations, marketing visuals',
+                price: 'Credits system',
+                releaseDate: '2025',
+                category: 'professional',
+                accessMethod: 'ChatGPT Plus subscription or OpenAI platform',
+                paramTips: 'Use natural language, specify style and quality, include artistic references.',
+                icon: 'fas fa-robot'
+            },
+            'dalle-2': {
+                name: 'DALL-E 2',
+                description: 'Advanced image generation with inpainting and variations',
+                strengths: ['inpainting', 'variations', 'editing'],
+                bestFor: 'Image editing, variations',
+                price: 'Credits system',
+                releaseDate: '2024',
+                category: 'versatile',
+                accessMethod: 'OpenAI platform',
+                paramTips: 'Use for editing existing images, inpainting, and creating variations.',
+                icon: 'fas fa-robot'
+            },
+            'midjourney-v6': {
+                name: 'Midjourney V6',
+                description: 'Premium artistic image generation with unparalleled style control',
+                strengths: ['artistic styles', 'composition', 'community'],
+                bestFor: 'Digital art, concept art, fantasy',
+                price: 'Paid subscription',
+                releaseDate: '2025',
+                category: 'artistic',
+                accessMethod: 'Discord (join Midjourney server) or web interface',
+                paramTips: 'Use --ar for aspect ratios, --style for artistic approaches, --chaos for variation, --stylize for artistic interpretation',
+                icon: 'fab fa-discord'
+            },
+            'midjourney-niji': {
+                name: 'Midjourney Niji',
+                description: 'Anime and illustration-focused version of Midjourney',
+                strengths: ['anime', 'illustration', 'stylized'],
+                bestFor: 'Anime art, manga, illustrations',
+                price: 'Paid subscription',
+                releaseDate: '2025',
+                category: 'artistic',
+                accessMethod: 'Discord with --niji parameter',
+                paramTips: 'Use --niji 6 for latest anime model, focus on character descriptions.',
+                icon: 'fab fa-discord'
+            },
+            'stable-diffusion-3': {
+                name: 'Stable Diffusion 3',
+                description: 'Latest open-source image generation with improved quality and control',
+                strengths: ['open-source', 'fine-tuning', 'control'],
+                bestFor: 'Custom models, research, local generation',
+                price: 'Free/Paid',
+                releaseDate: '2025',
+                category: 'open-source',
+                accessMethod: 'Stability AI platform or Hugging Face',
+                paramTips: 'Adjust CFG scale (7-12), steps (20-50), use negative prompts, try different samplers',
+                icon: 'fas fa-cube'
+            },
+            'stable-diffusion-xl': {
+                name: 'Stable Diffusion XL',
+                description: 'High-quality image generation with base/refiner models',
+                strengths: ['high resolution', 'refiner', 'control'],
+                bestFor: 'Professional projects, high-res images',
+                price: 'Free/Paid',
+                releaseDate: '2024',
+                category: 'professional',
+                accessMethod: 'DreamStudio, Automatic1111 WebUI, or local install',
+                paramTips: 'Use base model first, then refiner for enhanced details. Adjust CFG and steps.',
+                icon: 'fas fa-cube'
+            },
+            'sd-xl-turbo': {
+                name: 'SDXL Turbo',
+                description: 'Real-time image generation with reduced steps',
+                strengths: ['real-time', 'fast', 'efficient'],
+                bestFor: 'Rapid prototyping, real-time applications',
+                price: 'Free/Paid',
+                releaseDate: '2024',
+                category: 'real-time',
+                accessMethod: 'Replicate API or Hugging Face',
+                paramTips: 'Uses fewer steps (1-4) for fast generation, ideal for real-time applications.',
+                icon: 'fas fa-bolt'
+            },
+            'adobe-firefly-image': {
+                name: 'Adobe Firefly Image',
+                description: 'Adobe\'s commercial-safe image generation with Creative Cloud integration',
+                strengths: ['commercial safe', 'Adobe integration', 'professional'],
+                bestFor: 'Commercial projects, design work',
+                price: 'Adobe subscription',
+                releaseDate: '2025',
+                category: 'professional',
+                accessMethod: 'firefly.adobe.com with Adobe account',
+                paramTips: 'Use content type filters, style presets, commercial-safe prompts',
+                icon: 'fab fa-adobe'
+            },
+            'photoshop-generative': {
+                name: 'Photoshop Generative Fill',
+                description: 'AI-powered image editing directly in Photoshop',
+                strengths: ['generative fill', 'inpainting', 'editing'],
+                bestFor: 'Photo editing, retouching',
+                price: 'Adobe subscription',
+                releaseDate: '2025',
+                category: 'editing',
+                accessMethod: 'Adobe Photoshop with Creative Cloud subscription',
+                paramTips: 'Select areas to fill, describe what should appear. Great for extending images.',
+                icon: 'fab fa-adobe'
+            },
+            'canva-ai': {
+                name: 'Canva AI',
+                description: 'Integrated AI image generation for design projects',
+                strengths: ['templates', 'design integration', 'easy'],
+                bestFor: 'Social media graphics, presentations',
+                price: 'Free/Pro',
+                releaseDate: '2025',
+                category: 'design',
+                accessMethod: 'Canva platform with account',
+                paramTips: 'Use templates as starting points, combine with design elements.',
+                icon: 'fas fa-pencil-ruler'
+            },
+            'canva-magic-media': {
+                name: 'Canva Magic Media',
+                description: 'Text-to-image and text-to-video in Canva',
+                strengths: ['versatile', 'templates', 'integration'],
+                bestFor: 'Design projects, marketing',
+                price: 'Free/Pro',
+                releaseDate: '2025',
+                category: 'design',
+                accessMethod: 'Canva Pro subscription',
+                paramTips: 'Choose between image or video output. Use with Canva templates.',
+                icon: 'fas fa-magic'
+            },
+            'leonardo-creative': {
+                name: 'Leonardo Creative',
+                description: 'Professional art generation with style consistency',
+                strengths: ['style consistency', 'professional', 'commercial'],
+                bestFor: 'Professional art, commercial projects',
+                price: 'Token system',
+                releaseDate: '2025',
+                category: 'professional',
+                accessMethod: 'leonardo.ai web platform',
+                paramTips: 'Adjust guidance scale, use element weights, select appropriate model',
+                icon: 'fas fa-paint-brush'
+            },
+            'leonardo-phoenix': {
+                name: 'Leonardo Phoenix',
+                description: 'Latest Leonardo model with enhanced quality',
+                strengths: ['quality', 'speed', 'control'],
+                bestFor: 'High-quality art, illustrations',
+                price: 'Token system',
+                releaseDate: '2025',
+                category: 'professional',
+                accessMethod: 'leonardo.ai with model selection',
+                paramTips: 'Use Phoenix model for highest quality, adjust creative guidance.',
+                icon: 'fas fa-fire'
+            },
+            'ideogram-2': {
+                name: 'Ideogram 2.0',
+                description: 'AI image generation with exceptional typography',
+                strengths: ['typography', 'text rendering', 'design'],
+                bestFor: 'Graphic design, text-heavy images',
+                price: 'Free/Paid',
+                releaseDate: '2025',
+                category: 'design',
+                accessMethod: 'ideogram.ai web platform',
+                paramTips: 'Focus on text integration, use clear typography prompts',
+                icon: 'fas fa-font'
+            },
+            'playground-v2': {
+                name: 'Playground AI V2',
+                description: 'Versatile image generation with fine-tuning options',
+                strengths: ['fine-tuning', 'style mixing', 'easy'],
+                bestFor: 'Creative exploration, experimentation',
+                price: 'Free/Paid',
+                releaseDate: '2024',
+                category: 'creative',
+                accessMethod: 'playgroundai.com with account',
+                paramTips: 'Mix different styles, use prompts for creative exploration.',
+                icon: 'fas fa-palette'
+            },
+            'clipdrop-replace': {
+                name: 'ClipDrop Replace',
+                description: 'AI image editing with object replacement',
+                strengths: ['object replacement', 'background removal', 'practical'],
+                bestFor: 'Product photography, e-commerce',
+                price: 'Free/Paid',
+                releaseDate: '2024',
+                category: 'editing',
+                accessMethod: 'clipdrop.co website or mobile apps',
+                paramTips: 'Upload image, select area to replace, describe new object.',
+                icon: 'fas fa-eraser'
+            },
+            'runway-image': {
+                name: 'Runway Image Generation',
+                description: 'Integrated image generation in Runway platform',
+                strengths: ['integration', 'video synergy', 'professional'],
+                bestFor: 'Multi-modal projects, video+image',
+                price: 'Subscription',
+                releaseDate: '2025',
+                category: 'professional',
+                accessMethod: 'runwayml.com with account',
+                paramTips: 'Combine with video projects, use consistent styles across media.',
+                icon: 'fas fa-film'
+            },
+            'nightcafe-creator': {
+                name: 'NightCafe Creator',
+                description: 'Multiple AI algorithms in one platform',
+                strengths: ['multiple algorithms', 'community', 'styles'],
+                bestFor: 'Artistic exploration, community engagement',
+                price: 'Credit system',
+                releaseDate: '2025',
+                category: 'artistic',
+                accessMethod: 'nightcafe.studio with account',
+                paramTips: 'Try different algorithms for same prompt, join community challenges.',
+                icon: 'fas fa-star'
+            },
+            'wombo-dream': {
+                name: 'Wombo Dream',
+                description: 'Mobile-first AI art generation',
+                strengths: ['mobile', 'artistic styles', 'quick'],
+                bestFor: 'Mobile creation, quick art',
+                price: 'Free/Paid',
+                releaseDate: '2024',
+                category: 'mobile',
+                accessMethod: 'Wombo Dream app or web',
+                paramTips: 'Great for quick mobile creations, choose from artistic styles.',
+                icon: 'fas fa-mobile-alt'
+            },
+            'starryai': {
+                name: 'StarryAI',
+                description: 'NFT-focused AI art generation',
+                strengths: ['NFT', 'ownership rights', 'mobile'],
+                bestFor: 'NFT creation, digital collectibles',
+                price: 'Token system',
+                releaseDate: '2024',
+                category: 'nft',
+                accessMethod: 'StarryAI app',
+                paramTips: 'Generate NFTs with clear ownership rights, high-res outputs.',
+                icon: 'fas fa-coins'
+            },
+            'deepai': {
+                name: 'DeepAI',
+                description: 'Classic AI image generation with various models',
+                strengths: ['multiple models', 'API access', 'simple'],
+                bestFor: 'Quick generation, API integration',
+                price: 'Free/Paid',
+                releaseDate: '2024',
+                category: 'versatile',
+                accessMethod: 'deepai.org API',
+                paramTips: 'Simple prompts work well, use API for integration.',
+                icon: 'fas fa-code'
+            },
+            'craiyon-v3': {
+                name: 'Craiyon V3',
+                description: 'Free AI image generation with improved quality',
+                strengths: ['completely free', 'simple', 'no signup'],
+                bestFor: 'Quick testing, casual use',
+                price: 'Free',
+                releaseDate: '2025',
+                category: 'free',
+                accessMethod: 'craiyon.com directly - no account required',
+                paramTips: 'Keep prompts simple, use negative terms to exclude elements',
+                icon: 'fas fa-cloud'
+            },
+            'bing-creator': {
+                name: 'Bing Image Creator',
+                description: 'Free DALL-E powered image generation',
+                strengths: ['free DALL-E', 'Microsoft integration', 'daily credits'],
+                bestFor: 'Free generation, quick results',
+                price: 'Free',
+                releaseDate: '2025',
+                category: 'free',
+                accessMethod: 'bing.com/create with Microsoft account',
+                paramTips: 'Use detailed descriptions, DALL-E 3 understands natural language well',
+                icon: 'fab fa-microsoft'
+            },
+            'getty-generative': {
+                name: 'Getty Generative AI',
+                description: 'Commercial-safe AI images with legal protection',
+                strengths: ['legal protection', 'commercial safe', 'royalty-free'],
+                bestFor: 'Commercial use, licensed content',
+                price: 'Paid',
+                releaseDate: '2024',
+                category: 'commercial',
+                accessMethod: 'Getty Images platform',
+                paramTips: 'Use for commercial projects with full legal protection.',
+                icon: 'fas fa-shield-alt'
+            },
+            'shutterstock-ai': {
+                name: 'Shutterstock AI',
+                description: 'AI image generation with stock library integration',
+                strengths: ['stock integration', 'commercial', 'variety'],
+                bestFor: 'Stock content, commercial projects',
+                price: 'Paid',
+                releaseDate: '2024',
+                category: 'commercial',
+                accessMethod: 'Shutterstock platform',
+                paramTips: 'Integrates with Shutterstock library, use for commercial projects.',
+                icon: 'fas fa-images'
+            },
+            'picsart-ai': {
+                name: 'Picsart AI',
+                description: 'AI image generation with editing tools',
+                strengths: ['editing tools', 'social features', 'filters'],
+                bestFor: 'Social media content, quick edits',
+                price: 'Free/Paid',
+                releaseDate: '2024',
+                category: 'editing',
+                accessMethod: 'picsart.com or Picsart app',
+                paramTips: 'Combine generation with editing tools, use filters and effects.',
+                icon: 'fas fa-edit'
+            },
+            'fotor-ai': {
+                name: 'Fotor AI',
+                description: 'AI image generation with photo editing',
+                strengths: ['photo editing', 'templates', 'easy'],
+                bestFor: 'Photo enhancement, quick edits',
+                price: 'Free/Paid',
+                releaseDate: '2024',
+                category: 'editing',
+                accessMethod: 'fotor.com or Fotor app',
+                paramTips: 'Use for quick photo enhancements and edits.',
+                icon: 'fas fa-camera-retro'
+            },
+            'bluewillow-v4': {
+                name: 'BlueWillow V4',
+                description: 'Free Discord-based AI art generation',
+                strengths: ['free', 'Discord community', 'rapid'],
+                bestFor: 'Community art, free generation',
+                price: 'Free',
+                releaseDate: '2024',
+                category: 'free',
+                accessMethod: 'BlueWillow Discord server',
+                paramTips: 'Similar to Midjourney but free, use Discord commands.',
+                icon: 'fab fa-discord'
+            },
+            'tensorart': {
+                name: 'TensorArt',
+                description: 'Free AI image generation with multiple models',
+                strengths: ['multiple models', 'free credits', 'community'],
+                bestFor: 'Model experimentation, free generation',
+                price: 'Free/Paid',
+                releaseDate: '2025',
+                category: 'versatile',
+                accessMethod: 'tensor.art platform',
+                paramTips: 'Try different community models, use free credits daily.',
+                icon: 'fas fa-cubes'
+            },
+            'seaart': {
+                name: 'SeaArt',
+                description: 'AI art platform with various styles',
+                strengths: ['style variety', 'community', 'easy'],
+                bestFor: 'Style exploration, community art',
+                price: 'Free/Paid',
+                releaseDate: '2024',
+                category: 'artistic',
+                accessMethod: 'seaart.ai platform',
+                paramTips: 'Explore different artistic styles from community.',
+                icon: 'fas fa-water'
+            }
+        };
+
+        const AI_VIDEO_MODELS = {
+            'google-veo-2': {
+                name: 'Google Veo 2',
+                description: 'Google\'s most advanced video generation model with 4K quality',
+                strengths: ['4K video', 'prompt consistency', 'professional quality'],
+                bestFor: 'Professional video creation, marketing content',
+                price: 'Free (Limited) / Paid',
+                releaseDate: '2025',
+                category: 'professional',
+                accessMethod: 'Google AI Studio or Vertex AI platform',
+                paramTips: 'Adjust resolution, duration, and aspect ratio. Use negative prompts to avoid unwanted elements.',
+                icon: 'fab fa-google'
+            },
+            'google-flow': {
+                name: 'Google Flow',
+                description: 'Google\'s real-time video editing AI with intelligent scene analysis',
+                strengths: ['real-time editing', 'scene detection', 'smart transitions'],
+                bestFor: 'Real-time video editing, live content',
+                price: 'Included with Workspace',
+                releaseDate: '2025',
+                category: 'real-time',
+                accessMethod: 'Google Workspace or Google Cloud Console',
+                paramTips: 'Use for real-time editing, automatic scene detection and transitions.',
+                icon: 'fab fa-google'
+            },
+            'gemini-video': {
+                name: 'Gemini 2.0 Video',
+                description: 'Google Gemini\'s multimodal video understanding and generation',
+                strengths: ['multimodal understanding', 'video analysis', 'script-to-video'],
+                bestFor: 'Content analysis, automated editing',
+                price: 'API pricing',
+                releaseDate: '2025',
+                category: 'analysis',
+                accessMethod: 'Google AI Studio or Gemini API',
+                paramTips: 'Use with video analysis tasks, script-to-video generation.',
+                icon: 'fab fa-google'
+            },
+            'video-poet': {
+                name: 'VideoPoet',
+                description: 'Google\'s large language model for video generation',
+                strengths: ['zero-shot', 'video stylization', 'audio generation'],
+                bestFor: 'Experimental video, creative projects',
+                price: 'Research preview',
+                releaseDate: '2024',
+                category: 'experimental',
+                accessMethod: 'Google research preview',
+                paramTips: 'Experimental model, great for creative stylization.',
+                icon: 'fas fa-flask'
+            },
+            'openai-sora': {
+                name: 'OpenAI Sora',
+                description: 'State-of-the-art text-to-video with photorealistic quality',
+                strengths: ['photorealistic', 'complex scenes', 'natural motion'],
+                bestFor: 'High-end video production, cinematic projects',
+                price: 'Not publicly available',
+                releaseDate: '2025',
+                category: 'professional',
+                accessMethod: 'OpenAI API (limited preview)',
+                paramTips: 'Specify camera angles, lighting, and motion style. Use detailed scene descriptions.',
+                icon: 'fas fa-video'
+            },
+            'chatgpt-4o-video': {
+                name: 'ChatGPT-4o Video',
+                description: 'GPT-4o\'s integrated video understanding and generation',
+                strengths: ['real-time editing', 'multimodal', 'conversational'],
+                bestFor: 'Interactive video editing, content creation',
+                price: 'ChatGPT Plus',
+                releaseDate: '2025',
+                category: 'interactive',
+                accessMethod: 'ChatGPT Plus subscription or OpenAI API',
+                paramTips: 'Interactive video editing through conversation.',
+                icon: 'fas fa-comment'
+            },
+            'dalle-video': {
+                name: 'DALL-E Video',
+                description: 'Video generation based on DALL-E\'s prompt understanding',
+                strengths: ['prompt accuracy', 'artistic styles', 'creative control'],
+                bestFor: 'Artistic video creation, experimental',
+                price: 'Credits system',
+                releaseDate: '2025',
+                category: 'artistic',
+                accessMethod: 'OpenAI platform',
+                paramTips: 'Uses DALL-E\'s prompt understanding for artistic videos.',
+                icon: 'fas fa-paint-brush'
+            },
+            'meta-movie-gen': {
+                name: 'Meta Movie Gen',
+                description: 'Meta\'s advanced video generation with audio synthesis',
+                strengths: ['audio generation', 'long-form video', 'character consistency'],
+                bestFor: 'Long-form content, character animation',
+                price: 'Research preview',
+                releaseDate: '2025',
+                category: 'long-form',
+                accessMethod: 'Meta AI research preview',
+                paramTips: 'Generates longer videos with audio, maintains character consistency.',
+                icon: 'fab fa-facebook'
+            },
+            'make-a-video': {
+                name: 'Make-A-Video',
+                description: 'Meta\'s text-to-video model with motion understanding',
+                strengths: ['motion understanding', 'style transfer', 'quick generation'],
+                bestFor: 'Rapid prototyping, motion experiments',
+                price: 'Research preview',
+                releaseDate: '2024',
+                category: 'rapid',
+                accessMethod: 'Meta AI research preview',
+                paramTips: 'Quick generation, good for motion experiments.',
+                icon: 'fas fa-rocket'
+            },
+            'emu-video': {
+                name: 'Emu Video',
+                description: 'Meta\'s video generation model based on Emu',
+                strengths: ['quality', 'style control', 'factorized diffusion'],
+                bestFor: 'Factorized video generation, style control',
+                price: 'Research preview',
+                releaseDate: '2024',
+                category: 'experimental',
+                accessMethod: 'Meta AI research preview',
+                paramTips: 'Factorized approach for better style control.',
+                icon: 'fas fa-sliders-h'
+            },
+            'runway-gen-3': {
+                name: 'Runway Gen-3',
+                description: 'Latest Runway video generation with advanced controls',
+                strengths: ['multi-shot', 'inpainting', 'professional tools'],
+                bestFor: 'Professional video editing, post-production',
+                price: 'Subscription',
+                releaseDate: '2025',
+                category: 'professional',
+                accessMethod: 'runwayml.com with subscription',
+                paramTips: 'Use motion brush for specific movements, adjust frame consistency for smoother results.',
+                icon: 'fas fa-film'
+            },
+            'runway-gen-2': {
+                name: 'Runway Gen-2',
+                description: 'Text-to-video and video-to-video generation',
+                strengths: ['style transfer', 'motion brush', 'real-time preview'],
+                bestFor: 'Creative experimentation, style transfer',
+                price: 'Credits system',
+                releaseDate: '2024',
+                category: 'creative',
+                accessMethod: 'runwayml.com with credits',
+                paramTips: 'Great for style transfer and creative video effects.',
+                icon: 'fas fa-magic'
+            },
+            'runway-frame-interpolation': {
+                name: 'Runway Frame Interpolation',
+                description: 'Smooth slow-motion and frame interpolation',
+                strengths: ['slow motion', 'smooth transitions', 'frame generation'],
+                bestFor: 'Smooth motion, slow-motion effects',
+                price: 'Subscription',
+                releaseDate: '2024',
+                category: 'effects',
+                accessMethod: 'runwayml.com with subscription',
+                paramTips: 'Create smooth slow-motion by generating intermediate frames.',
+                icon: 'fas fa-hourglass-half'
+            },
+            'pika-2-0': {
+                name: 'Pika 2.0',
+                description: 'Advanced video generation with lip sync and character animation',
+                strengths: ['lip sync', 'character animation', 'style consistency'],
+                bestFor: 'Character animation, dialogue scenes',
+                price: 'Free/Paid tiers',
+                releaseDate: '2025',
+                category: 'animation',
+                accessMethod: 'pika.art website or Discord',
+                paramTips: 'Use -neg for negative prompts, -ar for aspect ratio, -seed for consistency, -motion for intensity.',
+                icon: 'fas fa-play'
+            },
+            'pika-effects': {
+                name: 'Pika Effects',
+                description: 'Specialized video effects and transitions',
+                strengths: ['visual effects', 'transitions', 'stylization'],
+                bestFor: 'Effect-heavy content, stylized videos',
+                price: 'Credits system',
+                releaseDate: '2024',
+                category: 'effects',
+                accessMethod: 'pika.art with effects',
+                paramTips: 'Focus on specific visual effects and stylized transitions.',
+                icon: 'fas fa-bolt'
+            },
+            'pika-1-0': {
+                name: 'Pika 1.0',
+                description: 'Original Pika video generation platform',
+                strengths: ['easy to use', 'quick generation', 'social optimized'],
+                bestFor: 'Quick videos, social media content',
+                price: 'Free/Paid',
+                releaseDate: '2024',
+                category: 'social',
+                accessMethod: 'pika.art',
+                paramTips: 'Quick and easy video generation, optimized for social media.',
+                icon: 'fas fa-hashtag'
+            },
+            'stable-video-diffusion': {
+                name: 'Stable Video Diffusion',
+                description: 'Open-source video generation with fine-tuning',
+                strengths: ['open source', 'custom training', 'local generation'],
+                bestFor: 'Custom models, research, local use',
+                price: 'Free',
+                releaseDate: '2024',
+                category: 'open-source',
+                accessMethod: 'Hugging Face or local install',
+                paramTips: 'Open-source, can be fine-tuned and run locally.',
+                icon: 'fas fa-code-branch'
+            },
+            'svd-xt': {
+                name: 'SVD-XT',
+                description: 'Extended Stable Video Diffusion with higher quality',
+                strengths: ['4K support', 'longer videos', 'better motion'],
+                bestFor: 'High-quality projects, extended videos',
+                price: 'API access',
+                releaseDate: '2025',
+                category: 'professional',
+                accessMethod: 'Stability AI API',
+                paramTips: 'Extended version with higher quality and longer videos.',
+                icon: 'fas fa-star'
+            },
+            'svd-frame-interpolation': {
+                name: 'SVD Frame Interpolation',
+                description: 'Frame interpolation for smoother video',
+                strengths: ['smooth motion', 'frame generation', 'upscaling'],
+                bestFor: 'Smooth slow-motion, frame generation',
+                price: 'Free',
+                releaseDate: '2024',
+                category: 'open-source',
+                accessMethod: 'Hugging Face',
+                paramTips: 'Create smooth motion by generating intermediate frames.',
+                icon: 'fas fa-arrows-alt-h'
+            },
+            'adobe-firefly-video': {
+                name: 'Adobe Firefly Video',
+                description: 'Adobe\'s generative AI for video in Premiere Pro',
+                strengths: ['Adobe integration', 'professional workflow', 'commercial safe'],
+                bestFor: 'Professional editors, post-production',
+                price: 'Creative Cloud',
+                releaseDate: '2025',
+                category: 'professional',
+                accessMethod: 'Adobe Creative Cloud subscription',
+                paramTips: 'Use generative extend for longer videos, apply style presets for consistent look.',
+                icon: 'fab fa-adobe'
+            },
+            'premiere-pro-ai': {
+                name: 'Premiere Pro AI',
+                description: 'AI-powered editing tools in Premiere Pro',
+                strengths: ['auto-reframe', 'scene detection', 'color matching'],
+                bestFor: 'Post-production, automated editing',
+                price: 'Creative Cloud',
+                releaseDate: '2025',
+                category: 'professional',
+                accessMethod: 'Adobe Premiere Pro',
+                paramTips: 'Use auto-reframe for different aspect ratios, scene detection for editing.',
+                icon: 'fas fa-cut'
+            },
+            'after-effects-ai': {
+                name: 'After Effects AI',
+                description: 'AI-powered motion graphics and effects',
+                strengths: ['motion graphics', 'effects', 'rotoscoping'],
+                bestFor: 'Motion graphics, visual effects',
+                price: 'Creative Cloud',
+                releaseDate: '2025',
+                category: 'effects',
+                accessMethod: 'Adobe After Effects',
+                paramTips: 'AI-powered rotoscoping and motion graphics generation.',
+                icon: 'fas fa-layer-group'
+            },
+            'capcut-pro-ai': {
+                name: 'CapCut Pro AI',
+                description: 'ByteDance\'s AI-powered video editing suite',
+                strengths: ['auto-captions', 'auto-cut', 'templates'],
+                bestFor: 'Social media content, quick edits',
+                price: 'Free/Pro',
+                releaseDate: '2025',
+                category: 'social',
+                accessMethod: 'CapCut mobile app or desktop version',
+                paramTips: 'Use auto-captions, smart cut, and AI effects. Adjust speed and transitions.',
+                icon: 'fas fa-scissors'
+            },
+            'capcut-text-to-video': {
+                name: 'CapCut Text-to-Video',
+                description: 'AI video generation from text descriptions',
+                strengths: ['quick generation', 'templates', 'music sync'],
+                bestFor: 'Quick content creation, social media',
+                price: 'Free/Pro',
+                releaseDate: '2025',
+                category: 'social',
+                accessMethod: 'CapCut with AI features',
+                paramTips: 'Generate videos directly from text, sync with music automatically.',
+                icon: 'fas fa-file-alt'
+            },
+            'capcut-auto-cut': {
+                name: 'CapCut Auto Cut',
+                description: 'AI-powered automatic video editing',
+                strengths: ['auto-editing', 'beat sync', 'highlights'],
+                bestFor: 'Highlight reels, automated edits',
+                price: 'Free/Pro',
+                releaseDate: '2024',
+                category: 'editing',
+                accessMethod: 'CapCut app',
+                paramTips: 'Automatically create highlight reels synced to music beats.',
+                icon: 'fas fa-music'
+            },
+            'invideo-ai': {
+                name: 'InVideo AI',
+                description: 'AI-powered video creation for marketing',
+                strengths: ['script to video', 'stock footage', 'voiceover'],
+                bestFor: 'Marketing videos, promotional content',
+                price: 'Subscription',
+                releaseDate: '2025',
+                category: 'marketing',
+                accessMethod: 'invideo.io with subscription',
+                paramTips: 'Convert scripts to videos with stock footage and AI voiceover.',
+                icon: 'fas fa-bullhorn'
+            },
+            'invideo-studio': {
+                name: 'InVideo Studio',
+                description: 'Advanced video editing with AI assistance',
+                strengths: ['AI editing', 'templates', 'collaboration'],
+                bestFor: 'Team projects, collaborative editing',
+                price: 'Subscription',
+                releaseDate: '2024',
+                category: 'collaboration',
+                accessMethod: 'invideo.io',
+                paramTips: 'Collaborative editing with AI assistance.',
+                icon: 'fas fa-users'
+            },
+            'synthesia-2-0': {
+                name: 'Synthesia 2.0',
+                description: 'AI video generation with realistic avatars',
+                strengths: ['avatar videos', 'multilingual', 'custom avatars'],
+                bestFor: 'Corporate training, presentations, e-learning',
+                price: 'Subscription',
+                releaseDate: '2025',
+                category: 'avatar',
+                accessMethod: 'synthesia.io with subscription',
+                paramTips: 'Create custom avatars, use multilingual scripts for global content.',
+                icon: 'fas fa-user-tie'
+            },
+            'synthesia-avatars': {
+                name: 'Synthesia Avatars',
+                description: 'Custom AI avatar creation and video',
+                strengths: ['custom avatars', 'cloning', 'expressions'],
+                bestFor: 'Personalized videos, branding',
+                price: 'Enterprise',
+                releaseDate: '2024',
+                category: 'avatar',
+                accessMethod: 'synthesia.io enterprise',
+                paramTips: 'Create custom avatars that look like real people.',
+                icon: 'fas fa-id-card'
+            },
+            'heygen-2-0': {
+                name: 'HeyGen 2.0',
+                description: 'AI video generation with avatar and voice cloning',
+                strengths: ['avatar cloning', 'voice cloning', 'translation'],
+                bestFor: 'Personalized videos, multilingual content',
+                price: 'Credits system',
+                releaseDate: '2025',
+                category: 'avatar',
+                accessMethod: 'heygen.com with credits',
+                paramTips: 'Clone avatars and voices for personalized multilingual videos.',
+                icon: 'fas fa-clone'
+            },
+            'heygen-interactive': {
+                name: 'HeyGen Interactive',
+                description: 'Interactive AI avatar videos',
+                strengths: ['interactive avatars', 'real-time', 'chat'],
+                bestFor: 'Interactive content, customer service',
+                price: 'Enterprise',
+                releaseDate: '2025',
+                category: 'interactive',
+                accessMethod: 'heygen.com enterprise',
+                paramTips: 'Create interactive avatars for customer service and engagement.',
+                icon: 'fas fa-comments'
+            },
+            'elevenlabs-video': {
+                name: 'ElevenLabs Video',
+                description: 'AI video with advanced voice synthesis and lip sync',
+                strengths: ['voice quality', 'lip sync', 'emotion'],
+                bestFor: 'Narrated content, voice-first videos',
+                price: 'Subscription',
+                releaseDate: '2025',
+                category: 'voice',
+                accessMethod: 'elevenlabs.io with subscription',
+                paramTips: 'High-quality voice synthesis with precise lip sync.',
+                icon: 'fas fa-microphone-alt'
+            },
+            'kling-1-6': {
+                name: 'Kling 1.6',
+                description: 'Advanced video generation from Kuaishou',
+                strengths: ['high quality', 'fast generation', 'Chinese support'],
+                bestFor: 'Chinese market content, high-quality video',
+                price: 'Credits system',
+                releaseDate: '2025',
+                category: 'professional',
+                accessMethod: 'Kuaishou platform (Chinese)',
+                paramTips: 'Optimize for Chinese language prompts, focus on smooth motion',
+                icon: 'fas fa-globe'
+            },
+            'kling-1-5': {
+                name: 'Kling 1.5',
+                description: 'Previous generation with good quality/speed balance',
+                strengths: ['balanced', 'reliable', 'consistent'],
+                bestFor: 'General video creation',
+                price: 'Credits system',
+                releaseDate: '2024',
+                category: 'versatile',
+                accessMethod: 'Kuaishou platform',
+                paramTips: 'Balanced quality and speed for general video creation.',
+                icon: 'fas fa-balance-scale'
+            },
+            'luma-dream-machine': {
+                name: 'Luma Dream Machine',
+                description: 'High-quality video generation with cinematic quality',
+                strengths: ['cinematic', 'motion quality', 'resolution'],
+                bestFor: 'Cinematic projects, high-end content',
+                price: 'Credits system',
+                releaseDate: '2025',
+                category: 'cinematic',
+                accessMethod: 'lumalabs.ai',
+                paramTips: 'Focus on camera movements and lighting, specify cinematic style',
+                icon: 'fas fa-camera-retro'
+            },
+            'luma-ray': {
+                name: 'Luma Ray',
+                description: 'AI-powered 3D video and NeRF technology',
+                strengths: ['3D video', 'NeRF', 'real-world capture'],
+                bestFor: '3D content, real-world capture',
+                price: 'Credits system',
+                releaseDate: '2024',
+                category: '3d',
+                accessMethod: 'lumalabs.ai',
+                paramTips: 'Create 3D videos from real-world captures using NeRF technology.',
+                icon: 'fas fa-cube'
+            },
+            'haiper-2-0': {
+                name: 'Haiper 2.0',
+                description: 'Video generation with enhanced motion understanding',
+                strengths: ['motion physics', 'object interaction', 'extensions'],
+                bestFor: 'Complex motion scenes, physics-based animation',
+                price: 'Free/Paid',
+                releaseDate: '2025',
+                category: 'motion',
+                accessMethod: 'haiper.ai',
+                paramTips: 'Good for complex motion and physics-based animations.',
+                icon: 'fas fa-physics'
+            },
+            'haiper-1-0': {
+                name: 'Haiper 1.0',
+                description: 'Original Haiper video generation platform',
+                strengths: ['easy to use', 'quick', 'versatile'],
+                bestFor: 'Quick video generation',
+                price: 'Free',
+                releaseDate: '2024',
+                category: 'free',
+                accessMethod: 'haiper.ai',
+                paramTips: 'Free and easy to use for quick video generation.',
+                icon: 'fas fa-gift'
+            },
+            'minimax-video': {
+                name: 'Minimax Video',
+                description: 'Chinese video generation model with high-quality output',
+                strengths: ['quality', 'speed', 'Chinese optimization'],
+                bestFor: 'Asian market content, high-quality video',
+                price: 'API access',
+                releaseDate: '2025',
+                category: 'professional',
+                accessMethod: 'Minimax API',
+                paramTips: 'Optimized for Asian market and Chinese language prompts.',
+                icon: 'fas fa-chart-line'
+            },
+            'minimax-hailuo': {
+                name: 'Minimax Hailuo',
+                description: 'Advanced video generation with emotional understanding',
+                strengths: ['emotional', 'expressive', 'character-driven'],
+                bestFor: 'Character-driven content, emotional scenes',
+                price: 'API access',
+                releaseDate: '2025',
+                category: 'expressive',
+                accessMethod: 'Minimax API',
+                paramTips: 'Focus on emotional expression and character-driven storytelling.',
+                icon: 'fas fa-heart'
+            },
+            'kaiber-2-0': {
+                name: 'Kaiber 2.0',
+                description: 'Artistic video generation with style transfer',
+                strengths: ['artistic styles', 'music visualization', 'creative'],
+                bestFor: 'Music videos, artistic content',
+                price: 'Subscription',
+                releaseDate: '2025',
+                category: 'artistic',
+                accessMethod: 'kaiber.ai with subscription',
+                paramTips: 'Create artistic videos with style transfer, great for music visualization.',
+                icon: 'fas fa-palette'
+            },
+            'kaiber-motion': {
+                name: 'Kaiber Motion',
+                description: 'Motion-aware artistic video generation',
+                strengths: ['motion control', 'style transfer', 'fluid animation'],
+                bestFor: 'Artistic motion graphics',
+                price: 'Subscription',
+                releaseDate: '2024',
+                category: 'artistic',
+                accessMethod: 'kaiber.ai',
+                paramTips: 'Motion-aware artistic generation with fluid animations.',
+                icon: 'fas fa-wind'
+            },
+            'cogvideo-x': {
+                name: 'CogVideoX',
+                description: 'Open-source video generation from THUDM',
+                strengths: ['open source', 'Chinese/English', 'fine-tuning'],
+                bestFor: 'Custom training, research, open-source projects',
+                price: 'Free',
+                releaseDate: '2025',
+                category: 'open-source',
+                accessMethod: 'GitHub or Hugging Face',
+                paramTips: 'Open-source, supports both Chinese and English, can be fine-tuned.',
+                icon: 'fas fa-code'
+            },
+            'cogvideo-x-5b': {
+                name: 'CogVideoX-5B',
+                description: '5B parameter version for higher quality',
+                strengths: ['high quality', 'more parameters', 'better results'],
+                bestFor: 'High-quality open-source generation',
+                price: 'Free',
+                releaseDate: '2025',
+                category: 'open-source',
+                accessMethod: 'GitHub or Hugging Face',
+                paramTips: 'Larger model with 5B parameters for higher quality results.',
+                icon: 'fas fa-microchip'
+            },
+            'animatediff': {
+                name: 'AnimateDiff',
+                description: 'Motion module for Stable Diffusion animation',
+                strengths: ['animation', 'motion modules', 'ControlNet support'],
+                bestFor: 'Animated sequences, motion modules',
+                price: 'Free',
+                releaseDate: '2024',
+                category: 'open-source',
+                accessMethod: 'GitHub',
+                paramTips: 'Add motion to Stable Diffusion images, works with ControlNet.',
+                icon: 'fas fa-film'
+            },
+            'animatediff-v2': {
+                name: 'AnimateDiff V2',
+                description: 'Improved motion module with better quality',
+                strengths: ['better motion', 'quality', 'control'],
+                bestFor: 'High-quality animation',
+                price: 'Free',
+                releaseDate: '2025',
+                category: 'open-source',
+                accessMethod: 'GitHub',
+                paramTips: 'Improved version with better motion quality and control.',
+                icon: 'fas fa-star'
+            },
+            'moonvalley': {
+                name: 'Moonvalley',
+                description: 'Free AI video generation with Discord bot',
+                strengths: ['free', 'Discord', 'community'],
+                bestFor: 'Free video generation, community art',
+                price: 'Free',
+                releaseDate: '2024',
+                category: 'free',
+                accessMethod: 'Moonvalley Discord',
+                paramTips: 'Free Discord-based video generation with community support.',
+                icon: 'fab fa-discord'
+            },
+            'deforum': {
+                name: 'Deforum',
+                description: 'Animation toolkit for Stable Diffusion',
+                strengths: ['animation', 'parameter control', '3D camera'],
+                bestFor: 'Complex animations, camera movements',
+                price: 'Free',
+                releaseDate: '2024',
+                category: 'open-source',
+                accessMethod: 'GitHub or Colab',
+                paramTips: 'Create complex animations with 3D camera movements and parameter control.',
+                icon: 'fas fa-camera'
+            },
+            'morph-studio': {
+                name: 'Morph Studio',
+                description: 'AI video generation platform with style control',
+                strengths: ['style control', 'quality', 'easy'],
+                bestFor: 'Style-consistent video generation',
+                price: 'Credits system',
+                releaseDate: '2024',
+                category: 'versatile',
+                accessMethod: 'morphstudio.com',
+                paramTips: 'Maintain consistent style across multiple video generations.',
+                icon: 'fas fa-magic'
+            },
+            'pixverse': {
+                name: 'Pixverse',
+                description: 'Free AI video generation platform',
+                strengths: ['free', 'web-based', 'fast'],
+                bestFor: 'Free video generation, quick tests',
+                price: 'Free',
+                releaseDate: '2024',
+                category: 'free',
+                accessMethod: 'pixverse.ai',
+                paramTips: 'Completely free web-based video generation.',
+                icon: 'fas fa-cloud'
+            },
+            'videocom': {
+                name: 'VideoCom',
+                description: 'AI video generation with character consistency',
+                strengths: ['character consistency', 'storytelling', 'long-form'],
+                bestFor: 'Story-driven videos, character animation',
+                price: 'Credits system',
+                releaseDate: '2024',
+                category: 'storytelling',
+                accessMethod: 'videocom.ai',
+                paramTips: 'Maintain character consistency across scenes for storytelling.',
+                icon: 'fas fa-users'
+            },
+            'ltx-studio': {
+                name: 'LTX Studio',
+                description: 'AI film production platform',
+                strengths: ['film production', 'scene planning', 'multi-shot'],
+                bestFor: 'Film production, multi-scene videos',
+                price: 'Paid',
+                releaseDate: '2025',
+                category: 'professional',
+                accessMethod: 'ltx.studio',
+                paramTips: 'Complete film production platform with scene planning.',
+                icon: 'fas fa-clapperboard'
+            }
+        };
+
+        // ========== EXACT DETECTION LOGIC FROM SERVER.JS ==========
+        function detectPhotoPlatform(promptText, keywords, category) {
+            const lowerPrompt = promptText.toLowerCase();
+            // Google AI
+            if (lowerPrompt.includes('imagen') || keywords.includes('imagen') || lowerPrompt.includes('google imagen')) {
+                return 'google-imagen';
+            }
+            if (lowerPrompt.includes('gemini image') || lowerPrompt.includes('gemini-image')) {
+                return 'gemini-image';
+            }
+            
+            // OpenAI
+            if (lowerPrompt.includes('dalle-3') || lowerPrompt.includes('dall-e 3') || (lowerPrompt.includes('dalle') && lowerPrompt.includes('3'))) {
+                return 'dalle-3';
+            }
+            if (lowerPrompt.includes('dalle-2') || lowerPrompt.includes('dall-e 2') || lowerPrompt.includes('dalle mini')) {
+                return 'dalle-2';
+            }
+            
+            // Midjourney
+            if (lowerPrompt.includes('midjourney v6') || lowerPrompt.includes('midjourney 6') || (lowerPrompt.includes('midjourney') && lowerPrompt.includes('--'))) {
+                return 'midjourney-v6';
+            }
+            if (lowerPrompt.includes('niji') || lowerPrompt.includes('anime') || lowerPrompt.includes('manga')) {
+                return 'midjourney-niji';
+            }
+            if (lowerPrompt.includes('midjourney')) {
+                return 'midjourney-v6';
+            }
+            
+            // Stability AI
+            if (lowerPrompt.includes('stable diffusion 3') || lowerPrompt.includes('sd3') || (lowerPrompt.includes('stable') && lowerPrompt.includes('3'))) {
+                return 'stable-diffusion-3';
+            }
+            if (lowerPrompt.includes('stable diffusion xl') || lowerPrompt.includes('sdxl') || (lowerPrompt.includes('xl') && lowerPrompt.includes('stable'))) {
+                return 'stable-diffusion-xl';
+            }
+            if (lowerPrompt.includes('sdxl turbo') || lowerPrompt.includes('turbo') || lowerPrompt.includes('real-time')) {
+                return 'sd-xl-turbo';
+            }
+            if (lowerPrompt.includes('stable diffusion') || lowerPrompt.includes('sd')) {
+                return 'stable-diffusion-xl';
+            }
+            
+            // Adobe
+            if (lowerPrompt.includes('adobe firefly') || lowerPrompt.includes('firefly image')) {
+                return 'adobe-firefly-image';
+            }
+            if (lowerPrompt.includes('photoshop') || lowerPrompt.includes('generative fill')) {
+                return 'photoshop-generative';
+            }
+            
+            // Canva
+            if (lowerPrompt.includes('canva ai') || lowerPrompt.includes('canva magic')) {
+                return 'canva-ai';
+            }
+            if (lowerPrompt.includes('canva magic media')) {
+                return 'canva-magic-media';
+            }
+            
+            // Leonardo
+            if (lowerPrompt.includes('leonardo creative') || (lowerPrompt.includes('leonardo') && lowerPrompt.includes('creative'))) {
+                return 'leonardo-creative';
+            }
+            if (lowerPrompt.includes('leonardo phoenix') || (lowerPrompt.includes('leonardo') && lowerPrompt.includes('phoenix'))) {
+                return 'leonardo-phoenix';
+            }
+            if (lowerPrompt.includes('leonardo')) {
+                return 'leonardo-creative';
+            }
+            
+            // Ideogram
+            if (lowerPrompt.includes('ideogram') || keywords.includes('ideogram') || lowerPrompt.includes('typography')) {
+                return 'ideogram-2';
+            }
+            
+            // Playground
+            if (lowerPrompt.includes('playground ai') || lowerPrompt.includes('playground v2')) {
+                return 'playground-v2';
+            }
+            
+            // ClipDrop
+            if (lowerPrompt.includes('clipdrop') || keywords.includes('clipdrop') || lowerPrompt.includes('replace background')) {
+                return 'clipdrop-replace';
+            }
+            
+            // Runway
+            if (lowerPrompt.includes('runway image') || (lowerPrompt.includes('runway') && !lowerPrompt.includes('video'))) {
+                return 'runway-image';
+            }
+            
+            // NightCafe
+            if (lowerPrompt.includes('nightcafe') || keywords.includes('nightcafe')) {
+                return 'nightcafe-creator';
+            }
+            
+            // Wombo
+            if (lowerPrompt.includes('wombo') || keywords.includes('wombo')) {
+                return 'wombo-dream';
+            }
+            
+            // StarryAI
+            if (lowerPrompt.includes('starryai') || keywords.includes('starryai') || lowerPrompt.includes('nft')) {
+                return 'starryai';
+            }
+            
+            // DeepAI
+            if (lowerPrompt.includes('deepai') || keywords.includes('deepai')) {
+                return 'deepai';
+            }
+            
+            // Craiyon
+            if (lowerPrompt.includes('craiyon') || lowerPrompt.includes('dall-e mini')) {
+                return 'craiyon-v3';
+            }
+            
+            // Bing
+            if (lowerPrompt.includes('bing') || keywords.includes('bing') || lowerPrompt.includes('microsoft')) {
+                return 'bing-creator';
+            }
+            
+            // Getty
+            if (lowerPrompt.includes('getty') || keywords.includes('getty') || lowerPrompt.includes('commercial safe')) {
+                return 'getty-generative';
+            }
+            
+            // Shutterstock
+            if (lowerPrompt.includes('shutterstock') || keywords.includes('shutterstock')) {
+                return 'shutterstock-ai';
+            }
+            
+            // Picsart
+            if (lowerPrompt.includes('picsart') || keywords.includes('picsart')) {
+                return 'picsart-ai';
+            }
+            
+            // Fotor
+            if (lowerPrompt.includes('fotor') || keywords.includes('fotor')) {
+                return 'fotor-ai';
+            }
+            
+            // BlueWillow
+            if (lowerPrompt.includes('bluewillow') || keywords.includes('bluewillow')) {
+                return 'bluewillow-v4';
+            }
+            
+            // TensorArt
+            if (lowerPrompt.includes('tensorart') || keywords.includes('tensor')) {
+                return 'tensorart';
+            }
+            
+            // SeaArt
+            if (lowerPrompt.includes('seaart') || keywords.includes('sea')) {
+                return 'seaart';
+            }
+            
+            // Default based on category
+            const categoryPlatforms = {
+                'art': 'midjourney-v6',
+                'photography': 'google-imagen',
+                'design': 'adobe-firefly-image',
+                'writing': 'dalle-3',
+                'professional': 'leonardo-creative',
+                'mobile': 'wombo-dream',
+                'free': 'craiyon-v3',
+                'commercial': 'getty-generative',
+                'general': 'dalle-3'
+            };
+            
+            return categoryPlatforms[category] || 'midjourney-v6';
+        }
+
+        function detectVideoPlatform(promptText, keywords, category) {
+            const lowerPrompt = promptText.toLowerCase();
+            // Google AI
+            if (lowerPrompt.includes('veo') || lowerPrompt.includes('veo 2') || keywords.includes('veo')) {
+                return 'google-veo-2';
+            }
+            if (lowerPrompt.includes('google flow') || lowerPrompt.includes('flow ai')) {
+                return 'google-flow';
+            }
+            if (lowerPrompt.includes('gemini video') || lowerPrompt.includes('gemini-video')) {
+                return 'gemini-video';
+            }
+            if (lowerPrompt.includes('video poet') || lowerPrompt.includes('videopoet')) {
+                return 'video-poet';
+            }
+            
+            // OpenAI
+            if (lowerPrompt.includes('sora') || keywords.includes('sora')) {
+                return 'openai-sora';
+            }
+            if (lowerPrompt.includes('chatgpt video') || lowerPrompt.includes('gpt video') || lowerPrompt.includes('chatgpt-4o')) {
+                return 'chatgpt-4o-video';
+            }
+            if (lowerPrompt.includes('dalle video') || lowerPrompt.includes('dall-e video')) {
+                return 'dalle-video';
+            }
+            
+            // Meta
+            if (lowerPrompt.includes('movie gen') || lowerPrompt.includes('metas movie gen')) {
+                return 'meta-movie-gen';
+            }
+            if (lowerPrompt.includes('make a video') || lowerPrompt.includes('make-a-video')) {
+                return 'make-a-video';
+            }
+            if (lowerPrompt.includes('emu video') || lowerPrompt.includes('emu-video')) {
+                return 'emu-video';
+            }
+            
+            // Runway
+            if (lowerPrompt.includes('runway gen-3') || lowerPrompt.includes('gen-3')) {
+                return 'runway-gen-3';
+            }
+            if (lowerPrompt.includes('runway gen-2') || lowerPrompt.includes('gen-2')) {
+                return 'runway-gen-2';
+            }
+            if (lowerPrompt.includes('frame interpolation') || lowerPrompt.includes('slow motion')) {
+                return 'runway-frame-interpolation';
+            }
+            if (lowerPrompt.includes('runway')) {
+                return 'runway-gen-3';
+            }
+            
+            // Pika
+            if (lowerPrompt.includes('pika 2.0') || lowerPrompt.includes('pika 2')) {
+                return 'pika-2-0';
+            }
+            if (lowerPrompt.includes('pika effects') || lowerPrompt.includes('pika effect')) {
+                return 'pika-effects';
+            }
+            if (lowerPrompt.includes('pika 1.0') || lowerPrompt.includes('pika 1')) {
+                return 'pika-1-0';
+            }
+            if (lowerPrompt.includes('pika')) {
+                return 'pika-2-0';
+            }
+            
+            // Stability AI
+            if (lowerPrompt.includes('stable video diffusion') || lowerPrompt.includes('svd')) {
+                return 'stable-video-diffusion';
+            }
+            if (lowerPrompt.includes('svd-xt') || lowerPrompt.includes('svd xt')) {
+                return 'svd-xt';
+            }
+            if (lowerPrompt.includes('frame interpolation') && lowerPrompt.includes('stable')) {
+                return 'svd-frame-interpolation';
+            }
+            
+            // Adobe
+            if (lowerPrompt.includes('adobe firefly video') || lowerPrompt.includes('firefly video')) {
+                return 'adobe-firefly-video';
+            }
+            if (lowerPrompt.includes('premiere pro ai') || lowerPrompt.includes('premiere ai')) {
+                return 'premiere-pro-ai';
+            }
+            if (lowerPrompt.includes('after effects') || lowerPrompt.includes('motion graphics')) {
+                return 'after-effects-ai';
+            }
+            
+            // CapCut
+            if (lowerPrompt.includes('capcut pro') || lowerPrompt.includes('capcut ai')) {
+                return 'capcut-pro-ai';
+            }
+            if (lowerPrompt.includes('capcut text to video') || lowerPrompt.includes('text-to-video')) {
+                return 'capcut-text-to-video';
+            }
+            if (lowerPrompt.includes('auto cut') || lowerPrompt.includes('auto-cut')) {
+                return 'capcut-auto-cut';
+            }
+            if (lowerPrompt.includes('capcut')) {
+                return 'capcut-pro-ai';
+            }
+            
+            // InVideo
+            if (lowerPrompt.includes('invideo ai') || lowerPrompt.includes('invideo')) {
+                return 'invideo-ai';
+            }
+            if (lowerPrompt.includes('invideo studio')) {
+                return 'invideo-studio';
+            }
+            
+            // Synthesia
+            if (lowerPrompt.includes('synthesia 2.0') || lowerPrompt.includes('synthesia')) {
+                return 'synthesia-2-0';
+            }
+            if (lowerPrompt.includes('synthesia avatar') || lowerPrompt.includes('avatar clone')) {
+                return 'synthesia-avatars';
+            }
+            
+            // HeyGen
+            if (lowerPrompt.includes('heygen 2.0') || lowerPrompt.includes('heygen')) {
+                return 'heygen-2-0';
+            }
+            if (lowerPrompt.includes('heygen interactive') || lowerPrompt.includes('interactive avatar')) {
+                return 'heygen-interactive';
+            }
+            
+            // ElevenLabs
+            if (lowerPrompt.includes('elevenlabs video') || lowerPrompt.includes('eleven labs')) {
+                return 'elevenlabs-video';
+            }
+            
+            // Kling
+            if (lowerPrompt.includes('kling 1.6') || lowerPrompt.includes('kling 1.6')) {
+                return 'kling-1-6';
+            }
+            if (lowerPrompt.includes('kling 1.5') || lowerPrompt.includes('kling')) {
+                return 'kling-1-5';
+            }
+            
+            // Luma
+            if (lowerPrompt.includes('luma dream machine') || lowerPrompt.includes('dream machine')) {
+                return 'luma-dream-machine';
+            }
+            if (lowerPrompt.includes('luma ray') || lowerPrompt.includes('3d video')) {
+                return 'luma-ray';
+            }
+            
+            // Haiper
+            if (lowerPrompt.includes('haiper 2.0') || lowerPrompt.includes('haiper 2')) {
+                return 'haiper-2-0';
+            }
+            if (lowerPrompt.includes('haiper 1.0') || lowerPrompt.includes('haiper')) {
+                return 'haiper-1-0';
+            }
+            
+            // Minimax
+            if (lowerPrompt.includes('minimax video') || lowerPrompt.includes('minimax')) {
+                return 'minimax-video';
+            }
+            if (lowerPrompt.includes('minimax hailuo') || lowerPrompt.includes('hailuo')) {
+                return 'minimax-hailuo';
+            }
+            
+            // Kaiber
+            if (lowerPrompt.includes('kaiber 2.0') || lowerPrompt.includes('kaiber')) {
+                return 'kaiber-2-0';
+            }
+            if (lowerPrompt.includes('kaiber motion')) {
+                return 'kaiber-motion';
+            }
+            
+            // CogVideoX
+            if (lowerPrompt.includes('cogvideo x') || lowerPrompt.includes('cogvideo-x')) {
+                return 'cogvideo-x';
+            }
+            if (lowerPrompt.includes('cogvideo-x-5b') || lowerPrompt.includes('5b')) {
+                return 'cogvideo-x-5b';
+            }
+            
+            // AnimateDiff
+            if (lowerPrompt.includes('animatediff v2') || lowerPrompt.includes('animate diff v2')) {
+                return 'animatediff-v2';
+            }
+            if (lowerPrompt.includes('animatediff') || lowerPrompt.includes('animate diff')) {
+                return 'animatediff';
+            }
+            
+            // Other platforms
+            if (lowerPrompt.includes('moonvalley')) {
+                return 'moonvalley';
+            }
+            if (lowerPrompt.includes('deforum')) {
+                return 'deforum';
+            }
+            if (lowerPrompt.includes('morph studio')) {
+                return 'morph-studio';
+            }
+            if (lowerPrompt.includes('pixverse')) {
+                return 'pixverse';
+            }
+            if (lowerPrompt.includes('videocom')) {
+                return 'videocom';
+            }
+            if (lowerPrompt.includes('ltx studio')) {
+                return 'ltx-studio';
+            }
+            
+            // Default based on category
+            const categoryPlatforms = {
+                'professional': 'runway-gen-3',
+                'animation': 'pika-2-0',
+                'social': 'capcut-pro-ai',
+                'avatar': 'synthesia-2-0',
+                'marketing': 'invideo-ai',
+                'cinematic': 'luma-dream-machine',
+                'artistic': 'kaiber-2-0',
+                'free': 'pixverse',
+                'open-source': 'stable-video-diffusion',
+                'video': 'pika-2-0',
+                'general': 'pika-2-0'
+            };
+            
+            return categoryPlatforms[category] || 'pika-2-0';
+        }
+
+        // ========== CONTENT GENERATION FUNCTIONS (SAME AS SERVER.JS) ==========
+        function generatePlatformIntroduction(platform, type) {
+            return `${platform.name} ${platform.description}. With cutting-edge capabilities including ${platform.strengths.join(', ')}, this AI ${type} tool helps you create professional-quality content with minimal effort.`;
+        }
+
+        function generateStepByStepGuide(platform, type, promptText) {
+            const steps = {};
+            
+            steps.access = `Access ${platform.name} through ${platform.accessMethod || 'their official website'}. Create an account if needed and familiarize yourself with the interface.`;
+            steps.preparation = type === 'video' 
+                ? 'Define your video concept including duration, style, mood, and key scenes. Write a detailed description of what you want to create.'
+                : 'Start with a clear concept. Consider the style, composition, and mood you want to achieve.';
+            steps.prompt = `Use this prompt as your starting point: "${promptText}"`;
+            steps.customization = platform.paramTips || (type === 'video' 
+                ? 'Adjust resolution, duration, and style parameters based on your needs.'
+                : 'Adjust quality settings, aspect ratio, and style parameters based on your needs.');
+            steps.generation = type === 'video'
+                ? 'Generate your video and review the results. Most platforms allow you to regenerate or refine based on initial output.'
+                : 'Generate and review results. Request variations or make specific edits as needed.';
+            steps.finalization = type === 'video'
+                ? 'Export your video in the desired format. Optimize for your target platform (9:16 for Reels/Shorts, 16:9 for YouTube).'
+                : 'Download your preferred result in your chosen resolution. Post-process if needed using image editing software.';
+            
+            return steps;
+        }
+
+        function generateExpertTips(type, platform) {
+            if (type === 'video') {
+                return [
+                    'Start with detailed scene descriptions including camera angles, lighting, and mood',
+                    'Specify exact duration (3-15 seconds) for optimal social media performance',
+                    'Include camera movements: "smooth zoom", "pan left", "dolly in", "tracking shot"',
+                    'Describe transitions between scenes for multi-shot videos',
+                    'Use motion keywords like "fluid", "dynamic", "cinematic", "slow motion"',
+                    'Specify aspect ratio: 9:16 for Reels/Shorts, 16:9 for YouTube, 1:1 for Instagram',
+                    'Include lighting changes and mood progression throughout the video',
+                    'For character animation, describe expressions and actions precisely',
+                    'Use negative prompts to exclude unwanted elements or artifacts',
+                    'Generate multiple variations and combine the best parts using video editing software'
+                ];
+            } else {
+                return [
+                    'Be descriptive: Use specific, detailed language rather than vague terms',
+                    'Include artistic references: "in the style of [artist], [art movement]"',
+                    'Specify lighting and composition: "dramatic lighting, rule of thirds"',
+                    'Use quality modifiers: "highly detailed, 8k resolution, professional"',
+                    'Use weighted prompts: "(keyword:1.3)" to emphasize elements',
+                    'Experiment with different aspect ratios for various platforms',
+                    'Use negative prompts extensively to exclude unwanted elements',
+                    'Save successful seeds for consistent style reproduction',
+                    'Use image prompts with URLs for style reference',
+                    'Iterate systematically: Make small, specific changes between generations'
+                ];
+            }
+        }
+
+        function generatePlatformComparison(platformId, type) {
+            let comparisonHTML = '';
+            
+            if (type === 'video') {
+                const topVideoPlatforms = [
+                    'google-veo-2', 'openai-sora', 'runway-gen-3', 'pika-2-0', 'adobe-firefly-video',
+                    'meta-movie-gen', 'capcut-pro-ai', 'synthesia-2-0', 'luma-dream-machine', 'kaiber-2-0',
+                    'stable-video-diffusion', 'haiper-2-0', 'minimax-video', 'cogvideo-x', 'elevenlabs-video'
+                ];
+                
+                comparisonHTML = `
+                    <div class="platform-comparison">
+                        <h3><i class="fas fa-video"></i> AI Video Platform Comparison (35+ Models)</h3>
+                        <p>Choose from over 35 leading AI video platforms. Compare features, pricing, and best use cases:</p>
+                        <div class="comparison-table-container">
+                            <table class="platform-comparison-table">
+                                <thead>
+                                    <tr>
+                                        <th>Platform</th>
+                                        <th>Best For</th>
+                                        <th>Pricing</th>
+                                        <th>Category</th>
+                                        <th>Key Strength</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                `;
+                
+                topVideoPlatforms.forEach(pid => {
+                    const plat = AI_VIDEO_MODELS[pid];
+                    if (plat) {
+                        const isPrimary = pid === platformId;
+                        comparisonHTML += `
+                            <tr class="${isPrimary ? 'primary-platform' : ''}">
+                                <td><strong>${plat.name}</strong>${isPrimary ? ' <span class="primary-badge">Recommended</span>' : ''}</td>
+                                <td>${plat.bestFor}</td>
+                                <td><span class="price-tag ${plat.price?.includes('Free') ? 'price-free' : 'price-paid'}">${plat.price}</span></td>
+                                <td><span class="category-badge category-${plat.category}">${plat.category}</span></td>
+                                <td>${plat.strengths[0]}</td>
+                            </tr>
+                        `;
+                    }
+                });
+                
+                comparisonHTML += `
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="comparison-tips">
+                            <p><strong>Quick recommendations:</strong></p>
+                            <ul>
+                                <li><strong>For professionals:</strong> Google Veo 2, OpenAI Sora, Runway Gen-3</li>
+                                <li><strong>For social media:</strong> CapCut Pro AI, Pika 2.0, InVideo AI</li>
+                                <li><strong>For avatars:</strong> Synthesia 2.0, HeyGen 2.0, ElevenLabs Video</li>
+                                <li><strong>For open source:</strong> Stable Video Diffusion, CogVideoX, AnimateDiff</li>
+                                <li><strong>For cinematic:</strong> Luma Dream Machine, Meta Movie Gen, Kling 1.6</li>
+                                <li><strong>For artistic:</strong> Kaiber 2.0, Haiper 2.0, Deforum</li>
+                            </ul>
+                        </div>
+                    </div>
+                `;
+            } else {
+                const topPhotoPlatforms = [
+                    'google-imagen', 'dalle-3', 'midjourney-v6', 'stable-diffusion-3', 'adobe-firefly-image',
+                    'leonardo-creative', 'ideogram-2', 'canva-ai', 'playground-v2', 'runway-image',
+                    'nightcafe-creator', 'wombo-dream', 'getty-generative', 'craiyon-v3', 'bing-creator'
+                ];
+                
+                comparisonHTML = `
+                    <div class="platform-comparison">
+                        <h3><i class="fas fa-camera"></i> AI Photo Platform Comparison (30+ Models)</h3>
+                        <p>Choose from over 30 leading AI image platforms. Compare features, pricing, and best use cases:</p>
+                        <div class="comparison-table-container">
+                            <table class="platform-comparison-table">
+                                <thead>
+                                    <tr>
+                                        <th>Platform</th>
+                                        <th>Best For</th>
+                                        <th>Pricing</th>
+                                        <th>Category</th>
+                                        <th>Key Strength</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                `;
+                
+                topPhotoPlatforms.forEach(pid => {
+                    const plat = AI_PHOTO_MODELS[pid];
+                    if (plat) {
+                        const isPrimary = pid === platformId;
+                        comparisonHTML += `
+                            <tr class="${isPrimary ? 'primary-platform' : ''}">
+                                <td><strong>${plat.name}</strong>${isPrimary ? ' <span class="primary-badge">Recommended</span>' : ''}</td>
+                                <td>${plat.bestFor}</td>
+                                <td><span class="price-tag ${plat.price?.includes('Free') ? 'price-free' : 'price-paid'}">${plat.price}</span></td>
+                                <td><span class="category-badge category-${plat.category}">${plat.category}</span></td>
+                                <td>${plat.strengths[0]}</td>
+                            </tr>
+                        `;
+                    }
+                });
+                
+                comparisonHTML += `
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="comparison-tips">
+                            <p><strong>Quick recommendations:</strong></p>
+                            <ul>
+                                <li><strong>For professionals:</strong> Google Imagen 3, DALL-E 3, Midjourney V6</li>
+                                <li><strong>For designers:</strong> Adobe Firefly, Canva AI, Leonardo Creative</li>
+                                <li><strong>For commercial use:</strong> Getty Generative, Shutterstock AI, Adobe Firefly</li>
+                                <li><strong>For open source:</strong> Stable Diffusion 3, SDXL, SDXL Turbo</li>
+                                <li><strong>For free:</strong> Craiyon V3, Bing Creator, BlueWillow V4</li>
+                                <li><strong>For mobile:</strong> Wombo Dream, StarryAI, Picsart AI</li>
+                            </ul>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            return comparisonHTML;
+        }
+
+        function generateModelSpecificTips() {
+            return `
+                <div class="model-specific-tips">
+                    <h4><i class="fas fa-microchip"></i> Model-Specific Optimization</h4>
+                    <div class="model-tips-grid">
+                        <div class="model-tip">
+                            <h5><i class="fab fa-discord"></i> Midjourney</h5>
+                            <ul>
+                                <li>Use <code>--ar 16:9</code> for widescreen, <code>--ar 9:16</code> for mobile</li>
+                                <li><code>--style raw</code> for less opinionated, <code>--style expressive</code> for artistic</li>
+                                <li><code>--chaos 0-100</code> controls variation (higher = more diverse)</li>
+                                <li><code>--stylize 100-1000</code> adjusts artistic interpretation</li>
+                            </ul>
+                        </div>
+                        <div class="model-tip">
+                            <h5><i class="fas fa-robot"></i> Stable Diffusion</h5>
+                            <ul>
+                                <li>CFG Scale: 7-12 (balance between creativity and prompt adherence)</li>
+                                <li>Sampling Steps: 20-50 (higher = more detailed but slower)</li>
+                                <li>Negative prompts: Essential for removing unwanted elements</li>
+                                <li>Use <code>(keyword:1.3)</code> for emphasis, <code>[keyword]</code> for de-emphasis</li>
+                            </ul>
+                        </div>
+                        <div class="model-tip">
+                            <h5><i class="fab fa-google"></i> Google Gemini/Imagen</h5>
+                            <ul>
+                                <li>Use natural, conversational language</li>
+                                <li>Include context and background information</li>
+                                <li>Ask for multiple variations in one request</li>
+                                <li>Use follow-up questions for refinements</li>
+                            </ul>
+                        </div>
+                        <div class="model-tip">
+                            <h5><i class="fab fa-adobe"></i> Adobe Firefly</h5>
+                            <ul>
+                                <li>Specify commercial-safe content requirements</li>
+                                <li>Use Adobe Stock references for consistency</li>
+                                <li>Integrate with Creative Cloud workflows</li>
+                                <li>Use style presets for quick professional results</li>
+                            </ul>
+                        </div>
+                        <div class="model-tip">
+                            <h5><i class="fas fa-video"></i> Runway ML / Pika</h5>
+                            <ul>
+                                <li>Specify exact duration (3-10 seconds) for optimal results</li>
+                                <li>Describe camera movements: "smooth zoom", "pan left", "dolly in"</li>
+                                <li>Include motion descriptors: "fluid", "dynamic", "cinematic"</li>
+                                <li>Mention transitions between scenes for complex videos</li>
+                            </ul>
+                        </div>
+                        <div class="model-tip">
+                            <h5><i class="fas fa-film"></i> CapCut / InVideo</h5>
+                            <ul>
+                                <li>Use templates as starting points for faster production</li>
+                                <li>Combine AI generation with stock footage for variety</li>
+                                <li>Add AI voiceovers for narration and storytelling</li>
+                                <li>Export in platform-specific formats (9:16 for Reels/Shorts)</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // ========== UI FUNCTIONS ==========
+        async function detectPlatform(type) {
+            const promptInput = document.getElementById('promptInput');
+            const promptText = promptInput.value.trim();
+            
+            if (!promptText) {
+                showError('Please enter a prompt to analyze');
+                return;
+            }
+            
+            // Show loading
+            document.getElementById('loading').classList.add('active');
+            document.getElementById('results').classList.remove('active');
+            document.getElementById('errorMessage').style.display = 'none';
+            document.getElementById('detectPhotoBtn').disabled = true;
+            document.getElementById('detectVideoBtn').disabled = true;
+            
+            // Simulate processing time (like real API)
+            setTimeout(() => {
+                try {
+                    // Use the appropriate detection function based on the button pressed
+                    let platformId;
+                    if (type === 'photo') {
+                        platformId = detectPhotoPlatform(promptText, [], 'general');
+                    } else {
+                        platformId = detectVideoPlatform(promptText, [], 'general');
+                    }
+                    
+                    const platform = type === 'photo' ? AI_PHOTO_MODELS[platformId] : AI_VIDEO_MODELS[platformId];
+                    
+                    displayResults(platform, type, promptText, platformId);
+                    
+                } catch (error) {
+                    showError('Error analyzing prompt. Please try again.');
+                    console.error(error);
+                } finally {
+                    document.getElementById('loading').classList.remove('active');
+                    document.getElementById('detectPhotoBtn').disabled = false;
+                    document.getElementById('detectVideoBtn').disabled = false;
+                }
+            }, 1500);
+        }
+
+        function displayResults(platform, type, promptText, platformId) {
+            const isVideo = type === 'video';
+            const icon = platform.icon || (isVideo ? 'fas fa-video' : 'fas fa-camera');
+            
+            // Platform header
+            document.getElementById('platformHeader').innerHTML = `
+                <span class="platform-badge"><i class="fas fa-microchip"></i> Detected Platform (Same as /prompt/:id pages)</span>
+                <div>
+                    <span class="type-badge"><i class="${isVideo ? 'fas fa-video' : 'fas fa-camera'}"></i> ${isVideo ? 'Video Reel' : 'Photo/Image'}</span>
+                    <span class="platform-category"><i class="fas fa-tag"></i> ${platform.category || 'professional'}</span>
+                    <span class="platform-price"><i class="fas fa-dollar-sign"></i> ${platform.price || 'Varies'}</span>
+                </div>
+                <div class="platform-name"><i class="${icon}"></i> ${platform.name}</div>
+                <div class="platform-description">${generatePlatformIntroduction(platform, type)}</div>
+            `;
+            
+            // Stats grid
+            document.getElementById('statsGrid').innerHTML = `
+                <div class="stat-card">
+                    <i class="fas fa-calendar-alt"></i>
+                    <div class="stat-label">Release Date</div>
+                    <div class="stat-value">${platform.releaseDate || '2025'}</div>
+                </div>
+                <div class="stat-card">
+                    <i class="fas fa-star"></i>
+                    <div class="stat-label">Best For</div>
+                    <div class="stat-value">${platform.bestFor || 'Versatile'}</div>
+                </div>
+                <div class="stat-card">
+                    <i class="fas fa-bolt"></i>
+                    <div class="stat-label">Key Strength</div>
+                    <div class="stat-value">${platform.strengths?.[0] || 'Quality'}</div>
+                </div>
+                <div class="stat-card">
+                    <i class="fas fa-tachometer-alt"></i>
+                    <div class="stat-label">Difficulty</div>
+                    <div class="stat-value">${platform.category === 'professional' ? 'Advanced' : platform.category === 'free' ? 'Easy' : 'Intermediate'}</div>
+                </div>
+            `;
+            
+            // Platform overview
+            document.getElementById('platformOverview').innerHTML = `
+                <strong>${platform.name}</strong> is ideal for creating ${isVideo ? 'viral video reels' : 'stunning images'} with ${platform.strengths?.join(', ') || 'professional quality'}. 
+                ${platform.description} Whether you're a beginner or professional, this platform delivers exceptional results for your ${isVideo ? 'video' : 'creative'} projects.
+            `;
+            
+            // Strengths list
+            document.getElementById('strengthsList').innerHTML = (platform.strengths || ['Quality', 'Speed', 'Flexibility']).map(s => 
+                `<span class="strength-tag"><i class="fas fa-check-circle"></i> ${s}</span>`
+            ).join('');
+            
+            // Step guide
+            const steps = generateStepByStepGuide(platform, type, promptText);
+            document.getElementById('stepGuide').innerHTML = `
+                <div class="guide-step">
+                    <div class="step-number">1</div>
+                    <div class="step-content"><strong>Access the Platform</strong><p>${steps.access}</p></div>
+                </div>
+                <div class="guide-step">
+                    <div class="step-number">2</div>
+                    <div class="step-content"><strong>Prepare Your ${type === 'video' ? 'Video Concept' : 'Input'}</strong><p>${steps.preparation}</p></div>
+                </div>
+                <div class="guide-step">
+                    <div class="step-number">3</div>
+                    <div class="step-content"><strong>Use Your Prompt</strong><p>${steps.prompt}</p></div>
+                </div>
+                <div class="guide-step">
+                    <div class="step-number">4</div>
+                    <div class="step-content"><strong>Adjust Parameters</strong><p>${steps.customization}</p></div>
+                </div>
+                <div class="guide-step">
+                    <div class="step-number">5</div>
+                    <div class="step-content"><strong>Generate and ${type === 'video' ? 'Review' : 'Refine'}</strong><p>${steps.generation}</p></div>
+                </div>
+                <div class="guide-step">
+                    <div class="step-number">6</div>
+                    <div class="step-content"><strong>Finalize and Export</strong><p>${steps.finalization}</p></div>
+                </div>
+            `;
+            
+            // Expert tips
+            const tips = generateExpertTips(type, platform);
+            document.getElementById('expertTips').innerHTML = tips.map(tip => `
+                <li><i class="fas fa-check-circle" style="color: var(--success);"></i> ${tip}</li>
+            `).join('');
+            
+            // Parameter guide
+            document.getElementById('paramGuide').innerHTML = `
+                <strong>Platform-Specific Parameters for ${platform.name}:</strong><br>
+                ${platform.paramTips || (isVideo 
+                    ? 'Adjust resolution, duration, and style parameters based on your needs. Experiment with different settings.'
+                    : 'Adjust quality settings, aspect ratio, and style parameters based on your needs.')}
+            `;
+            
+            // Parameter tags
+            const paramTags = platform.strengths || ['photorealistic', 'high quality', 'detailed'];
+            document.getElementById('paramTags').innerHTML = paramTags.map(tag => 
+                `<span class="strength-tag"><i class="fas fa-sliders-h"></i> ${tag}</span>`
+            ).join('');
+            
+            // Platform comparison
+            document.getElementById('comparisonContent').innerHTML = generatePlatformComparison(platformId, type);
+            
+            // Model-specific tips
+            document.getElementById('modelTipsContent').innerHTML = generateModelSpecificTips();
+            
+            // Store prompt for copy function
+            window.currentPromptText = promptText;
+            window.currentPlatformName = platform.name;
+            
+            // Show results
+            document.getElementById('results').classList.add('active');
+            
+            // Scroll to results
+            document.getElementById('results').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
+        function addHint(hint) {
+            const input = document.getElementById('promptInput');
+            const currentText = input.value;
+            const separator = currentText && !currentText.endsWith(' ') ? ' ' : '';
+            input.value = currentText + separator + hint;
+            input.focus();
+        }
+
+        function copyPrompt() {
+            if (window.currentPromptText) {
+                navigator.clipboard.writeText(window.currentPromptText).then(() => {
+                    showNotification('Prompt copied to clipboard!', 'success');
+                }).catch(() => {
+                    alert('Prompt copied!\n\n' + window.currentPromptText);
+                });
+            }
+        }
+
+        function resetDetector() {
+            document.getElementById('promptInput').value = '';
+            document.getElementById('results').classList.remove('active');
+            document.getElementById('promptInput').focus();
+        }
+
+        function showError(message) {
+            document.getElementById('errorText').innerText = message;
+            document.getElementById('errorMessage').style.display = 'block';
+            document.getElementById('loading').classList.remove('active');
+            document.getElementById('detectPhotoBtn').disabled = false;
+            document.getElementById('detectVideoBtn').disabled = false;
+            
+            setTimeout(() => {
+                document.getElementById('errorMessage').style.display = 'none';
+            }, 5000);
+        }
+
+        function showNotification(message, type) {
+            const notification = document.createElement('div');
+            notification.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                background: ${type === 'success' ? '#20bf6b' : '#ff6b6b'};
+                color: white;
+                padding: 15px 25px;
+                border-radius: 10px;
+                box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+                z-index: 9999;
+                animation: slideIn 0.3s ease;
+            `;
+            notification.innerHTML = `<i class="fas ${type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle'}"></i> ${message}`;
+            
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                notification.style.animation = 'slideOut 0.3s ease';
+                setTimeout(() => notification.remove(), 300);
+            }, 3000);
+        }
+
+        // Auto-detect on page load if there's a prompt in URL
+        window.addEventListener('load', () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const promptParam = urlParams.get('prompt');
+            if (promptParam) {
+                document.getElementById('promptInput').value = decodeURIComponent(promptParam);
+            }
+        });
+    </script>
+</body>
+</html>

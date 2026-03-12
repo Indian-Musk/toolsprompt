@@ -8,10 +8,25 @@ const firebaseConfig = {
   appId: "1:402263780942:web:1013a347dbb72db6b31d1f",
   measurementId: "G-K4KXR4FZCP"
 };
+
 // Global variables for synchronized feeds
 let allPrompts = [];
 let lastPromptUpdate = 0;
 const PROMPT_CACHE_DURATION = 15000; // REDUCED: 15 seconds
+
+// Hover autoplay configuration
+const hoverConfig = {
+    enabled: true,
+    delay: 100, // ms before playing on hover
+    mobileDelay: 0, // instant on mobile
+    pauseOnScroll: true,
+    muteByDefault: true, // Must be true for autoplay to work
+    loop: true,
+    preload: 'metadata', // 'metadata', 'auto', 'none'
+    playOnFocus: true, // Play when element receives focus
+    playOnTouch: true, // Play on touch for mobile
+    thumbnailOpacity: 0 // Opacity of thumbnail when video is playing (0 = hidden)
+};
 
 // Add this to your existing script.js file or include it in a script tag
 document.addEventListener('DOMContentLoaded', function() {
@@ -382,7 +397,8 @@ function showSearchSuggestions(query) {
             { text: `${query} art`, category: 'art', icon: 'fas fa-palette' },
             { text: `${query} photography`, category: 'photography', icon: 'fas fa-camera' },
             { text: `${query} design`, category: 'design', icon: 'fas fa-pencil-ruler' },
-            { text: `${query} AI`, category: 'ai', icon: 'fas fa-robot' }
+            { text: `${query} AI`, category: 'ai', icon: 'fas fa-robot' },
+            { text: `${query} video`, category: 'video', icon: 'fas fa-video' }
         ];
 
         const suggestionsHTML = mockSuggestions.map(suggestion => `
@@ -858,7 +874,12 @@ function initHorizontalFeedTouchSupport() {
             if (horizontalItem) {
                 const promptId = horizontalItem.dataset.promptId;
                 if (promptId) {
-                    openPromptPage(promptId);
+                    const isVideo = horizontalItem.classList.contains('video-item');
+                    if (isVideo) {
+                        openShortsPlayer(promptId);
+                    } else {
+                        openPromptPage(promptId);
+                    }
                 }
             }
         });
@@ -879,6 +900,379 @@ function initHorizontalFeedTouchSupport() {
         }, { passive: true });
     });
 }
+
+// ========== VIDEO HOVER AUTOPLAY MANAGER ==========
+class VideoHoverManager {
+    constructor() {
+        this.hoverVideos = new Map(); // Store video elements and their states
+        this.currentHoverItem = null;
+        this.hoverTimeout = null;
+        this.mobileTouchTimeout = null;
+        this.isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        this.init();
+    }
+
+    init() {
+        this.setupHoverListeners();
+        this.setupVisibilityHandler();
+        console.log('Video Hover Manager initialized');
+    }
+
+    setupHoverListeners() {
+        // Use event delegation for dynamically added content
+        document.addEventListener('mouseover', this.handleMouseOver.bind(this));
+        document.addEventListener('mouseout', this.handleMouseOut.bind(this));
+        
+        // Touch events for mobile
+        document.addEventListener('touchstart', this.handleTouchStart.bind(this), { passive: true });
+        document.addEventListener('touchend', this.handleTouchEnd.bind(this), { passive: true });
+        document.addEventListener('touchcancel', this.handleTouchCancel.bind(this), { passive: true });
+        
+        // Scroll handling to pause videos when scrolling
+        window.addEventListener('scroll', this.handleScroll.bind(this), { passive: true });
+        
+        // Focus handling for keyboard navigation
+        document.addEventListener('focusin', this.handleFocusIn.bind(this));
+        document.addEventListener('focusout', this.handleFocusOut.bind(this));
+    }
+
+    handleMouseOver(e) {
+        const videoItem = this.findVideoItem(e.target);
+        if (!videoItem) return;
+
+        // Clear any pending timeout
+        if (this.hoverTimeout) {
+            clearTimeout(this.hoverTimeout);
+        }
+
+        // Small delay to prevent accidental hovers
+        this.hoverTimeout = setTimeout(() => {
+            this.playHoverVideo(videoItem);
+        }, hoverConfig.delay);
+    }
+
+    handleMouseOut(e) {
+        const videoItem = this.findVideoItem(e.target);
+        if (!videoItem) return;
+
+        // Clear timeout
+        if (this.hoverTimeout) {
+            clearTimeout(this.hoverTimeout);
+            this.hoverTimeout = null;
+        }
+
+        // Small delay before pausing to allow moving between items
+        setTimeout(() => {
+            const relatedTarget = e.relatedTarget;
+            const stillInItem = relatedTarget && videoItem.contains(relatedTarget);
+            
+            if (!stillInItem) {
+                this.pauseHoverVideo(videoItem);
+            }
+        }, 50);
+    }
+
+    handleTouchStart(e) {
+        const videoItem = this.findVideoItem(e.target);
+        if (!videoItem) return;
+
+        // Remove active class from other items
+        document.querySelectorAll('.shorts-prompt-card.touch-active, .horizontal-prompt-item.touch-active').forEach(item => {
+            if (item !== videoItem) {
+                item.classList.remove('touch-active');
+                this.pauseHoverVideo(item);
+            }
+        });
+
+        // Clear previous timeout
+        if (this.mobileTouchTimeout) {
+            clearTimeout(this.mobileTouchTimeout);
+        }
+
+        // Add touch active class
+        videoItem.classList.add('touch-active');
+        
+        // Play video immediately on touch
+        this.playHoverVideo(videoItem);
+        
+        // Prevent default to avoid page scroll
+        e.preventDefault();
+    }
+
+    handleTouchEnd(e) {
+        const videoItem = this.findVideoItem(e.target);
+        if (!videoItem) return;
+
+        // Don't pause immediately to allow for better UX
+        this.mobileTouchTimeout = setTimeout(() => {
+            videoItem.classList.remove('touch-active');
+            this.pauseHoverVideo(videoItem);
+        }, 2000); // Keep playing for 2 seconds after touch ends
+    }
+
+    handleTouchCancel(e) {
+        const videoItem = this.findVideoItem(e.target);
+        if (!videoItem) return;
+
+        videoItem.classList.remove('touch-active');
+        this.pauseHoverVideo(videoItem);
+        
+        if (this.mobileTouchTimeout) {
+            clearTimeout(this.mobileTouchTimeout);
+        }
+    }
+
+    handleFocusIn(e) {
+        if (!hoverConfig.playOnFocus) return;
+        
+        const videoItem = this.findVideoItem(e.target);
+        if (!videoItem) return;
+        
+        this.playHoverVideo(videoItem);
+    }
+
+    handleFocusOut(e) {
+        if (!hoverConfig.playOnFocus) return;
+        
+        const videoItem = this.findVideoItem(e.target);
+        if (!videoItem) return;
+        
+        this.pauseHoverVideo(videoItem);
+    }
+
+    handleScroll() {
+        if (!hoverConfig.pauseOnScroll) return;
+        
+        // Pause all hover videos when scrolling for performance
+        this.hoverVideos.forEach((data, element) => {
+            if (data.isPlaying) {
+                this.pauseHoverVideo(element);
+            }
+        });
+    }
+
+    setupVisibilityHandler() {
+        // Pause videos when tab becomes inactive
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                this.hoverVideos.forEach((data, element) => {
+                    if (data.isPlaying) {
+                        this.pauseHoverVideo(element);
+                    }
+                });
+            }
+        });
+    }
+
+    findVideoItem(element) {
+        // Check if element is a video item or inside one
+        return element.closest('.shorts-prompt-card[data-file-type="video"], .horizontal-prompt-item.video-item');
+    }
+
+    playHoverVideo(item) {
+        if (!item || !hoverConfig.enabled) return;
+
+        const videoContainer = item.querySelector('.hover-video-container');
+        const videoPlayer = item.querySelector('.hover-video-player');
+        
+        if (!videoPlayer || !videoContainer) return;
+
+        // Check if already playing
+        const existingData = this.hoverVideos.get(item);
+        if (existingData && existingData.isPlaying) return;
+
+        // Show loading if video isn't ready
+        const loading = item.querySelector('.hover-video-loading');
+        if (loading) loading.style.display = 'block';
+
+        // Set video source if not set
+        if (!videoPlayer.src) {
+            const promptId = item.dataset.promptId;
+            const prompt = allPrompts.find(p => p.id === promptId);
+            
+            if (prompt && (prompt.videoUrl || prompt.mediaUrl)) {
+                videoPlayer.src = prompt.videoUrl || prompt.mediaUrl;
+                videoPlayer.load();
+            }
+        }
+
+        // Ensure video is muted for autoplay
+        videoPlayer.muted = true;
+
+        // Play video with promise handling
+        const playPromise = videoPlayer.play();
+        
+        if (playPromise !== undefined) {
+            playPromise
+                .then(() => {
+                    // Hide loading
+                    if (loading) loading.style.display = 'none';
+                    
+                    // Update state
+                    this.hoverVideos.set(item, {
+                        isPlaying: true,
+                        player: videoPlayer,
+                        container: videoContainer
+                    });
+                    
+                    // Add active class
+                    item.classList.add('hover-active');
+                    
+                    // Ensure the thumbnail image is hidden or dimmed
+                    const thumbnail = item.querySelector('.shorts-image, .horizontal-prompt-image img');
+                    if (thumbnail) {
+                        thumbnail.style.opacity = hoverConfig.thumbnailOpacity.toString();
+                    }
+                    
+                    // Track view (only once per hover session)
+                    if (!item.dataset.viewTracked) {
+                        this.trackView(promptId);
+                        item.dataset.viewTracked = 'true';
+                        
+                        // Reset after 30 seconds
+                        setTimeout(() => {
+                            delete item.dataset.viewTracked;
+                        }, 30000);
+                    }
+                })
+                .catch(error => {
+                    console.log('Hover autoplay prevented:', error);
+                    if (loading) loading.style.display = 'none';
+                    
+                    // Fallback: try playing on user interaction
+                    const playOnInteraction = () => {
+                        videoPlayer.play().catch(e => console.log('Still failed:', e));
+                        item.removeEventListener('click', playOnInteraction);
+                    };
+                    item.addEventListener('click', playOnInteraction, { once: true });
+                });
+        }
+    }
+
+    pauseHoverVideo(item) {
+        if (!item) return;
+
+        const videoPlayer = item.querySelector('.hover-video-player');
+        const data = this.hoverVideos.get(item);
+        const thumbnail = item.querySelector('.shorts-image, .horizontal-prompt-image img');
+        
+        if (videoPlayer && data && data.isPlaying) {
+            videoPlayer.pause();
+            videoPlayer.currentTime = 0; // Reset to start
+            
+            this.hoverVideos.set(item, {
+                ...data,
+                isPlaying: false
+            });
+            
+            item.classList.remove('hover-active');
+            
+            // Show thumbnail again
+            if (thumbnail) {
+                thumbnail.style.opacity = '1';
+            }
+        }
+    }
+
+    trackView(promptId) {
+        if (!promptId) return;
+        
+        // Use the existing view tracking with reduced rate
+        fetch(`/api/prompt/${promptId}/view`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        }).catch(err => console.log('Hover view tracking error:', err));
+    }
+
+    // Method to create hover video element for a prompt
+    createHoverVideoElement(prompt) {
+        if (!prompt || !(prompt.videoUrl || prompt.mediaUrl)) return null;
+
+        const videoContainer = document.createElement('div');
+        videoContainer.className = 'hover-video-container';
+        
+        const loadingDiv = document.createElement('div');
+        loadingDiv.className = 'hover-video-loading';
+        loadingDiv.innerHTML = '<div class="spinner-small"></div>';
+        
+        const video = document.createElement('video');
+        video.className = 'hover-video-player';
+        video.muted = hoverConfig.muteByDefault;
+        video.loop = hoverConfig.loop;
+        video.playsInline = true;
+        video.preload = hoverConfig.preload;
+        video.src = prompt.videoUrl || prompt.mediaUrl;
+        
+        const indicator = document.createElement('div');
+        indicator.className = 'hover-video-indicator';
+        indicator.innerHTML = '<i class="fas fa-play"></i> Preview';
+        
+        const muteBtn = document.createElement('button');
+        muteBtn.className = 'hover-video-mute';
+        muteBtn.innerHTML = hoverConfig.muteByDefault ? '<i class="fas fa-volume-mute"></i>' : '<i class="fas fa-volume-up"></i>';
+        muteBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            video.muted = !video.muted;
+            muteBtn.innerHTML = video.muted ? '<i class="fas fa-volume-mute"></i>' : '<i class="fas fa-volume-up"></i>';
+        });
+        
+        const pausedIndicator = document.createElement('div');
+        pausedIndicator.className = 'hover-video-paused';
+        pausedIndicator.innerHTML = '<i class="fas fa-pause"></i>';
+        
+        videoContainer.appendChild(loadingDiv);
+        videoContainer.appendChild(video);
+        videoContainer.appendChild(indicator);
+        videoContainer.appendChild(muteBtn);
+        videoContainer.appendChild(pausedIndicator);
+        
+        // Video event listeners
+        video.addEventListener('loadedmetadata', () => {
+            loadingDiv.style.display = 'none';
+        });
+        
+        video.addEventListener('waiting', () => {
+            loadingDiv.style.display = 'block';
+        });
+        
+        video.addEventListener('canplay', () => {
+            loadingDiv.style.display = 'none';
+        });
+        
+        video.addEventListener('play', () => {
+            pausedIndicator.classList.remove('show');
+        });
+        
+        video.addEventListener('pause', () => {
+            pausedIndicator.classList.add('show');
+            setTimeout(() => {
+                pausedIndicator.classList.remove('show');
+            }, 1000);
+        });
+        
+        return videoContainer;
+    }
+
+    // Clean up method
+    cleanup() {
+        this.hoverVideos.forEach((data, item) => {
+            if (data.player) {
+                data.player.pause();
+                data.player.src = '';
+            }
+        });
+        this.hoverVideos.clear();
+    }
+}
+
+// Initialize the hover manager
+window.videoHoverManager = new VideoHoverManager();
+
+// Function to update hover config
+window.updateHoverConfig = function(newConfig) {
+    Object.assign(hoverConfig, newConfig);
+    console.log('Hover config updated:', hoverConfig);
+};
 
 // YouTube Shorts Style Horizontal Feed - UPDATED
 class ShortsHorizontalFeed {
@@ -1175,12 +1569,19 @@ class ShortsHorizontalFeed {
                     title: prompt.title || 'Untitled Prompt',
                     promptText: prompt.promptText || 'No prompt text available.',
                     imageUrl: prompt.imageUrl || 'https://via.placeholder.com/800x400/4e54c8/white?text=AI+Image',
+                    videoUrl: prompt.videoUrl || null,
+                    mediaUrl: prompt.mediaUrl || prompt.imageUrl,
+                    thumbnailUrl: prompt.thumbnailUrl || null,
+                    fileType: prompt.fileType || 'image',
+                    videoDuration: prompt.videoDuration || null,
                     userName: prompt.userName || 'Anonymous',
                     likes: parseInt(prompt.likes) || 0,
                     views: parseInt(prompt.views) || 0,
                     uses: parseInt(prompt.uses) || 0,
+                    commentCount: parseInt(prompt.commentCount) || 0,
                     keywords: Array.isArray(prompt.keywords) ? prompt.keywords : ['AI', 'prompt'],
                     category: prompt.category || 'general',
+                    hasCustomThumbnail: prompt.hasCustomThumbnail || false,
                     createdAt: prompt.createdAt || new Date().toISOString(),
                     updatedAt: prompt.updatedAt || new Date().toISOString()
                 }));
@@ -1215,14 +1616,12 @@ class ShortsHorizontalFeed {
             return;
         }
 
-        const shortsHTML = this.last24hPrompts.map(prompt => this.createShortItem(prompt)).join('');
-        this.track.innerHTML = shortsHTML;
-
-        // Add click handlers
-        this.track.querySelectorAll('.shorts-item').forEach((item, index) => {
-            item.addEventListener('click', () => {
-                this.openPromptPage(this.last24hPrompts[index].id);
-            });
+        // Clear track and add items
+        this.track.innerHTML = '';
+        
+        this.last24hPrompts.forEach(prompt => {
+            const item = this.createShortItem(prompt);
+            this.track.appendChild(item);
         });
 
         this.updateNavigation();
@@ -1233,31 +1632,81 @@ class ShortsHorizontalFeed {
         const safePrompt = prompt || {};
         const promptId = safePrompt.id || 'unknown';
         const title = safePrompt.title || 'Untitled Prompt';
-        const imageUrl = safePrompt.imageUrl || 'https://via.placeholder.com/120x160/4e54c8/white?text=Prompt';
+        const imageUrl = safePrompt.thumbnailUrl || safePrompt.imageUrl || 'https://via.placeholder.com/120x160/4e54c8/white?text=Prompt';
         const views = safePrompt.views || 0;
         const createdAt = safePrompt.createdAt || new Date().toISOString();
+        const isVideo = safePrompt.fileType === 'video' || safePrompt.videoUrl;
         
         const timeAgo = this.getTimeAgo(createdAt);
         const isNew = this.isWithinLastHour(createdAt);
 
-        return `
-            <div class="shorts-item" data-prompt-id="${promptId}">
-                <div class="shorts-thumbnail">
-                    <img src="${imageUrl}" 
-                         alt="${title}"
-                         loading="lazy"
-                         onerror="this.src='https://via.placeholder.com/120x160/4e54c8/white?text=Prompt'">
-                    
-                    ${isNew ? '<div class="shorts-new-indicator"></div>' : ''}
-                </div>
-                <div class="shorts-info">
-                    <div class="shorts-title">${title}</div>
-                    <div class="shorts-meta">
-                        <span class="shorts-time">View Prompt</span>
-                    </div>
-                </div>
-            </div>
-        `;
+        const item = document.createElement('div');
+        item.className = `shorts-item ${isVideo ? 'video-item' : ''}`;
+        item.setAttribute('data-prompt-id', promptId);
+        item.setAttribute('data-file-type', isVideo ? 'video' : 'image');
+
+        // Create thumbnail container
+        const thumbnailDiv = document.createElement('div');
+        thumbnailDiv.className = 'shorts-thumbnail';
+        
+        const img = document.createElement('img');
+        img.src = imageUrl;
+        img.alt = title;
+        img.loading = 'lazy';
+        img.onerror = function() { this.src = 'https://via.placeholder.com/120x160/4e54c8/white?text=Prompt'; };
+        thumbnailDiv.appendChild(img);
+        
+        if (isVideo) {
+            const badge = document.createElement('div');
+            badge.className = 'video-reel-badge';
+            badge.innerHTML = '<i class="fas fa-play"></i> Reel';
+            thumbnailDiv.appendChild(badge);
+            
+            // Add hover video container
+            const hoverVideoContainer = window.videoHoverManager?.createHoverVideoElement(safePrompt);
+            if (hoverVideoContainer) {
+                thumbnailDiv.appendChild(hoverVideoContainer);
+            }
+        }
+        
+        if (isNew) {
+            const newIndicator = document.createElement('div');
+            newIndicator.className = 'shorts-new-indicator';
+            thumbnailDiv.appendChild(newIndicator);
+        }
+
+        const infoDiv = document.createElement('div');
+        infoDiv.className = 'shorts-info';
+        
+        const titleDiv = document.createElement('div');
+        titleDiv.className = 'shorts-title';
+        titleDiv.textContent = title;
+        
+        const metaDiv = document.createElement('div');
+        metaDiv.className = 'shorts-meta';
+        
+        const timeSpan = document.createElement('span');
+        timeSpan.className = 'shorts-time';
+        timeSpan.textContent = isVideo ? 'Watch Reel' : 'View Prompt';
+        
+        metaDiv.appendChild(timeSpan);
+        
+        infoDiv.appendChild(titleDiv);
+        infoDiv.appendChild(metaDiv);
+        
+        item.appendChild(thumbnailDiv);
+        item.appendChild(infoDiv);
+
+        // Add click handler
+        item.addEventListener('click', () => {
+            if (isVideo) {
+                this.openShortsPlayer(promptId);
+            } else {
+                this.openPromptPage(promptId);
+            }
+        });
+
+        return item;
     }
 
     getTimeAgo(dateString) {
@@ -1328,18 +1777,31 @@ class ShortsHorizontalFeed {
     }
 
    openPromptPage(promptId) {
-  if (promptId && promptId !== 'unknown') {
-    const currentHost = window.location.hostname;
-    let targetUrl = `/prompt/${promptId}`;
-    
-    // If on non-www version in production, redirect to www
-    if (currentHost === 'toolsprompt.com' && window.location.hostname !== 'localhost') {
-      targetUrl = `https://www.toolsprompt.com/prompt/${promptId}`;
+        if (promptId && promptId !== 'unknown') {
+            const currentHost = window.location.hostname;
+            let targetUrl = `/prompt/${promptId}`;
+            
+            // If on non-www version in production, redirect to www
+            if (currentHost === 'promptseen.co' && window.location.hostname !== 'localhost') {
+                targetUrl = `https://www.promptseen.co/prompt/${promptId}`;
+            }
+            
+            window.open(targetUrl, '_blank');
+        }
     }
-    
-    window.open(targetUrl, '_blank');
-  }
-}
+
+    openShortsPlayer(promptId) {
+        if (promptId && promptId !== 'unknown' && window.shortsPlayer) {
+            const prompt = allPrompts.find(p => p.id === promptId);
+            if (prompt && (prompt.fileType === 'video' || prompt.videoUrl)) {
+                window.shortsPlayer.openPlayer([prompt], 0);
+            } else {
+                const videos = allPrompts.filter(p => p.fileType === 'video' || p.videoUrl);
+                const index = videos.findIndex(p => p.id === promptId);
+                window.shortsPlayer.openPlayer(videos, index >= 0 ? index : 0);
+            }
+        }
+    }
 
     formatCount(count) {
         // Handle undefined, null, or non-numeric values
@@ -1913,7 +2375,7 @@ async function handleNewsSubmit(e) {
   }
 }
 
-// YouTube-style Prompts with Infinite Scroll - UPDATED WITH HORIZONTAL FEEDS
+// YouTube-style Prompts with Infinite Scroll - UPDATED WITH HORIZONTAL FEEDS AND VIDEO SUPPORT
 class YouTubeStylePrompts {
   constructor() {
     this.currentPage = 1;
@@ -1929,7 +2391,7 @@ class YouTubeStylePrompts {
     this.setupInfiniteScroll();
     this.loadInitialPrompts();
     this.setupEngagementListeners();
-    console.log('YouTubeStylePrompts initialized with horizontal feeds');
+    console.log('YouTubeStylePrompts initialized with horizontal feeds and video support');
   }
 
   injectCriticalCSS() {
@@ -1970,6 +2432,13 @@ class YouTubeStylePrompts {
         display: flex !important;
         align-items: center !important;
         justify-content: center !important;
+        cursor: pointer;
+        outline: none;
+      }
+
+      .shorts-video-container:focus-visible {
+        outline: 3px solid #4e54c8 !important;
+        outline-offset: 2px !important;
       }
 
       .shorts-image {
@@ -1977,6 +2446,7 @@ class YouTubeStylePrompts {
         height: 100% !important;
         object-fit: cover !important;
         display: block !important;
+        transition: opacity 0.3s ease !important;
       }
 
       .shorts-engagement {
@@ -2082,6 +2552,64 @@ class YouTubeStylePrompts {
         border-color: #4e54c8 !important;
       }
 
+      /* Video reel indicator */
+      .video-reel-badge {
+        position: absolute !important;
+        top: 10px !important;
+        right: 10px !important;
+        background: rgba(255, 107, 107, 0.9) !important;
+        color: white !important;
+        padding: 4px 8px !important;
+        border-radius: 12px !important;
+        font-size: 11px !important;
+        font-weight: 600 !important;
+        display: flex !important;
+        align-items: center !important;
+        gap: 4px !important;
+        z-index: 15 !important;
+        backdrop-filter: blur(4px) !important;
+        border: 1px solid rgba(255, 255, 255, 0.2) !important;
+        pointer-events: none !important;
+      }
+
+      /* Image badge */
+      .image-badge {
+        position: absolute !important;
+        top: 10px !important;
+        right: 10px !important;
+        background: rgba(78, 84, 200, 0.9) !important;
+        color: white !important;
+        padding: 4px 8px !important;
+        border-radius: 12px !important;
+        font-size: 11px !important;
+        font-weight: 600 !important;
+        display: flex !important;
+        align-items: center !important;
+        gap: 4px !important;
+        z-index: 15 !important;
+        backdrop-filter: blur(4px) !important;
+        border: 1px solid rgba(255, 255, 255, 0.2) !important;
+        pointer-events: none !important;
+      }
+
+      /* Horizontal feed video count badge */
+      .video-count-badge {
+        background: #ff6b6b !important;
+        color: white !important;
+        padding: 4px 10px !important;
+        border-radius: 20px !important;
+        font-size: 0.8rem !important;
+        font-weight: 600 !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        gap: 5px !important;
+        margin-left: 10px !important;
+      }
+
+      .video-count-badge i {
+        font-size: 0.75rem !important;
+      }
+
       /* Loading states */
       .loading-shorts {
         display: flex !important;
@@ -2099,21 +2627,321 @@ class YouTubeStylePrompts {
         border: 3px solid #f3f3f3 !important;
         border-top: 3px solid #4e54c8 !important;
         border-radius: 50% !important;
-        animation: spin 0.8s linear infinite !important; /* REDUCED: 0.8s instead of 1s */
+        animation: spin 0.8s linear infinite !important;
         margin-right: 12px !important;
       }
 
       .loading-prompt .shorts-video-container {
         background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%) !important;
         background-size: 200% 100% !important;
-        animation: loading 1s infinite !important; /* REDUCED: 1s instead of 1.5s */
+        animation: loading 1s infinite !important;
       }
 
       .loading-text {
         background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%) !important;
         background-size: 200% 100% !important;
-        animation: loading 1s infinite !important; /* REDUCED: 1s instead of 1.5s */
+        animation: loading 1s infinite !important;
         border-radius: 4px !important;
+      }
+
+      /* Hover video container styles */
+      .hover-video-container {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        z-index: 2;
+        opacity: 0;
+        transition: opacity 0.3s ease;
+        pointer-events: none;
+      }
+
+      .shorts-prompt-card.hover-active .hover-video-container,
+      .horizontal-prompt-item.hover-active .hover-video-container {
+        opacity: 1;
+        pointer-events: auto;
+      }
+
+      .hover-video-player {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        background: #000;
+      }
+
+      .hover-video-loading {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        z-index: 3;
+        display: none;
+      }
+
+      .hover-video-indicator {
+        position: absolute;
+        bottom: 10px;
+        left: 10px;
+        background: rgba(0, 0, 0, 0.7);
+        color: white;
+        padding: 4px 8px;
+        border-radius: 12px;
+        font-size: 11px;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        z-index: 4;
+        pointer-events: none;
+      }
+
+      .hover-video-mute {
+        position: absolute;
+        bottom: 10px;
+        right: 10px;
+        background: rgba(0, 0, 0, 0.7);
+        color: white;
+        border: none;
+        border-radius: 50%;
+        width: 30px;
+        height: 30px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        z-index: 5;
+        transition: all 0.2s ease;
+        pointer-events: auto;
+      }
+
+      .hover-video-mute:hover {
+        background: rgba(78, 84, 200, 0.9);
+        transform: scale(1.1);
+      }
+
+      .hover-video-paused {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%) scale(0);
+        background: rgba(0, 0, 0, 0.7);
+        color: white;
+        width: 50px;
+        height: 50px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 20px;
+        transition: transform 0.2s ease;
+        z-index: 6;
+        pointer-events: none;
+      }
+
+      .hover-video-paused.show {
+        transform: translate(-50%, -50%) scale(1);
+      }
+
+      .spinner-small {
+        width: 24px;
+        height: 24px;
+        border: 3px solid rgba(255, 255, 255, 0.3);
+        border-top: 3px solid #4e54c8;
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+      }
+
+      /* Horizontal Feed Styles with Video Support */
+      .horizontal-feed-section {
+        grid-column: 1 / -1;
+        margin: 30px 0;
+        padding: 20px 0;
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        border-radius: 15px;
+        border: 1px solid #e9ecef;
+        width: 100%;
+        overflow: hidden;
+      }
+
+      .horizontal-feed-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+        padding: 0 20px;
+        flex-wrap: wrap;
+        gap: 10px;
+      }
+
+      .horizontal-feed-header h3 {
+        color: #2d334a;
+        font-size: 1.3rem;
+        font-weight: 600;
+        margin: 0;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .horizontal-controls {
+        display: flex;
+        gap: 10px;
+      }
+
+      .horizontal-control-btn {
+        background: white;
+        border: 2px solid #4e54c8;
+        color: #4e54c8;
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        font-size: 0.9rem;
+      }
+
+      .horizontal-control-btn:hover {
+        background: #4e54c8;
+        color: white;
+        transform: scale(1.1);
+      }
+
+      .horizontal-control-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+        transform: none;
+      }
+
+      .horizontal-control-btn:disabled:hover {
+        background: white;
+        color: #4e54c8;
+      }
+
+      .horizontal-feed-track {
+        display: flex;
+        gap: 15px;
+        padding: 0 20px;
+        overflow-x: auto;
+        scroll-behavior: smooth;
+        scrollbar-width: thin;
+        scrollbar-color: #4e54c8 #f1f1f1;
+        cursor: grab;
+      }
+
+      .horizontal-feed-track:active {
+        cursor: grabbing;
+      }
+
+      .horizontal-feed-track::-webkit-scrollbar {
+        height: 6px;
+      }
+
+      .horizontal-feed-track::-webkit-scrollbar-track {
+        background: #f1f1f1;
+        border-radius: 10px;
+      }
+
+      .horizontal-feed-track::-webkit-scrollbar-thumb {
+        background: #4e54c8;
+        border-radius: 10px;
+      }
+
+      .horizontal-prompt-item {
+        flex: 0 0 auto;
+        width: 200px;
+        background: white;
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        transition: all 0.3s ease;
+        cursor: pointer;
+        position: relative;
+      }
+
+      .horizontal-prompt-item.video-item {
+        border: 2px solid transparent;
+        transition: all 0.3s ease;
+      }
+
+      .horizontal-prompt-item.video-item:hover {
+        border-color: #ff6b6b;
+        transform: translateY(-5px);
+      }
+
+      .horizontal-prompt-item:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+      }
+
+      .horizontal-prompt-image {
+        position: relative;
+        width: 100%;
+        height: 150px;
+        overflow: hidden;
+      }
+
+      .horizontal-prompt-image img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        transition: transform 0.3s ease;
+      }
+
+      .horizontal-prompt-item:hover .horizontal-prompt-image img {
+        transform: scale(1.05);
+      }
+
+      .horizontal-prompt-views {
+        position: absolute;
+        bottom: 8px;
+        right: 8px;
+        background: rgba(0,0,0,0.7);
+        color: white;
+        padding: 4px 8px;
+        border-radius: 12px;
+        font-size: 0.8rem;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        z-index: 10;
+      }
+
+      .horizontal-prompt-info {
+        padding: 12px;
+      }
+
+      .horizontal-prompt-title {
+        font-size: 0.9rem;
+        font-weight: 600;
+        color: #2d334a;
+        margin-bottom: 8px;
+        line-height: 1.3;
+        height: 36px;
+        overflow: hidden;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+      }
+
+      .view-prompt-btn {
+        width: 100%;
+        padding: 8px 12px;
+        background: #4e54c8;
+        color: white;
+        border: none;
+        border-radius: 20px;
+        font-size: 0.8rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.3s ease;
+      }
+
+      .view-prompt-btn:hover {
+        background: #3f44b8;
+        transform: translateY(-2px);
       }
 
       /* Desktop specific styles */
@@ -2150,13 +2978,20 @@ class YouTubeStylePrompts {
       /* Mobile responsive */
       @media (max-width: 767px) {
         .shorts-container {
-          grid-template-columns: 1fr !important;
+          display: flex !important;
+          flex-direction: column !important;
           gap: 16px !important;
           padding: 16px !important;
+          width: 100% !important;
+        }
+        
+        .shorts-prompt-card {
+          width: 100% !important;
+          max-width: 100% !important;
         }
         
         .shorts-video-container {
-          height: 500px !important;
+          height: 400px !important;
         }
         
         .shorts-prompt-card {
@@ -2173,11 +3008,86 @@ class YouTubeStylePrompts {
           -webkit-line-clamp: 2 !important;
           min-height: 50px !important;
         }
+
+        .shorts-prompt-card.touch-active .hover-video-container {
+          opacity: 1;
+          pointer-events: auto;
+        }
+
+        .shorts-prompt-card.touch-active .shorts-image {
+          opacity: 0;
+        }
+
+        .hover-video-mute {
+          width: 36px;
+          height: 36px;
+          font-size: 14px;
+        }
+
+        /* Horizontal feed mobile fixes */
+        .horizontal-feed-section {
+          margin: 20px 0 !important;
+          padding: 15px 0 !important;
+          border-radius: 12px !important;
+          width: 100% !important;
+        }
+        
+        .horizontal-feed-header {
+          padding: 0 15px !important;
+          margin-bottom: 15px !important;
+        }
+        
+        .horizontal-feed-header h3 {
+          font-size: 1.1rem !important;
+        }
+        
+        .video-count-badge {
+          font-size: 0.7rem !important;
+          padding: 3px 8px !important;
+        }
+        
+        .horizontal-control-btn {
+          width: 35px !important;
+          height: 35px !important;
+          font-size: 0.8rem !important;
+        }
+        
+        .horizontal-feed-track {
+          padding: 0 15px !important;
+          gap: 12px !important;
+          scroll-snap-type: x mandatory !important;
+        }
+        
+        .horizontal-prompt-item {
+          width: 160px !important;
+          scroll-snap-align: start !important;
+          flex-shrink: 0 !important;
+        }
+        
+        .horizontal-prompt-image {
+          height: 120px !important;
+        }
+        
+        .horizontal-prompt-title {
+          font-size: 0.85rem !important;
+          height: 32px !important;
+        }
+        
+        .hover-video-mute {
+          width: 28px !important;
+          height: 28px !important;
+          font-size: 0.7rem !important;
+        }
+        
+        .hover-video-indicator {
+          font-size: 0.65rem !important;
+          padding: 3px 6px !important;
+        }
       }
 
       @media (max-width: 480px) {
         .shorts-video-container {
-          height: 450px !important;
+          height: 350px !important;
         }
         
         .shorts-info {
@@ -2186,6 +3096,54 @@ class YouTubeStylePrompts {
         
         .shorts-prompt-text {
           font-size: 13px !important;
+          line-height: 1.3 !important;
+          max-height: 50px !important;
+        }
+        
+        .horizontal-feed-section {
+          margin: 15px 0 !important;
+          padding: 12px 0 !important;
+        }
+        
+        .horizontal-feed-header {
+          padding: 0 12px !important;
+        }
+        
+        .horizontal-feed-header h3 {
+          font-size: 1rem !important;
+        }
+        
+        .horizontal-feed-track {
+          padding: 0 12px !important;
+          gap: 10px !important;
+        }
+        
+        .horizontal-prompt-item {
+          width: 140px !important;
+        }
+        
+        .horizontal-prompt-image {
+          height: 100px !important;
+        }
+        
+        .horizontal-prompt-title {
+          font-size: 0.8rem !important;
+          height: 32px !important;
+        }
+      }
+
+      @media (max-width: 360px) {
+        .shorts-video-container {
+          height: 300px !important;
+        }
+        
+        .shorts-container {
+          padding: 12px !important;
+          gap: 12px !important;
+        }
+        
+        .horizontal-prompt-item {
+          width: 130px !important;
         }
       }
 
@@ -2198,6 +3156,17 @@ class YouTubeStylePrompts {
       @keyframes loading {
         0% { background-position: 200% 0 !important; }
         100% { background-position: -200% 0 !important; }
+      }
+
+      @keyframes fadeInUp {
+        from {
+            opacity: 0;
+            transform: translateY(20px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
       }
 
       .count-animation {
@@ -2236,6 +3205,15 @@ class YouTubeStylePrompts {
 
       .shorts-image[src] {
         opacity: 1 !important;
+      }
+
+      /* Loading states for horizontal feed */
+      .loading-horizontal .horizontal-feed-header .loading-text,
+      .loading-horizontal-item .loading-text {
+        background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+        background-size: 200% 100%;
+        animation: loading 1s infinite;
+        border-radius: 4px;
       }
     `;
 
@@ -2339,12 +3317,19 @@ class YouTubeStylePrompts {
           title: prompt.title || 'Untitled Prompt',
           promptText: prompt.promptText || 'No prompt text available.',
           imageUrl: prompt.imageUrl || 'https://via.placeholder.com/800x400/4e54c8/white?text=AI+Image',
+          videoUrl: prompt.videoUrl || null,
+          mediaUrl: prompt.mediaUrl || prompt.imageUrl,
+          thumbnailUrl: prompt.thumbnailUrl || null,
+          fileType: prompt.fileType || 'image',
+          videoDuration: prompt.videoDuration || null,
           userName: prompt.userName || 'Anonymous',
           likes: parseInt(prompt.likes) || 0,
           views: parseInt(prompt.views) || 0,
           uses: parseInt(prompt.uses) || 0,
+          commentCount: parseInt(prompt.commentCount) || 0,
           keywords: Array.isArray(prompt.keywords) ? prompt.keywords : ['AI', 'prompt'],
           category: prompt.category || 'general',
+          hasCustomThumbnail: prompt.hasCustomThumbnail || false,
           createdAt: prompt.createdAt || new Date().toISOString(),
           updatedAt: prompt.updatedAt || new Date().toISOString()
         }));
@@ -2437,13 +3422,21 @@ class YouTubeStylePrompts {
     }
   }
 
-  // NEW: Create horizontal feed section
+  // Enhanced: Create horizontal feed section with video support
   createHorizontalFeed(prompts, index) {
     const horizontalFeed = document.createElement('div');
     horizontalFeed.className = 'horizontal-feed-section';
+    
+    // Count videos in this feed
+    const videoCount = prompts.filter(p => p.fileType === 'video' || p.videoUrl).length;
+    const videoIndicator = videoCount > 0 ? `<span class="video-count-badge"><i class="fas fa-video"></i> ${videoCount} Reels</span>` : '';
+    
     horizontalFeed.innerHTML = `
         <div class="horizontal-feed-header">
-            <h3>More Prompts You Might Like</h3>
+            <h3>
+                More Prompts You Might Like
+                ${videoIndicator}
+            </h3>
             <div class="horizontal-controls">
                 <button class="horizontal-control-btn prev-horizontal" onclick="scrollHorizontalFeed(this, -1)">
                     <i class="fas fa-chevron-left"></i>
@@ -2454,55 +3447,168 @@ class YouTubeStylePrompts {
             </div>
         </div>
         <div class="horizontal-feed-track" id="horizontalFeed${index}">
-            ${prompts.map(prompt => this.createHorizontalPromptItem(prompt)).join('')}
+            <!-- Items will be added via JavaScript -->
         </div>
     `;
+    
+    // Add items after creating the container
+    const track = horizontalFeed.querySelector('.horizontal-feed-track');
+    prompts.forEach(prompt => {
+        const item = this.createHorizontalPromptItem(prompt);
+        if (item) {
+            track.appendChild(item);
+        }
+    });
     
     return horizontalFeed;
   }
 
-  // NEW: Create horizontal prompt item
+  // Enhanced: Create horizontal prompt item with video reel support
   createHorizontalPromptItem(prompt) {
     const safePrompt = prompt || {};
     const promptId = safePrompt.id || 'unknown';
     const title = safePrompt.title || 'Untitled Prompt';
-    const imageUrl = safePrompt.imageUrl || 'https://via.placeholder.com/200x150/4e54c8/white?text=Prompt';
+    const imageUrl = safePrompt.thumbnailUrl || safePrompt.imageUrl || 'https://via.placeholder.com/200x150/4e54c8/white?text=Prompt';
     const views = safePrompt.views || 0;
+    const isVideo = safePrompt.fileType === 'video' || safePrompt.videoUrl || safePrompt.mediaUrl?.includes('video');
     
-    return `
-        <div class="horizontal-prompt-item" data-prompt-id="${promptId}" onclick="openPromptPage('${promptId}')">
-            <div class="horizontal-prompt-image">
-                <img src="${imageUrl}" 
-                     alt="${title}"
-                     loading="lazy"
-                     onerror="this.src='https://via.placeholder.com/200x150/4e54c8/white?text=Prompt'">
-                <div class="horizontal-prompt-views">
-                    <i class="fas fa-eye"></i> ${this.formatCount(views)}
-                </div>
-            </div>
-            <div class="horizontal-prompt-info">
-                <div class="horizontal-prompt-title">${title.substring(0, 40)}${title.length > 40 ? '...' : ''}</div>
-                <button class="view-prompt-btn" onclick="event.stopPropagation(); openPromptPage('${promptId}')">
-                    View Prompt
-                </button>
-            </div>
-        </div>
-    `;
+    const item = document.createElement('div');
+    item.className = `horizontal-prompt-item ${isVideo ? 'video-item' : ''}`;
+    item.setAttribute('data-prompt-id', promptId);
+    item.setAttribute('data-file-type', isVideo ? 'video' : 'image');
+    
+    // Handle click - open in shorts player for videos, prompt page for images
+    item.addEventListener('click', (e) => {
+        if (!e.target.closest('.view-prompt-btn')) {
+            if (isVideo) {
+                this.openShortsPlayer(promptId);
+            } else {
+                this.openPromptPage(promptId);
+            }
+        }
+    });
+
+    // Create image container
+    const imageDiv = document.createElement('div');
+    imageDiv.className = 'horizontal-prompt-image';
+    
+    const img = document.createElement('img');
+    img.src = imageUrl;
+    img.alt = title;
+    img.loading = 'lazy';
+    img.onerror = function() { this.src = 'https://via.placeholder.com/200x150/4e54c8/white?text=Prompt'; };
+    imageDiv.appendChild(img);
+    
+    // Video badge for video items
+    if (isVideo) {
+        const badge = document.createElement('div');
+        badge.className = 'video-reel-badge';
+        badge.innerHTML = '<i class="fas fa-play"></i> Reel';
+        imageDiv.appendChild(badge);
+        
+        // Add hover video container for video previews
+        if (window.videoHoverManager) {
+            const hoverVideoContainer = window.videoHoverManager.createHoverVideoElement(safePrompt);
+            if (hoverVideoContainer) {
+                imageDiv.appendChild(hoverVideoContainer);
+            }
+        }
+    } else {
+        // Image badge for image items
+        const badge = document.createElement('div');
+        badge.className = 'image-badge';
+        badge.innerHTML = '<i class="fas fa-image"></i> Prompt';
+        imageDiv.appendChild(badge);
+    }
+    
+    const viewsDiv = document.createElement('div');
+    viewsDiv.className = 'horizontal-prompt-views';
+    viewsDiv.innerHTML = `<i class="fas fa-eye"></i> ${this.formatCount(views)}`;
+    imageDiv.appendChild(viewsDiv);
+
+    const infoDiv = document.createElement('div');
+    infoDiv.className = 'horizontal-prompt-info';
+    
+    const titleDiv = document.createElement('div');
+    titleDiv.className = 'horizontal-prompt-title';
+    titleDiv.textContent = title.substring(0, 40) + (title.length > 40 ? '...' : '');
+    
+    const button = document.createElement('button');
+    button.className = 'view-prompt-btn';
+    button.setAttribute('data-prompt-id', promptId);
+    button.onclick = (e) => {
+        e.stopPropagation();
+        if (isVideo) {
+            this.openShortsPlayer(promptId);
+        } else {
+            this.openPromptPage(promptId);
+        }
+    };
+    button.textContent = isVideo ? 'Watch Reel' : 'View Prompt';
+    
+    infoDiv.appendChild(titleDiv);
+    infoDiv.appendChild(button);
+
+    item.appendChild(imageDiv);
+    item.appendChild(infoDiv);
+
+    return item;
   }
 
-  // NEW: Get random prompts for horizontal feed
-  getRandomPrompts(count, excludePrompts = []) {
+  // Enhanced: Get random prompts for horizontal feed with video prioritization
+  getRandomPrompts(count, excludePrompts = [], prioritizeVideos = true) {
     const excludeIds = new Set(excludePrompts.map(p => p.id));
     const availablePrompts = allPrompts.filter(prompt => 
         prompt && !excludeIds.has(prompt.id)
     );
     
-    // Shuffle and take required number
-    const shuffled = [...availablePrompts].sort(() => 0.5 - Math.random());
-    return shuffled.slice(0, count);
+    if (availablePrompts.length === 0) return [];
+    
+    // If prioritizeVideos is true, ensure at least 30% of items are videos
+    let selectedPrompts = [];
+    
+    if (prioritizeVideos) {
+        const videos = availablePrompts.filter(p => p.fileType === 'video' || p.videoUrl);
+        const images = availablePrompts.filter(p => p.fileType !== 'video' && !p.videoUrl);
+        
+        // Calculate how many videos to include (30-40% of count)
+        const videoCount = Math.min(
+            Math.max(2, Math.floor(count * 0.3)), 
+            videos.length,
+            count
+        );
+        
+        // Shuffle and select videos
+        const shuffledVideos = [...videos].sort(() => 0.5 - Math.random());
+        selectedPrompts = shuffledVideos.slice(0, videoCount);
+        
+        // Fill remaining with random images
+        const remainingCount = count - selectedPrompts.length;
+        if (remainingCount > 0 && images.length > 0) {
+            const shuffledImages = [...images].sort(() => 0.5 - Math.random());
+            selectedPrompts = [...selectedPrompts, ...shuffledImages.slice(0, remainingCount)];
+        }
+    } else {
+        // Regular random selection
+        const shuffled = [...availablePrompts].sort(() => 0.5 - Math.random());
+        selectedPrompts = shuffled.slice(0, count);
+    }
+    
+    // If we still don't have enough prompts, duplicate some (but avoid duplicates in display)
+    if (selectedPrompts.length < count && availablePrompts.length > 0) {
+        const needed = count - selectedPrompts.length;
+        const duplicates = [...availablePrompts]
+            .sort(() => 0.5 - Math.random())
+            .slice(0, needed)
+            .map(p => ({...p, id: p.id + '-copy'})); // Add unique identifier to avoid key conflicts
+        
+        selectedPrompts = [...selectedPrompts, ...duplicates];
+    }
+    
+    return selectedPrompts.slice(0, count);
   }
 
-  // UPDATED: Display prompts with horizontal feeds - MODIFIED TO SHOW AFTER EVERY 4 VERTICAL PROMPTS
+  // UPDATED: Display prompts with horizontal feeds - enhanced for video reels
   displayPrompts(prompts, isInitial) {
     const promptsContainer = document.getElementById('promptsContainer');
     if (!promptsContainer) return;
@@ -2521,7 +3627,7 @@ class YouTubeStylePrompts {
       return;
     }
 
-    // MODIFIED: Group prompts - every 4 vertical items, add a horizontal feed
+    // Group prompts - every 4 vertical items, add a horizontal feed
     const groupedPrompts = [];
     for (let i = 0; i < prompts.length; i += 4) {
       const verticalPrompts = prompts.slice(i, i + 4);
@@ -2529,7 +3635,8 @@ class YouTubeStylePrompts {
       
       // After every 4 vertical prompts, get random prompts for horizontal feed
       if (i + 4 < prompts.length) {
-        const randomPrompts = this.getRandomPrompts(8, prompts.slice(i + 4)); // Get 8 random prompts
+        // Get 8-10 random prompts with video prioritization
+        const randomPrompts = this.getRandomPrompts(10, prompts.slice(i + 4), true);
         groupedPrompts.push({ type: 'horizontal', prompts: randomPrompts, index: i / 4 });
       }
     }
@@ -2565,8 +3672,6 @@ class YouTubeStylePrompts {
     setTimeout(() => {
       this.animatePromptsIn();
     }, 50);
-
-    // REMOVED: Client-side view tracking - rely on server-side only
 
     console.log(`Displayed mixed feed with ${this.loadedPrompts.size} vertical prompts and ${Math.floor(this.loadedPrompts.size / 4)} horizontal feeds`);
   }
@@ -2652,13 +3757,14 @@ class YouTubeStylePrompts {
     const safePrompt = prompt || {};
     const promptId = safePrompt.id || `unknown-${index}`;
     const title = safePrompt.title || 'Untitled Prompt';
-    const imageUrl = safePrompt.imageUrl || 'https://via.placeholder.com/300x500/4e54c8/white?text=AI+Image';
+    const imageUrl = safePrompt.thumbnailUrl || safePrompt.imageUrl || 'https://via.placeholder.com/300x500/4e54c8/white?text=AI+Image';
     const promptText = safePrompt.promptText || 'No prompt text available.';
     const userName = safePrompt.userName || 'Anonymous';
     const views = safePrompt.views || 0;
     const likes = safePrompt.likes || 0;
     const uses = safePrompt.uses || 0;
     const category = safePrompt.category || 'general';
+    const isVideo = safePrompt.fileType === 'video' || safePrompt.videoUrl;
     
     // Safe date handling
     let createdAt = safePrompt.createdAt;
@@ -2669,18 +3775,23 @@ class YouTubeStylePrompts {
     const promptDiv = document.createElement('div');
     promptDiv.className = 'shorts-prompt-card';
     promptDiv.setAttribute('data-prompt-id', promptId);
+    promptDiv.setAttribute('data-file-type', isVideo ? 'video' : 'image');
     promptDiv.style.opacity = '0';
     promptDiv.style.transform = 'translateY(20px)';
-    // REDUCED: Reduced animation delay from 0.1s to 0.05s per item
     promptDiv.style.transition = `opacity 0.3s ease ${index * 0.05}s, transform 0.3s ease ${index * 0.05}s`;
 
     promptDiv.innerHTML = `
-      <div class="shorts-video-container">
+      <div class="shorts-video-container ${isVideo ? 'video-hover-container' : ''}" 
+           ${isVideo ? 'tabindex="0" role="button" aria-label="Play video reel"' : ''}>
         <img src="${imageUrl}" 
              alt="${title}"
              class="shorts-image"
              loading="lazy"
              onerror="this.src='https://via.placeholder.com/300x500/4e54c8/white?text=AI+Image'">
+        
+        ${isVideo ? '<div class="video-reel-badge"><i class="fas fa-play"></i> Reel</div>' : ''}
+        
+        <!-- Hover video container will be added dynamically -->
         
         <div class="shorts-engagement">
           <button class="engagement-action like-btn" data-prompt-id="${promptId}" title="Like">
@@ -2723,6 +3834,60 @@ class YouTubeStylePrompts {
         </div>
       </div>
     `;
+
+    // Add hover video container for video items
+    if (isVideo && window.videoHoverManager) {
+        const videoContainer = promptDiv.querySelector('.shorts-video-container');
+        const hoverVideoContainer = window.videoHoverManager.createHoverVideoElement(safePrompt);
+        if (hoverVideoContainer) {
+            videoContainer.appendChild(hoverVideoContainer);
+        }
+        
+        // Add direct event listeners for better autoplay control
+        const videoElement = hoverVideoContainer?.querySelector('.hover-video-player');
+        if (videoElement) {
+            // Preload video metadata
+            videoElement.preload = 'metadata';
+            
+            // Handle focus events for keyboard navigation
+            videoContainer.addEventListener('focus', () => {
+                window.videoHoverManager.playHoverVideo(promptDiv);
+            });
+            
+            videoContainer.addEventListener('blur', () => {
+                window.videoHoverManager.pauseHoverVideo(promptDiv);
+            });
+            
+            // Handle touch events for mobile
+            videoContainer.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                window.videoHoverManager.playHoverVideo(promptDiv);
+            }, { passive: true });
+            
+            // Handle mouse events for desktop
+            videoContainer.addEventListener('mouseenter', () => {
+                window.videoHoverManager.playHoverVideo(promptDiv);
+            });
+            
+            videoContainer.addEventListener('mouseleave', () => {
+                window.videoHoverManager.pauseHoverVideo(promptDiv);
+            });
+            
+            // Ensure video plays inline on mobile
+            videoElement.setAttribute('playsinline', '');
+            videoElement.setAttribute('webkit-playsinline', '');
+        }
+    }
+
+    // Add click handler to open full player
+    if (isVideo) {
+      const videoContainer = promptDiv.querySelector('.shorts-video-container');
+      videoContainer.addEventListener('click', (e) => {
+        if (!e.target.closest('.engagement-action') && !e.target.closest('.copy-prompt-btn')) {
+          this.openShortsPlayer(promptId);
+        }
+      });
+    }
 
     return promptDiv;
   }
@@ -2838,7 +4003,7 @@ class YouTubeStylePrompts {
       try {
         await navigator.share({
           title: 'Check out this AI prompt!',
-          text: 'Amazing AI-generated creation on Tools Prompt',
+          text: 'Amazing AI-generated creation on Prompt Seen',
           url: promptUrl
         });
       } catch (error) {
@@ -3034,6 +4199,1130 @@ class YouTubeStylePrompts {
       await this.refreshFeed();
     }, 2 * 60 * 1000);
   }
+
+  // Helper methods for opening prompts and videos
+  openPromptPage(promptId) {
+    if (promptId && promptId !== 'unknown') {
+      const currentHost = window.location.hostname;
+      let targetUrl = `/prompt/${promptId}`;
+      
+      // If on non-www version in production, redirect to www
+      if (currentHost === 'promptseen.co' && window.location.hostname !== 'localhost') {
+        targetUrl = `https://www.promptseen.co/prompt/${promptId}`;
+      }
+      
+      window.open(targetUrl, '_blank');
+    }
+  }
+
+  openShortsPlayer(promptId) {
+    if (promptId && promptId !== 'unknown' && window.shortsPlayer) {
+      const prompt = allPrompts.find(p => p.id === promptId);
+      if (prompt && (prompt.fileType === 'video' || prompt.videoUrl)) {
+        window.shortsPlayer.openPlayer([prompt], 0);
+      } else {
+        const videos = allPrompts.filter(p => p.fileType === 'video' || p.videoUrl);
+        const index = videos.findIndex(p => p.id === promptId);
+        window.shortsPlayer.openPlayer(videos, index >= 0 ? index : 0);
+      }
+    }
+  }
+}
+
+// ========== YOUTUBE SHORTS PLAYER CLASS WITH VERTICAL SCROLLING ==========
+class YouTubeShortsPlayer {
+  constructor() {
+    this.currentVideoIndex = 0;
+    this.videos = [];
+    this.isPlaying = false;
+    this.playerContainer = null;
+    this.videoElement = null;
+    this.progressInterval = null;
+    this.touchStartY = 0;
+    this.touchStartX = 0;
+    this.touchEndY = 0;
+    this.isScrolling = false;
+    this.scrollThreshold = 50; // Minimum swipe distance to change video
+    this.isMuted = true; // Start muted for autoplay
+    this.volumeLevel = 1; // Default volume when unmuted
+    this.loadingTimeouts = new Map(); // Track loading timeouts
+    this.maxLoadTime = 10000; // Max 10 seconds loading time
+    this.init();
+  }
+
+  init() {
+    this.createPlayerContainer();
+    this.setupEventListeners();
+  }
+
+  createPlayerContainer() {
+    const playerHTML = `
+      <div class="shorts-player-container" id="shortsPlayer">
+        <div class="shorts-player-header">
+          <div class="shorts-player-header-left">
+            <button class="shorts-back-btn" id="closeShortsPlayer">
+              <i class="fas fa-arrow-left"></i>
+            </button>
+            <span class="shorts-header-title">Shorts</span>
+          </div>
+          <div class="shorts-player-header-right">
+            <button class="shorts-header-btn" id="shortsSearchBtn">
+              <i class="fas fa-search"></i>
+            </button>
+            <button class="shorts-header-btn" id="shortsMenuBtn">
+              <i class="fas fa-ellipsis-v"></i>
+            </button>
+          </div>
+        </div>
+        
+        <div class="shorts-player-content" id="shortsPlayerContent">
+          <div class="video-loading-global" id="videoLoadingGlobal" style="display: none;">
+            <div class="spinner"></div>
+            <div>Loading video...</div>
+          </div>
+          
+          <div class="shorts-videos-container" id="shortsVideosContainer">
+            <!-- Videos will be dynamically inserted here -->
+          </div>
+          
+          <div class="shorts-navigation-hint" id="shortsNavHint">
+            <i class="fas fa-chevron-up"></i>
+            <span>Swipe up for next</span>
+            <i class="fas fa-chevron-down"></i>
+          </div>
+        </div>
+        
+        <div class="shorts-volume-control" id="shortsVolumeControl">
+          <button class="shorts-volume-btn" id="shortsVolumeBtn">
+            <i class="fas fa-volume-mute"></i>
+          </button>
+          <input type="range" class="shorts-volume-slider" id="shortsVolumeSlider" min="0" max="1" step="0.1" value="0">
+        </div>
+        
+        <div class="shorts-error-toast" id="shortsErrorToast" style="display: none;">
+          <i class="fas fa-exclamation-triangle"></i>
+          <span>Failed to load video. Tap to retry.</span>
+        </div>
+      </div>
+    `;
+    
+    document.body.insertAdjacentHTML('beforeend', playerHTML);
+    this.playerContainer = document.getElementById('shortsPlayer');
+    this.videosContainer = document.getElementById('shortsVideosContainer');
+    this.globalLoading = document.getElementById('videoLoadingGlobal');
+    this.errorToast = document.getElementById('shortsErrorToast');
+    
+    // Add retry functionality
+    if (this.errorToast) {
+      this.errorToast.addEventListener('click', () => {
+        this.errorToast.style.display = 'none';
+        this.retryLoadVideo(this.currentVideoIndex);
+      });
+    }
+  }
+
+  setupEventListeners() {
+    // Close button
+    document.getElementById('closeShortsPlayer').addEventListener('click', () => {
+      this.closePlayer();
+    });
+
+    // Search button
+    const searchBtn = document.getElementById('shortsSearchBtn');
+    if (searchBtn) {
+      searchBtn.addEventListener('click', () => {
+        this.openSearch();
+      });
+    }
+
+    // Menu button
+    const menuBtn = document.getElementById('shortsMenuBtn');
+    if (menuBtn) {
+      menuBtn.addEventListener('click', () => {
+        this.openMenu();
+      });
+    }
+
+    // Volume control
+    const volumeBtn = document.getElementById('shortsVolumeBtn');
+    const volumeSlider = document.getElementById('shortsVolumeSlider');
+
+    if (volumeBtn) {
+      volumeBtn.addEventListener('click', () => this.toggleMute());
+    }
+
+    if (volumeSlider) {
+      volumeSlider.addEventListener('input', (e) => {
+        const volume = parseFloat(e.target.value);
+        this.setVolume(volume);
+      });
+    }
+
+    // Keyboard navigation
+    document.addEventListener('keydown', (e) => {
+      if (!this.playerContainer.classList.contains('active')) return;
+      
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        this.playPrevious();
+        this.showNavigationFeedback('up');
+      } else if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        this.playNext();
+        this.showNavigationFeedback('down');
+      } else if (e.key === 'Escape') {
+        this.closePlayer();
+      } else if (e.key === ' ') {
+        e.preventDefault();
+        this.togglePlayPause();
+      } else if (e.key === 'm' || e.key === 'M') {
+        e.preventDefault();
+        this.toggleMute();
+      }
+    });
+
+    // Touch events for swipe navigation
+    this.videosContainer.addEventListener('touchstart', (e) => {
+      this.touchStartY = e.touches[0].clientY;
+      this.touchStartX = e.touches[0].clientX;
+      this.isScrolling = false;
+      
+      // Add visual feedback
+      this.videosContainer.style.transition = 'none';
+    }, { passive: true });
+
+    this.videosContainer.addEventListener('touchmove', (e) => {
+      if (!this.touchStartY) return;
+      
+      const currentY = e.touches[0].clientY;
+      const currentX = e.touches[0].clientX;
+      const diffY = this.touchStartY - currentY;
+      const diffX = this.touchStartX - currentX;
+      
+      // Determine if scrolling vertically (for shorts) or horizontally (for other content)
+      if (Math.abs(diffY) > Math.abs(diffX)) {
+        e.preventDefault(); // Prevent page scroll
+        
+        // Add visual feedback during swipe
+        const translateY = -diffY;
+        this.videosContainer.style.transform = `translateY(${translateY}px)`;
+        this.videosContainer.style.transition = 'none';
+        
+        // Show hint based on direction
+        if (diffY > this.scrollThreshold / 2) {
+          this.showSwipeHint('down', Math.min(Math.abs(diffY) / 200, 1));
+        } else if (diffY < -this.scrollThreshold / 2) {
+          this.showSwipeHint('up', Math.min(Math.abs(diffY) / 200, 1));
+        }
+      }
+    }, { passive: false });
+
+    this.videosContainer.addEventListener('touchend', (e) => {
+      if (!this.touchStartY) return;
+      
+      const touchEndY = e.changedTouches[0].clientY;
+      const diffY = this.touchStartY - touchEndY;
+      
+      // Reset transform
+      this.videosContainer.style.transition = 'transform 0.3s ease';
+      this.videosContainer.style.transform = '';
+      
+      // Check if swipe distance exceeds threshold
+      if (Math.abs(diffY) > this.scrollThreshold) {
+        if (diffY > 0) {
+          // Swipe up - next video
+          this.playNext();
+          this.showNavigationFeedback('up');
+        } else {
+          // Swipe down - previous video
+          this.playPrevious();
+          this.showNavigationFeedback('down');
+        }
+      }
+      
+      this.touchStartY = 0;
+      this.touchStartX = 0;
+      
+      // Hide swipe hint
+      this.hideSwipeHint();
+    });
+
+    // Mouse wheel navigation for desktop
+    this.videosContainer.addEventListener('wheel', (e) => {
+      if (!this.playerContainer.classList.contains('active')) return;
+      
+      e.preventDefault();
+      
+      if (e.deltaY > 0) {
+        // Scroll down - next video
+        this.playNext();
+        this.showNavigationFeedback('down');
+      } else if (e.deltaY < 0) {
+        // Scroll up - previous video
+        this.playPrevious();
+        this.showNavigationFeedback('up');
+      }
+    }, { passive: false });
+  }
+
+  toggleMute() {
+    const video = this.getCurrentVideoElement();
+    if (!video) return;
+
+    this.isMuted = !this.isMuted;
+    video.muted = this.isMuted;
+
+    // Update volume button icon
+    const volumeBtn = document.getElementById('shortsVolumeBtn');
+    const volumeSlider = document.getElementById('shortsVolumeSlider');
+
+    if (volumeBtn) {
+      if (this.isMuted) {
+        volumeBtn.innerHTML = '<i class="fas fa-volume-mute"></i>';
+        if (volumeSlider) volumeSlider.value = 0;
+      } else {
+        if (this.volumeLevel > 0.5) {
+          volumeBtn.innerHTML = '<i class="fas fa-volume-up"></i>';
+        } else {
+          volumeBtn.innerHTML = '<i class="fas fa-volume-down"></i>';
+        }
+        if (volumeSlider) volumeSlider.value = this.volumeLevel;
+      }
+    }
+
+    // Show mute toast
+    this.showToast(this.isMuted ? 'Muted' : 'Unmuted', 1000);
+  }
+
+  setVolume(volume) {
+    const video = this.getCurrentVideoElement();
+    if (!video) return;
+
+    this.volumeLevel = Math.max(0, Math.min(1, volume));
+    
+    if (this.volumeLevel > 0) {
+      this.isMuted = false;
+      video.muted = false;
+      video.volume = this.volumeLevel;
+      
+      const volumeBtn = document.getElementById('shortsVolumeBtn');
+      if (volumeBtn) {
+        if (this.volumeLevel > 0.5) {
+          volumeBtn.innerHTML = '<i class="fas fa-volume-up"></i>';
+        } else {
+          volumeBtn.innerHTML = '<i class="fas fa-volume-down"></i>';
+        }
+      }
+    } else {
+      this.isMuted = true;
+      video.muted = true;
+      
+      const volumeBtn = document.getElementById('shortsVolumeBtn');
+      if (volumeBtn) {
+        volumeBtn.innerHTML = '<i class="fas fa-volume-mute"></i>';
+      }
+    }
+
+    const volumeSlider = document.getElementById('shortsVolumeSlider');
+    if (volumeSlider) {
+      volumeSlider.value = this.volumeLevel;
+    }
+  }
+
+  togglePlayPause() {
+    const video = this.getCurrentVideoElement();
+    if (!video) return;
+
+    if (video.paused) {
+      video.play();
+      this.showToast('Playing', 800);
+    } else {
+      video.pause();
+      this.showToast('Paused', 800);
+    }
+  }
+
+  getCurrentVideoElement() {
+    const currentVideoContainer = document.querySelector(`.shorts-video-item[data-index="${this.currentVideoIndex}"]`);
+    if (currentVideoContainer) {
+      return currentVideoContainer.querySelector('video');
+    }
+    return null;
+  }
+
+  showNavigationFeedback(direction) {
+    const hint = document.getElementById('shortsNavHint');
+    if (hint) {
+      hint.classList.add('show', direction);
+      setTimeout(() => {
+        hint.classList.remove('show', direction);
+      }, 500);
+    }
+  }
+
+  showSwipeHint(direction, opacity) {
+    const hint = document.getElementById('shortsNavHint');
+    if (hint) {
+      hint.style.opacity = opacity;
+      hint.classList.add('swiping', direction);
+    }
+  }
+
+  hideSwipeHint() {
+    const hint = document.getElementById('shortsNavHint');
+    if (hint) {
+      hint.style.opacity = '';
+      hint.classList.remove('swiping', 'up', 'down');
+    }
+  }
+
+  showToast(message, duration = 2000) {
+    let toast = document.querySelector('.shorts-toast');
+    if (!toast) {
+      toast = document.createElement('div');
+      toast.className = 'shorts-toast';
+      document.getElementById('shortsPlayer').appendChild(toast);
+    }
+    
+    toast.textContent = message;
+    toast.classList.add('show');
+    
+    clearTimeout(this.toastTimeout);
+    this.toastTimeout = setTimeout(() => {
+      toast.classList.remove('show');
+    }, duration);
+  }
+
+  openPlayer(videos, startIndex = 0) {
+    if (!videos || videos.length === 0) return;
+    
+    // Filter only video prompts
+    this.videos = videos.filter(v => v.fileType === 'video' || v.videoUrl);
+    
+    if (this.videos.length === 0) {
+      showNotification('No videos found', 'error');
+      return;
+    }
+    
+    this.currentVideoIndex = Math.min(startIndex, this.videos.length - 1);
+    
+    // Clear any existing loading timeouts
+    this.loadingTimeouts.forEach(timeout => clearTimeout(timeout));
+    this.loadingTimeouts.clear();
+    
+    // Hide error toast
+    if (this.errorToast) {
+      this.errorToast.style.display = 'none';
+    }
+    
+    // Create video items for all videos (for smooth scrolling)
+    this.renderAllVideos();
+    
+    this.playerContainer.classList.add('active');
+    document.body.style.overflow = 'hidden';
+    
+    // Show global loading
+    if (this.globalLoading) {
+      this.globalLoading.style.display = 'flex';
+    }
+    
+    // Scroll to current video
+    setTimeout(() => {
+      this.scrollToVideo(this.currentVideoIndex, false);
+      this.loadVideo(this.currentVideoIndex);
+    }, 100);
+    
+    // Track view
+    this.trackView(this.videos[this.currentVideoIndex].id);
+  }
+
+  renderAllVideos() {
+    if (!this.videosContainer) return;
+    
+    this.videosContainer.innerHTML = '';
+    
+    this.videos.forEach((video, index) => {
+      const videoItem = this.createVideoItem(video, index);
+      this.videosContainer.appendChild(videoItem);
+    });
+  }
+
+  createVideoItem(video, index) {
+    const videoItem = document.createElement('div');
+    videoItem.className = 'shorts-video-item';
+    videoItem.setAttribute('data-index', index);
+    videoItem.setAttribute('data-video-id', video.id);
+
+    // Determine video source
+    const videoUrl = video.videoUrl || video.mediaUrl;
+    const posterUrl = video.thumbnailUrl || video.imageUrl;
+
+    videoItem.innerHTML = `
+      <div class="shorts-video-wrapper">
+        <div class="shorts-video-loading" id="loading-${index}" style="display: ${index === this.currentVideoIndex ? 'flex' : 'none'};">
+          <div class="spinner"></div>
+          <div>Loading video...</div>
+        </div>
+        
+        <video 
+          class="shorts-video-player" 
+          preload="metadata"
+          poster="${posterUrl || ''}"
+          loop
+          playsinline
+          muted="${this.isMuted}"
+        >
+          <source src="${videoUrl}" type="video/mp4">
+          Your browser does not support the video tag.
+        </video>
+        
+        <div class="shorts-video-overlay">
+          <div class="shorts-video-info">
+            <div class="shorts-video-title">${video.title || 'Untitled Video'}</div>
+            <div class="shorts-video-meta">
+              <span><i class="fas fa-user"></i> ${video.userName || 'Anonymous'}</span>
+              <span><i class="fas fa-eye"></i> ${this.formatCount(video.views || 0)}</span>
+              ${video.videoDuration ? `<span><i class="fas fa-clock"></i> ${video.videoDuration}s</span>` : ''}
+            </div>
+            <div class="shorts-video-description">${video.promptText ? video.promptText.substring(0, 100) + (video.promptText.length > 100 ? '...' : '') : 'No description'}</div>
+          </div>
+          
+          <div class="shorts-video-actions">
+            <button class="shorts-action-btn like-btn" data-video-id="${video.id}">
+              <i class="far fa-heart"></i>
+              <span class="shorts-action-count">${this.formatCount(video.likes || 0)}</span>
+            </button>
+            
+            <button class="shorts-action-btn comment-btn" data-video-id="${video.id}">
+              <i class="far fa-comment"></i>
+              <span class="shorts-action-count">${this.formatCount(video.commentCount || 0)}</span>
+            </button>
+            
+            <button class="shorts-action-btn share-btn" data-video-id="${video.id}">
+              <i class="far fa-share-square"></i>
+              <span>Share</span>
+            </button>
+            
+            <button class="shorts-action-btn copy-btn" data-video-id="${video.id}" data-prompt="${video.promptText || ''}">
+              <i class="far fa-copy"></i>
+              <span>Prompt</span>
+            </button>
+          </div>
+        </div>
+        
+        <div class="shorts-video-progress">
+          <div class="shorts-progress-bar" id="progress-${index}"></div>
+        </div>
+        
+        <div class="shorts-video-index">
+          ${index + 1}/${this.videos.length}
+        </div>
+        
+        <button class="shorts-retry-btn" id="retry-${index}" style="display: none;">
+          <i class="fas fa-redo"></i> Retry
+        </button>
+      </div>
+    `;
+
+    // Setup video event listeners
+    const videoElement = videoItem.querySelector('video');
+    const loadingElement = videoItem.querySelector(`#loading-${index}`);
+    const retryButton = videoItem.querySelector(`#retry-${index}`);
+    const progressBar = videoItem.querySelector(`#progress-${index}`);
+
+    // Set up loading timeout
+    const loadingTimeout = setTimeout(() => {
+      if (loadingElement && loadingElement.style.display === 'flex') {
+        loadingElement.style.display = 'none';
+        if (retryButton) {
+          retryButton.style.display = 'flex';
+        }
+        if (this.globalLoading) {
+          this.globalLoading.style.display = 'none';
+        }
+      }
+    }, this.maxLoadTime);
+    
+    this.loadingTimeouts.set(index, loadingTimeout);
+
+    // Video event handlers
+    videoElement.addEventListener('loadedmetadata', () => {
+      clearTimeout(this.loadingTimeouts.get(index));
+      this.loadingTimeouts.delete(index);
+      
+      if (loadingElement) loadingElement.style.display = 'none';
+      if (retryButton) retryButton.style.display = 'none';
+      if (this.globalLoading && index === this.currentVideoIndex) {
+        this.globalLoading.style.display = 'none';
+      }
+    });
+
+    videoElement.addEventListener('loadeddata', () => {
+      clearTimeout(this.loadingTimeouts.get(index));
+      this.loadingTimeouts.delete(index);
+      
+      if (loadingElement) loadingElement.style.display = 'none';
+      if (retryButton) retryButton.style.display = 'none';
+      if (this.globalLoading && index === this.currentVideoIndex) {
+        this.globalLoading.style.display = 'none';
+      }
+    });
+
+    videoElement.addEventListener('canplay', () => {
+      clearTimeout(this.loadingTimeouts.get(index));
+      this.loadingTimeouts.delete(index);
+      
+      if (loadingElement) loadingElement.style.display = 'none';
+      if (retryButton) retryButton.style.display = 'none';
+      if (this.globalLoading && index === this.currentVideoIndex) {
+        this.globalLoading.style.display = 'none';
+      }
+      
+      // Auto play if this is the current video
+      if (index === this.currentVideoIndex && videoElement.paused) {
+        videoElement.play().catch(e => console.log('Autoplay prevented:', e));
+      }
+    });
+
+    videoElement.addEventListener('waiting', () => {
+      if (index === this.currentVideoIndex) {
+        if (loadingElement) loadingElement.style.display = 'flex';
+        if (this.globalLoading) this.globalLoading.style.display = 'flex';
+      }
+    });
+
+    videoElement.addEventListener('playing', () => {
+      if (loadingElement) loadingElement.style.display = 'none';
+      if (retryButton) retryButton.style.display = 'none';
+      if (this.globalLoading && index === this.currentVideoIndex) {
+        this.globalLoading.style.display = 'none';
+      }
+    });
+
+    videoElement.addEventListener('error', (e) => {
+      console.error('Video error:', e);
+      clearTimeout(this.loadingTimeouts.get(index));
+      this.loadingTimeouts.delete(index);
+      
+      if (loadingElement) loadingElement.style.display = 'none';
+      if (retryButton) retryButton.style.display = 'flex';
+      if (this.globalLoading && index === this.currentVideoIndex) {
+        this.globalLoading.style.display = 'none';
+        this.errorToast.style.display = 'flex';
+      }
+    });
+
+    videoElement.addEventListener('timeupdate', () => {
+      if (videoElement.duration) {
+        const progress = (videoElement.currentTime / videoElement.duration) * 100;
+        progressBar.style.width = `${progress}%`;
+      }
+    });
+
+    videoElement.addEventListener('click', () => {
+      if (videoElement.paused) {
+        videoElement.play();
+      } else {
+        videoElement.pause();
+      }
+    });
+
+    // Retry button handler
+    if (retryButton) {
+      retryButton.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.retryLoadVideo(index);
+      });
+    }
+
+    // Setup action buttons for this video
+    this.setupVideoActions(videoItem, video);
+
+    return videoItem;
+  }
+
+  retryLoadVideo(index) {
+    const videoItem = document.querySelector(`.shorts-video-item[data-index="${index}"]`);
+    if (!videoItem) return;
+    
+    const videoElement = videoItem.querySelector('video');
+    const loadingElement = videoItem.querySelector(`#loading-${index}`);
+    const retryButton = videoItem.querySelector(`#retry-${index}`);
+    const videoUrl = this.videos[index]?.videoUrl || this.videos[index]?.mediaUrl;
+    
+    if (videoElement && videoUrl) {
+      // Hide retry button, show loading
+      if (retryButton) retryButton.style.display = 'none';
+      if (loadingElement) loadingElement.style.display = 'flex';
+      if (this.globalLoading && index === this.currentVideoIndex) {
+        this.globalLoading.style.display = 'flex';
+      }
+      if (this.errorToast) this.errorToast.style.display = 'none';
+      
+      // Reload video
+      videoElement.src = videoUrl;
+      videoElement.load();
+      
+      // Set new loading timeout
+      const loadingTimeout = setTimeout(() => {
+        if (loadingElement && loadingElement.style.display === 'flex') {
+          loadingElement.style.display = 'none';
+          if (retryButton) retryButton.style.display = 'flex';
+          if (this.globalLoading && index === this.currentVideoIndex) {
+            this.globalLoading.style.display = 'none';
+          }
+        }
+      }, this.maxLoadTime);
+      
+      this.loadingTimeouts.set(index, loadingTimeout);
+    }
+  }
+
+  setupVideoActions(videoItem, video) {
+    // Like button
+    const likeBtn = videoItem.querySelector('.like-btn');
+    if (likeBtn) {
+      likeBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.handleLike(video.id, likeBtn);
+      });
+    }
+
+    // Comment button
+    const commentBtn = videoItem.querySelector('.comment-btn');
+    if (commentBtn) {
+      commentBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.openComments(video.id);
+      });
+    }
+
+    // Share button
+    const shareBtn = videoItem.querySelector('.share-btn');
+    if (shareBtn) {
+      shareBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.handleShare(video.id);
+      });
+    }
+
+    // Copy button
+    const copyBtn = videoItem.querySelector('.copy-btn');
+    if (copyBtn) {
+      copyBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.copyPrompt(video.promptText);
+      });
+    }
+  }
+
+  scrollToVideo(index, animated = true) {
+    const videoItem = document.querySelector(`.shorts-video-item[data-index="${index}"]`);
+    if (videoItem) {
+      videoItem.scrollIntoView({
+        behavior: animated ? 'smooth' : 'auto',
+        block: 'start'
+      });
+    }
+  }
+
+  loadVideo(index) {
+    const videoItem = document.querySelector(`.shorts-video-item[data-index="${index}"]`);
+    if (!videoItem) return;
+
+    // Hide global loading
+    if (this.globalLoading) {
+      this.globalLoading.style.display = 'flex';
+    }
+
+    // Hide error toast
+    if (this.errorToast) {
+      this.errorToast.style.display = 'none';
+    }
+
+    // Show loading for current video
+    const currentLoading = videoItem.querySelector(`#loading-${index}`);
+    if (currentLoading) {
+      currentLoading.style.display = 'flex';
+    }
+
+    // Pause all other videos
+    document.querySelectorAll('.shorts-video-item video').forEach((video, i) => {
+      if (i !== index) {
+        video.pause();
+        video.currentTime = 0;
+        
+        // Hide loading for other videos
+        const otherLoading = document.querySelector(`#loading-${i}`);
+        if (otherLoading) {
+          otherLoading.style.display = 'none';
+        }
+      }
+    });
+
+    // Play current video
+    const videoElement = videoItem.querySelector('video');
+    if (videoElement) {
+      videoElement.muted = this.isMuted;
+      videoElement.volume = this.volumeLevel;
+      
+      const playPromise = videoElement.play();
+      if (playPromise !== undefined) {
+        playPromise
+          .then(() => {
+            // Hide loading when video starts playing
+            if (currentLoading) currentLoading.style.display = 'none';
+            if (this.globalLoading) this.globalLoading.style.display = 'none';
+          })
+          .catch(error => {
+            console.log('Autoplay prevented:', error);
+            // Keep loading visible if video hasn't started
+            if (!videoElement.readyState) {
+              // Show play button overlay
+              this.showPlayButton(videoItem);
+            } else {
+              if (currentLoading) currentLoading.style.display = 'none';
+              if (this.globalLoading) this.globalLoading.style.display = 'none';
+            }
+          });
+      }
+    }
+
+    // Update current index
+    this.currentVideoIndex = index;
+
+    // Update URL or history if needed
+    this.updateHistory(videoItem.dataset.videoId);
+  }
+
+  showPlayButton(videoItem) {
+    let playButton = videoItem.querySelector('.shorts-play-button');
+    if (!playButton) {
+      playButton = document.createElement('button');
+      playButton.className = 'shorts-play-button';
+      playButton.innerHTML = '<i class="fas fa-play"></i>';
+      videoItem.querySelector('.shorts-video-wrapper').appendChild(playButton);
+      
+      playButton.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const video = videoItem.querySelector('video');
+        video.play();
+        playButton.remove();
+      });
+    }
+  }
+
+  updateHistory(videoId) {
+    // Update URL without reloading
+    const url = new URL(window.location);
+    url.searchParams.set('video', videoId);
+    window.history.replaceState({}, '', url);
+  }
+
+  playNext() {
+    if (this.currentVideoIndex < this.videos.length - 1) {
+      const nextIndex = this.currentVideoIndex + 1;
+      this.scrollToVideo(nextIndex);
+      this.loadVideo(nextIndex);
+      this.trackView(this.videos[nextIndex].id);
+      
+      // Show next indicator
+      this.showToast(`Next: ${this.videos[nextIndex].title || 'Video'}`, 1500);
+    } else {
+      // Reached the end
+      this.showToast('You\'ve reached the end', 1000);
+      
+      // Optional: Load more videos
+      this.loadMoreVideos();
+    }
+  }
+
+  playPrevious() {
+    if (this.currentVideoIndex > 0) {
+      const prevIndex = this.currentVideoIndex - 1;
+      this.scrollToVideo(prevIndex);
+      this.loadVideo(prevIndex);
+      this.trackView(this.videos[prevIndex].id);
+      
+      // Show previous indicator
+      this.showToast(`Previous: ${this.videos[prevIndex].title || 'Video'}`, 1500);
+    } else {
+      this.showToast('This is the first video', 1000);
+    }
+  }
+
+  async loadMoreVideos() {
+    try {
+      // Fetch more videos from API
+      const response = await fetch('/api/uploads?type=video&page=' + Math.ceil(this.videos.length / 10 + 1));
+      if (response.ok) {
+        const data = await response.json();
+        const newVideos = data.uploads.filter(v => v.fileType === 'video' || v.videoUrl);
+        
+        if (newVideos.length > 0) {
+          // Add new videos to the list
+          this.videos = [...this.videos, ...newVideos];
+          
+          // Render new videos
+          newVideos.forEach((video, offset) => {
+            const index = this.videos.length - newVideos.length + offset;
+            const videoItem = this.createVideoItem(video, index);
+            this.videosContainer.appendChild(videoItem);
+          });
+          
+          this.showToast(`Loaded ${newVideos.length} more videos`, 2000);
+        } else {
+          this.showToast('No more videos', 1000);
+        }
+      }
+    } catch (error) {
+      console.error('Error loading more videos:', error);
+    }
+  }
+
+  closePlayer() {
+    this.playerContainer.classList.remove('active');
+    document.body.style.overflow = '';
+    
+    // Clear all loading timeouts
+    this.loadingTimeouts.forEach(timeout => clearTimeout(timeout));
+    this.loadingTimeouts.clear();
+    
+    // Pause all videos
+    document.querySelectorAll('.shorts-video-item video').forEach(video => {
+      video.pause();
+      video.src = '';
+      video.load();
+    });
+    
+    // Clear container
+    if (this.videosContainer) {
+      this.videosContainer.innerHTML = '';
+    }
+    
+    // Remove video param from URL
+    const url = new URL(window.location);
+    url.searchParams.delete('video');
+    window.history.replaceState({}, '', url);
+    
+    // Hide error toast
+    if (this.errorToast) {
+      this.errorToast.style.display = 'none';
+    }
+  }
+
+  async handleLike(videoId, button) {
+    const likeIcon = button.querySelector('i');
+    const likeCount = button.querySelector('.shorts-action-count');
+    const isLiked = likeIcon.classList.contains('fas');
+    
+    try {
+      const response = await fetch(`/api/prompt/${videoId}/like`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: 'anonymous', action: isLiked ? 'unlike' : 'like' })
+      });
+      
+      if (response.ok) {
+        const video = this.videos.find(v => v.id === videoId);
+        if (video) {
+          if (isLiked) {
+            likeIcon.className = 'far fa-heart';
+            video.likes = Math.max(0, (video.likes || 0) - 1);
+          } else {
+            likeIcon.className = 'fas fa-heart';
+            video.likes = (video.likes || 0) + 1;
+            likeIcon.classList.add('heart-animation');
+            setTimeout(() => likeIcon.classList.remove('heart-animation'), 300);
+          }
+          
+          likeCount.textContent = this.formatCount(video.likes || 0);
+        }
+      }
+    } catch (error) {
+      console.error('Like error:', error);
+    }
+  }
+
+  handleShare(videoId) {
+    const shareUrl = `${window.location.origin}/prompt/${videoId}`;
+    
+    if (navigator.share) {
+      navigator.share({
+        title: 'AI Video Reel',
+        text: 'Check out this AI-generated video on prompt seen!',
+        url: shareUrl
+      }).catch(() => {
+        this.copyToClipboard(shareUrl);
+        this.showToast('Link copied to clipboard!', 2000);
+      });
+    } else {
+      this.copyToClipboard(shareUrl);
+      this.showToast('Link copied to clipboard!', 2000);
+    }
+  }
+
+  copyPrompt(promptText) {
+    if (promptText) {
+      this.copyToClipboard(promptText);
+      this.showToast('Prompt copied to clipboard!', 2000);
+    }
+  }
+
+  openComments(videoId) {
+    // Scroll to comments section on prompt page
+    window.location.href = `/prompt/${videoId}#commentSection`;
+  }
+
+  openSearch() {
+    // Implement search functionality
+    this.showToast('Search coming soon', 1000);
+  }
+
+  openMenu() {
+    // Implement menu functionality
+    const menu = document.createElement('div');
+    menu.className = 'shorts-menu';
+    menu.innerHTML = `
+      <div class="shorts-menu-item">
+        <i class="fas fa-info-circle"></i> About this reel
+      </div>
+      <div class="shorts-menu-item">
+        <i class="fas fa-flag"></i> Report
+      </div>
+      <div class="shorts-menu-item">
+        <i class="fas fa-ban"></i> Not interested
+      </div>
+      <div class="shorts-menu-item">
+        <i class="fas fa-link"></i> Copy link
+      </div>
+    `;
+    
+    this.playerContainer.appendChild(menu);
+    
+    setTimeout(() => {
+      menu.classList.add('show');
+    }, 10);
+    
+    const closeMenu = (e) => {
+      if (!menu.contains(e.target)) {
+        menu.classList.remove('show');
+        setTimeout(() => menu.remove(), 300);
+        document.removeEventListener('click', closeMenu);
+      }
+    };
+    
+    setTimeout(() => {
+      document.addEventListener('click', closeMenu);
+    }, 100);
+  }
+
+  copyToClipboard(text) {
+    navigator.clipboard.writeText(text).catch(() => {
+      // Fallback
+      const textarea = document.createElement('textarea');
+      textarea.value = text;
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textarea);
+    });
+  }
+
+  trackView(promptId) {
+    fetch(`/api/prompt/${promptId}/view`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    }).catch(err => console.log('View tracking error:', err));
+  }
+
+  formatCount(count) {
+    if (count === undefined || count === null || isNaN(count)) return '0';
+    const num = typeof count === 'number' ? count : parseInt(count);
+    if (isNaN(num)) return '0';
+    if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
+    if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
+    return num.toString();
+  }
+}
+// Initialize the shorts player
+window.shortsPlayer = new YouTubeShortsPlayer();
+
+// Global function to open shorts player
+function openShortsPlayer(promptId) {
+  // Find the prompt data
+  const prompt = allPrompts.find(p => p.id === promptId);
+  if (prompt && (prompt.fileType === 'video' || prompt.videoUrl)) {
+    // Open single video in player
+    window.shortsPlayer.openPlayer([prompt], 0);
+  } else {
+    // Show all videos
+    const videos = allPrompts.filter(p => p.fileType === 'video' || p.videoUrl);
+    const index = videos.findIndex(p => p.id === promptId);
+    window.shortsPlayer.openPlayer(videos, index >= 0 ? index : 0);
+  }
+}
+
+// Add a "Shorts" button to filter videos
+function addShortsFilterButton() {
+  const categoriesContainer = document.querySelector('.categories-container');
+  if (categoriesContainer) {
+    const shortsBtn = document.createElement('button');
+    shortsBtn.className = 'category-btn shorts-filter-btn';
+    shortsBtn.innerHTML = '<i class="fas fa-play"></i> Shorts';
+    shortsBtn.style.background = '#ff6b6b';
+    shortsBtn.style.color = 'white';
+    shortsBtn.style.marginLeft = '10px';
+    
+    shortsBtn.addEventListener('click', () => {
+      filterByVideos();
+    });
+    
+    categoriesContainer.appendChild(shortsBtn);
+  }
+}
+
+function filterByVideos() {
+  const videos = allPrompts.filter(p => p.fileType === 'video' || p.videoUrl);
+  if (videos.length > 0) {
+    window.shortsPlayer.openPlayer(videos, 0);
+  } else {
+    showNotification('No videos available', 'info');
+  }
+}
+
+// Function to filter horizontal feed by video content
+function filterHorizontalFeedByVideo(horizontalFeed) {
+    const items = horizontalFeed.querySelectorAll('.horizontal-prompt-item');
+    let videoCount = 0;
+    
+    items.forEach(item => {
+        if (item.classList.contains('video-item')) {
+            videoCount++;
+            item.style.display = 'block';
+        } else {
+            // Hide non-video items if we want only videos
+            // item.style.display = 'none';
+        }
+    });
+    
+    return videoCount;
+}
+
+// Optional: Add a filter button for horizontal feeds
+function addHorizontalFeedFilters() {
+    document.querySelectorAll('.horizontal-feed-section').forEach(section => {
+        const header = section.querySelector('.horizontal-feed-header');
+        const filterBtn = document.createElement('button');
+        filterBtn.className = 'horizontal-control-btn';
+        filterBtn.innerHTML = '<i class="fas fa-filter"></i>';
+        filterBtn.title = 'Filter videos';
+        filterBtn.onclick = () => {
+            const videoCount = filterHorizontalFeedByVideo(section);
+            showNotification(`${videoCount} video reels found`, 'info');
+        };
+        header.querySelector('.horizontal-controls').appendChild(filterBtn);
+    });
 }
 
 // Horizontal scroll functionality
@@ -3139,8 +5428,8 @@ function openPromptPage(promptId) {
     let targetUrl = `/prompt/${promptId}`;
     
     // If on non-www version in production, redirect to www
-    if (currentHost === 'toolsprompt.com' && window.location.hostname !== 'localhost') {
-      targetUrl = `https://www.toolsprompt.com/prompt/${promptId}`;
+    if (currentHost === 'promptseen.co' && window.location.hostname !== 'localhost') {
+      targetUrl = `https://www.promptseen.co/prompt/${promptId}`;
     }
     
     // Server will handle view counting when the page loads
@@ -3259,6 +5548,7 @@ class YouTubeStyleHeader {
           { text: `${query} `, category: 'art' },
           { text: `${query} `, category: 'photography' },
           { text: `${query} `, category: 'design' },
+          { text: `${query} `, category: 'video' },
           { text: `${query} `, category: 'all' }
         ];
         resolve(mockSuggestions);
@@ -3724,6 +6014,10 @@ function addMobileNavigation() {
         <i class="fas fa-home"></i>
         <span>Home</span>
       </a>
+ <button class="nav-item" id="mobileShortsBtn">
+        <i class="fas fa-play"></i>
+        <span>Shorts</span>
+      </button>
       <a href="news.html" class="nav-item">
         <i class="fas fa-cloud-upload-alt"></i>
         <span>News</span>
@@ -3732,19 +6026,11 @@ function addMobileNavigation() {
         <i class="fas fa-plus-circle"></i>
         <span>Upload</span>
       </button>
-      <a href="tutorial.html" class="nav-item">
-        <i class="fas fa-exchange-alt"></i>
-        <span>Video GIFs</span>
+    
+          <a href="ai-detector.html" class="nav-item">
+        <i class="fas fa-cloud-upload-alt"></i>
+        <span>Ai-Detector</span>
       </a>
-  <!-- Replace WhatsApp with Download Android App Button -->
-      <a href="https://apk.e-droid.net/apk/app3838675-1gfwzo.apk?v=1" 
-         class="nav-item download-app-mobile" 
-         target="_blank" 
-         download="toolsprompt.apk">
-        <i class="fas fa-download"></i>
-        <span>Get App</span>
-      </a>
-   
     `;
     
     document.body.appendChild(mobileNav);
@@ -3756,6 +6042,13 @@ function addMobileNavigation() {
         if (uploadModalBtn) {
           uploadModalBtn.click();
         }
+      });
+    }
+    
+    const mobileShortsBtn = document.getElementById('mobileShortsBtn');
+    if (mobileShortsBtn) {
+      mobileShortsBtn.addEventListener('click', () => {
+        filterByVideos();
       });
     }
   }
@@ -3798,6 +6091,100 @@ function initScrollEffects() {
       }
     }
   });
+}
+
+// Video thumbnail upload functionality
+function initVideoThumbnailUpload() {
+    const videoUpload = document.getElementById('imageUpload');
+    const videoThumbnailUpload = document.getElementById('videoThumbnailUpload');
+    const videoThumbnailPreview = document.getElementById('videoThumbnailPreview');
+    const videoThumbnailSection = document.getElementById('videoThumbnailSection');
+    const fileTypeHint = document.getElementById('fileTypeHint');
+    
+    if (videoUpload) {
+        videoUpload.addEventListener('change', function() {
+            const file = this.files[0];
+            if (file) {
+                const isVideo = file.type.startsWith('video/');
+                
+                // Show/hide thumbnail section based on file type
+                if (videoThumbnailSection) {
+                    videoThumbnailSection.style.display = isVideo ? 'block' : 'none';
+                }
+                
+                // Update file type hint
+                if (fileTypeHint) {
+                    if (isVideo) {
+                        fileTypeHint.innerHTML = '<i class="fas fa-play"></i> Video reel detected. You can upload a custom thumbnail below.';
+                        fileTypeHint.style.color = '#ff6b6b';
+                    } else {
+                        fileTypeHint.innerHTML = '<i class="fas fa-image"></i> Image uploaded';
+                        fileTypeHint.style.color = '#4e54c8';
+                    }
+                }
+                
+                // Show preview
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const imagePreview = document.getElementById('imagePreview');
+                    if (imagePreview) {
+                        imagePreview.src = e.target.result;
+                        imagePreview.style.display = 'block';
+                    }
+                }
+                reader.readAsDataURL(file);
+            }
+        });
+    }
+    
+    // Thumbnail preview
+    if (videoThumbnailUpload) {
+        videoThumbnailUpload.addEventListener('change', function() {
+            const file = this.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    if (videoThumbnailPreview) {
+                        videoThumbnailPreview.src = e.target.result;
+                        videoThumbnailPreview.style.display = 'block';
+                    }
+                }
+                reader.readAsDataURL(file);
+            } else {
+                if (videoThumbnailPreview) {
+                    videoThumbnailPreview.style.display = 'none';
+                }
+            }
+        });
+        
+        // Drag and drop for thumbnail
+        const thumbnailUploadArea = document.querySelector('.thumbnail-upload');
+        if (thumbnailUploadArea) {
+            thumbnailUploadArea.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                thumbnailUploadArea.style.borderColor = '#ff6b6b';
+                thumbnailUploadArea.style.background = 'rgba(255, 107, 107, 0.05)';
+            });
+            
+            thumbnailUploadArea.addEventListener('dragleave', () => {
+                thumbnailUploadArea.style.borderColor = '#ddd';
+                thumbnailUploadArea.style.background = '';
+            });
+            
+            thumbnailUploadArea.addEventListener('drop', (e) => {
+                e.preventDefault();
+                thumbnailUploadArea.style.borderColor = '#ddd';
+                thumbnailUploadArea.style.background = '';
+                
+                const files = e.dataTransfer.files;
+                if (files.length > 0) {
+                    videoThumbnailUpload.files = files;
+                    const event = new Event('change', { bubbles: true });
+                    videoThumbnailUpload.dispatchEvent(event);
+                }
+            });
+        }
+    }
 }
 
 // Upload Modal Functionality
@@ -3885,6 +6272,9 @@ function initUploadModal() {
   if (uploadForm) {
     uploadForm.addEventListener('submit', handleUploadSubmit);
   }
+  
+  // Initialize video thumbnail upload
+  initVideoThumbnailUpload();
 }
 
 // Enhanced upload handler to refresh both feeds
@@ -3901,22 +6291,38 @@ async function handleUploadSubmit(e) {
   const title = document.getElementById('promptTitle')?.value || '';
   const promptText = document.getElementById('promptText')?.value || '';
   const category = document.getElementById('category')?.value || '';
-  const file = document.getElementById('imageUpload')?.files[0];
+  const mediaFile = document.getElementById('imageUpload')?.files[0];
+  const thumbnailFile = document.getElementById('videoThumbnailUpload')?.files[0];
   
-  if (!file) {
-    alert('Please select an image to upload!');
+  if (!mediaFile) {
+    alert('Please select an image or video to upload!');
     return;
   }
   
-  const validTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
-  if (!validTypes.includes(file.type)) {
-    alert('Please upload a JPEG, PNG, GIF, or WebP image');
+  const isVideo = mediaFile.type.startsWith('video/');
+  const isImage = mediaFile.type.startsWith('image/');
+  
+  if (!isImage && !isVideo) {
+    alert('Please upload a valid image or video file (JPEG, PNG, WebP, MP4, WebM)');
     return;
   }
   
-  if (file.size > 20 * 1024 * 1024) {
-    alert('File size exceeds 20MB limit. Please choose a smaller image.');
+  const maxSize = isVideo ? 100 * 1024 * 1024 : 5 * 1024 * 1024; // 100MB for videos, 5MB for images
+  if (mediaFile.size > maxSize) {
+    alert(`File size exceeds limit. ${isVideo ? 'Videos max 100MB' : 'Images max 5MB'}.`);
     return;
+  }
+  
+  // Validate thumbnail if provided
+  if (thumbnailFile) {
+    if (!thumbnailFile.type.startsWith('image/')) {
+      alert('Thumbnail must be an image file (JPEG, PNG, WebP)');
+      return;
+    }
+    if (thumbnailFile.size > 5 * 1024 * 1024) {
+      alert('Thumbnail size exceeds 5MB limit');
+      return;
+    }
   }
   
   if (!title || !title.trim()) {
@@ -3925,7 +6331,7 @@ async function handleUploadSubmit(e) {
   }
   
   if (!promptText || !promptText.trim()) {
-    alert('Please enter the prompt text used to generate this image');
+    alert('Please enter the prompt text used to generate this content');
     return;
   }
   
@@ -3945,10 +6351,14 @@ async function handleUploadSubmit(e) {
     const idToken = await firebaseUser.getIdToken();
     
     const formData = new FormData();
-    formData.append('image', file);
+    formData.append('media', mediaFile); // Main media file
+    if (thumbnailFile) {
+      formData.append('thumbnail', thumbnailFile); // Custom thumbnail
+    }
     formData.append('title', title);
     formData.append('promptText', promptText);
     if (category) formData.append('category', category);
+    formData.append('userName', user.name || 'User');
     
     const response = await fetch('/api/upload', {
       method: 'POST',
@@ -3975,6 +6385,8 @@ async function handleUploadSubmit(e) {
       const uploadModal = document.getElementById('uploadModal');
       const uploadForm = document.getElementById('uploadForm');
       const imagePreview = document.getElementById('imagePreview');
+      const videoThumbnailPreview = document.getElementById('videoThumbnailPreview');
+      const videoThumbnailSection = document.getElementById('videoThumbnailSection');
       
       uploadModal.classList.remove('active');
       document.body.style.overflow = '';
@@ -3982,8 +6394,14 @@ async function handleUploadSubmit(e) {
       if (imagePreview) {
         imagePreview.style.display = 'none';
       }
+      if (videoThumbnailPreview) {
+        videoThumbnailPreview.style.display = 'none';
+      }
+      if (videoThumbnailSection) {
+        videoThumbnailSection.style.display = 'none';
+      }
       
-      showNotification('Upload successful! Your creation is now visible in the showcase.', 'success');
+      showNotification(result.message || 'Upload successful!', 'success');
       
       // Clear cache to force refresh
       lastPromptUpdate = 0;
@@ -4010,9 +6428,9 @@ async function handleUploadSubmit(e) {
     } else if (error.message.includes('permission') || error.message.includes('credentials')) {
       userMessage = 'Permission error. Please log out and log in again.';
     } else if (error.message.includes('size')) {
-      userMessage = 'File too large. Please select an image under 20MB.';
+      userMessage = 'File too large. Please select a smaller file.';
     } else {
-      userMessage = 'Could not save your image. Please try a different file.';
+      userMessage = 'Could not save your file. Please try a different file.';
     }
     
     showNotification(`Upload failed: ${userMessage}`, 'error');
@@ -4115,7 +6533,7 @@ function setupCaseInsensitiveSearch() {
 
 // Initialize everything when DOM is loaded
 document.addEventListener('DOMContentLoaded', async () => {
-  console.log('Initializing Tools Prompt with optimized loading and horizontal feeds...');
+  console.log('Initializing Prompt Seen with optimized loading and horizontal feeds...');
   
   await initializeFirebase();
   showAuthElements();
@@ -4124,11 +6542,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   initMobileNavigation();
   initFilterButtons();
   initScrollEffects();
-  initUploadModal();
+  initUploadModal(); // This now includes video thumbnail initialization
   initNewsUploadModal();
   
   // Initialize search functionality
-  initSearchFunctionality(); // Add this line
+  initSearchFunctionality();
   
   // Initialize YouTube-style prompts with infinite scroll (vertical feed)
   window.youtubePrompts = new YouTubeStylePrompts();
@@ -4186,6 +6604,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }, 1500);
   
+  // Add shorts filter button
+  setTimeout(() => {
+    addShortsFilterButton();
+  }, 2000);
+  
+  // Add horizontal feed filters
+  setTimeout(() => {
+    addHorizontalFeedFilters();
+  }, 2500);
+  
   // Re-initialize on resize
   window.addEventListener('resize', initMobileHorizontalScroll);
   
@@ -4193,12 +6621,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   const structuredData = {
     "@context": "https://schema.org",
     "@type": "WebSite",
-    "name": "Tools Prompt",
-    "url": "https://www.toolsprompt.com",
+    "name": "Prompt Seen",
+    "url": "https://www.promptseen.co",
     "description": "AI Prompt Provider and Sharing platform - Create, share and discover effective AI prompts",
     "potentialAction": {
       "@type": "SearchAction",
-      "target": "https://www.toolsprompt.com/search?q={search_term_string}",
+      "target": "https://www.promptseen.co/search?q={search_term_string}",
       "query-input": "required name=search_term_string"
     }
   };
@@ -4208,7 +6636,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   script.textContent = JSON.stringify(structuredData);
   document.head.appendChild(script);
   
-  console.log('Tools Prompt initialization complete with horizontal feeds');
+  console.log('Prompt Seen initialization complete with horizontal feeds and video shorts');
 });
 
 // Mobile Navigation Toggle
@@ -4266,6 +6694,12 @@ window.newsManager = window.newsManager || {};
 window.categoryManager = window.categoryManager || {};
 window.shortsHorizontalFeed = window.shortsHorizontalFeed || {};
 window.horizontalFeedManager = window.horizontalFeedManager || {};
+window.shortsPlayer = window.shortsPlayer || {};
+window.videoHoverManager = window.videoHoverManager || {};
+window.hoverConfig = hoverConfig;
+window.updateHoverConfig = updateHoverConfig;
+window.openShortsPlayer = openShortsPlayer;
+window.filterByVideos = filterByVideos;
 
 // Helper functions for search
 function getRecentSearches() {
@@ -4295,3 +6729,10 @@ function hideSearchSuggestions() {
     searchSuggestions.style.display = 'none';
   }
 }
+
+// Add cleanup on page unload
+window.addEventListener('beforeunload', () => {
+    if (window.videoHoverManager) {
+        window.videoHoverManager.cleanup();
+    }
+});

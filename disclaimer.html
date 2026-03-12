@@ -1,0 +1,542 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5992381116749724"
+     crossorigin="anonymous"></script>
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-K4KXR4FZCP"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-K4KXR4FZCP');
+</script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Disclaimer · Tools Prompt</title>
+    <!-- Font Awesome (same as prompt pages) -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background: #f5f7fa;
+            line-height: 1.6;
+            color: #2d334a;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+
+        /* ----- SITE HEADER (exactly like prompt pages) ----- */
+        .site-header { 
+            background: white; 
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+            padding: 0.5rem 0;
+            width: 100%;
+        }
+        .header-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 1rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .logo { 
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 1.25rem; 
+            font-weight: bold; 
+            color: #4e54c8; 
+            text-decoration: none;
+            flex-shrink: 0;
+        }
+        .logo img {
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
+            background: #4e54c8; /* fallback if image missing */
+        }
+        /* fallback logo text if image not available */
+        .logo-icon {
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(135deg, #4e54c8, #8f94fb);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 1.3rem;
+        }
+        .nav-links {
+            display: flex;
+            gap: 1.5rem;
+            list-style: none;
+            flex-wrap: wrap;
+        }
+        .nav-links a {
+            text-decoration: none;
+            color: #333;
+            font-weight: 500;
+            transition: color 0.3s ease;
+            white-space: nowrap;
+            font-size: 0.9rem;
+        }
+        .nav-links a:hover {
+            color: #4e54c8;
+        }
+
+        /* main disclaimer card (matches previous style but upgraded) */
+        .disclaimer-wrapper {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            padding: 2rem 1rem;
+        }
+
+        .disclaimer-card {
+            max-width: 880px;
+            width: 100%;
+            background: #ffffff;
+            border-radius: 32px;
+            box-shadow: 0 20px 35px -8px rgba(0, 20, 45, 0.15);
+            overflow: hidden;
+            border: 1px solid rgba(0, 115, 230, 0.08);
+            margin: 1rem 0;
+        }
+
+        .header-accent {
+            height: 8px;
+            background: linear-gradient(90deg, #1b3b6f, #3a6ea5, #7bb3d9);
+        }
+
+        .content {
+            padding: 2.5rem 2.8rem;
+        }
+
+        h1 {
+            font-size: 2.4rem;
+            font-weight: 600;
+            letter-spacing: -0.02em;
+            color: #0b2b4a;
+            margin-bottom: 0.4rem;
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+        }
+
+        .title-icon {
+            font-size: 2rem;
+            background: #eef4fc;
+            width: 52px;
+            height: 52px;
+            border-radius: 18px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            color: #1f4e8c;
+        }
+
+        .subhead {
+            font-size: 1rem;
+            color: #4b5e77;
+            border-left: 4px solid #9bbde2;
+            padding-left: 1.2rem;
+            margin: 0.5rem 0 2rem 0.2rem;
+            font-weight: 400;
+        }
+
+        .section {
+            margin: 2.2rem 0 2.2rem 0;
+            border-bottom: 1px dashed #d9e2ef;
+            padding-bottom: 1.2rem;
+        }
+
+        .section:last-of-type {
+            border-bottom: none;
+            padding-bottom: 0;
+        }
+
+        .section-title {
+            font-size: 1.4rem;
+            font-weight: 600;
+            color: #1f4e8c;
+            margin-bottom: 0.9rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .section-number {
+            background: #e5eefb;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #1b3b6f;
+        }
+
+        .section p {
+            margin-bottom: 1rem;
+            color: #253c5c;
+        }
+
+        .highlight {
+            background: #f0f6ff;
+            padding: 0.15rem 0.5rem;
+            border-radius: 20px;
+            font-weight: 500;
+            color: #0e3d6e;
+            white-space: nowrap;
+        }
+
+        .link-example {
+            background: #eaf1fa;
+            border-radius: 30px;
+            padding: 0.25rem 1rem;
+            margin: 1rem 0 0.5rem 0;
+            display: inline-block;
+            font-size: 0.95rem;
+            color: #1d4a7c;
+            border: 1px solid #b9d2ef;
+        }
+
+        .link-example i {
+            font-style: normal;
+            font-weight: 500;
+        }
+
+        .contact-block {
+            background: #e8f0fe;
+            border-radius: 24px;
+            padding: 1.6rem 2rem;
+            margin: 2rem 0 1rem 0;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 1.5rem;
+        }
+
+        .contact-left h4 {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: #10365c;
+            margin-bottom: 0.2rem;
+        }
+
+        .contact-left p {
+            color: #2a4a77;
+            font-size: 1.05rem;
+        }
+
+        .contact-email {
+            background: white;
+            padding: 0.7rem 1.5rem;
+            border-radius: 60px;
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            box-shadow: 0 4px 12px rgba(28, 60, 100, 0.08);
+            border: 1px solid #c9ddfa;
+            font-size: 1.1rem;
+            font-weight: 500;
+            color: #0b3b6b;
+            text-decoration: none;
+            transition: all 0.2s ease;
+        }
+
+        .contact-email:before {
+            content: "✉️";
+            font-size: 1.3rem;
+        }
+
+        .contact-email:hover {
+            background: #f0f7ff;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(28,60,100,0.15);
+        }
+
+        .effective {
+            margin-top: 2rem;
+            font-size: 0.9rem;
+            color: #6b7d9c;
+            display: flex;
+            justify-content: flex-end;
+            align-items: center;
+            gap: 1.5rem;
+            border-top: 1px solid #dbe4f0;
+            padding-top: 1.2rem;
+        }
+
+        .consent-note {
+            background: #fcf9e9;
+            border-left: 6px solid #e0b23b;
+            padding: 1rem 1.8rem;
+            border-radius: 16px;
+            margin: 1.8rem 0 1rem 0;
+            font-weight: 500;
+            color: #3b4d3b;
+        }
+
+        .bold {
+            font-weight: 600;
+            color: #0e2e4f;
+        }
+
+        hr {
+            border: none;
+            height: 2px;
+            background: linear-gradient(90deg, #ffffff, #c5d9f0, #ffffff);
+            margin: 1.8rem 0;
+        }
+
+        /* mobile fine-tuning */
+        @media (max-width: 600px) {
+            .content {
+                padding: 1.8rem 1.5rem;
+            }
+
+            h1 {
+                font-size: 2rem;
+                flex-wrap: wrap;
+            }
+
+            .contact-block {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .highlight {
+                white-space: normal;
+            }
+        }
+
+        /* mobile header */
+        @media (max-width: 768px) {
+            .header-container { 
+                padding: 0 0.75rem; 
+                gap: 0.5rem;
+            }
+            .logo { 
+                font-size: 1.1rem; 
+            }
+            .logo .logo-icon {
+                width: 35px;
+                height: 35px;
+                font-size: 1.2rem;
+            }
+            .nav-links { 
+                gap: 1rem; 
+                justify-content: center;
+                width: 100%;
+                order: 3;
+                margin-top: 0.5rem;
+                padding: 0.5rem 0;
+                border-top: 1px solid #eee;
+            }
+            .nav-links a {
+                font-size: 0.85rem;
+                padding: 0.25rem 0.5rem;
+            }
+        }
+        @media (max-width: 480px) {
+            .logo span {
+                font-size: 1rem;
+            }
+            .nav-links {
+                gap: 0.75rem;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- ========== SITE HEADER (exact copy from prompt pages) ========== -->
+    <header class="site-header">
+        <div class="header-container">
+            <a href="https://www.toolsprompt.com" class="logo">
+                 <img src="logo.png" alt="Tools Prompt Logo - AI Prompt Engineering" style="width:50px;height:50px;">
+            
+                <span>Tools Prompt</span>
+            </a>
+            
+            <nav>
+                <ul class="nav-links">
+                    <li><a href="https://www.toolsprompt.com/">Home</a></li>
+                    <li><a href="https://www.toolsprompt.com/#promptsContainer">Browse</a></li>
+                    <li><a href="https://www.toolsprompt.com/news.html">News</a></li>
+                    <li><a href="https://www.toolsprompt.com/promptconverter.html">Tools</a></li>
+                </ul>
+            </nav>
+        </div>
+    </header>
+
+    <!-- ========== DISCLAIMER CONTENT ========== -->
+    <div class="disclaimer-wrapper">
+        <div class="disclaimer-card">
+            <div class="header-accent"></div>
+            <div class="content">
+                
+                <!-- main heading with icon -->
+                <h1>
+                    <span class="title-icon">⚖️</span> 
+                    Disclaimer
+                </h1>
+                <div class="subhead">
+                    Tools Prompt · clarity & transparency for all users
+                </div>
+
+                <!-- intro / agreement statement (matches preamble) -->
+                <p style="font-size: 1.1rem; background: #f4f9ff; padding: 1.2rem 1.5rem; border-radius: 24px; color: #1c3f63;">
+                    <span style="font-weight: 600;">ℹ️ Information purpose only.</span> 
+                    The information provided on Tools Prompt is for general informational and educational purposes only. 
+                    By using our website, you agree to this disclaimer.
+                </p>
+
+                <!-- 1. No Professional Advice -->
+                <div class="section">
+                    <div class="section-title">
+                        <span class="section-number">1</span> No Professional Advice
+                    </div>
+                    <p>
+                        The prompts, content, and resources shared on Tools Prompt are not professional advice. 
+                        Users are responsible for how they use the information.  
+                        <span class="highlight">Prompt Engineering Courses</span> are mentioned only as illustrative examples — 
+                        always perform your own due diligence.
+                    </p>
+                </div>
+
+                <!-- 2. Accuracy of Information -->
+                <div class="section">
+                    <div class="section-title">
+                        <span class="section-number">2</span> Accuracy of Information
+                    </div>
+                    <p>
+                        While we try to ensure that the information on this website is accurate and up to date, 
+                        we make <span class="bold">no guarantees of completeness, reliability, or accuracy</span>. 
+                        Any action you take based on our content is strictly at your own risk.
+                    </p>
+                </div>
+
+                <!-- 3. Third-Party Links (with visible examples) -->
+                <div class="section">
+                    <div class="section-title">
+                        <span class="section-number">3</span> Third-Party Links
+                    </div>
+                    <p>
+                        Our website includes buttons and links (e.g., WhatsApp, Telegram, Gemini, ChatGPT). 
+                        These are third-party services, and we are not responsible for their content, privacy policies, or practices.
+                    </p>
+                    <div class="link-example">
+                        <i>🔗 Example links you may encounter:</i> WhatsApp · Telegram · Gemini · ChatGPT
+                    </div>
+                    <p style="margin-top: 0.8rem; font-size: 0.98rem;">
+                        Interaction with any third-party service is exclusively between you and them.
+                    </p>
+                </div>
+
+                <!-- 4. Limitation of Liability + Gemini Prompt Subscription mention -->
+                <div class="section">
+                    <div class="section-title">
+                        <span class="section-number">4</span> Limitation of Liability
+                    </div>
+                    <p>
+                        <span class="bold">Toolsprompt.com</span> and its team are not liable for any losses or damages 
+                        (direct or indirect) resulting from:
+                    </p>
+                    <ul style="margin-left: 1.8rem; margin-bottom: 1rem; color: #253c5c; list-style-type: '–  ';">
+                        <li style="margin-bottom: 0.3rem;">Use of this website</li>
+                        <li style="margin-bottom: 0.3rem;">Reliance on the content provided</li>
+                        <li style="margin-bottom: 0.3rem;">Accessing third-party services via our links</li>
+                        <li style="margin-bottom: 0.3rem;"><span class="highlight">Gemini Prompt Subscription</span> (or any similar service)</li>
+                    </ul>
+                    <p>
+                        You assume full responsibility for your choices.
+                    </p>
+                </div>
+
+                <!-- 5. Consent (reinforced) -->
+                <div class="section">
+                    <div class="section-title">
+                        <span class="section-number">5</span> Consent
+                    </div>
+                    <p>
+                        By using our website, you agree to this Disclaimer and its terms.
+                    </p>
+                    <div class="consent-note">
+                        ⚡ Your continued use of Tools Prompt constitutes acceptance of any future changes.
+                    </div>
+                </div>
+
+                <!-- 6. Updates -->
+                <div class="section">
+                    <div class="section-title">
+                        <span class="section-number">6</span> Updates
+                    </div>
+                    <p>
+                        This Disclaimer may be updated from time to time. Any changes will be posted on this page 
+                        with a revised effective date.
+                    </p>
+                </div>
+
+                <!-- 7. Contact (exactly as requested) -->
+                <div class="section" style="border-bottom: none;">
+                    <div class="section-title">
+                        <span class="section-number">7</span> Contact Us
+                    </div>
+                    <p>
+                        If you have any questions about this Disclaimer, please contact us at:
+                    </p>
+                </div>
+
+                <!-- prominent email card (matches request: toolsprompt@gmail.com) -->
+                <div class="contact-block">
+                    <div class="contact-left">
+                        <h4>📬 Tools Prompt</h4>
+                        <p>We’re here to help — feel free to reach out.</p>
+                    </div>
+                    <a href="mailto:toolsprompt@gmail.com" class="contact-email">
+                        toolsprompt@gmail.com
+                    </a>
+                </div>
+
+                <!-- effective date -->
+                <div class="effective">
+                    <span>📅 Effective date: March 2026</span>
+                    <span style="font-size: 0.85rem;">(this disclaimer is regularly reviewed)</span>
+                </div>
+
+                <!-- tiny note with keywords -->
+                <hr>
+                <p style="font-size: 0.9rem; color: #5a6f8c; text-align: center;">
+                    Tools Prompt — prompts, education, and resources. 
+                    <span style="white-space: nowrap;">⚡ #PromptEngineering #Gemini</span>
+                </p>
+            </div>  <!-- end content -->
+        </div>      <!-- end disclaimer-card -->
+    </div>          <!-- end disclaimer-wrapper -->
+
+    <!-- optional mini footer note (not required but adds consistency) -->
+    <div style="text-align: center; padding: 1rem; color: #7c8ca6; background: #f0f4fa; font-size: 0.85rem;">
+        <i class="far fa-copyright"></i> 2026 Tools Prompt. All rights reserved.
+    </div>
+</body>
+</html>
