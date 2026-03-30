@@ -1,0 +1,943 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>Tools Prompt Dashboard - Your Marketplace Hub</title>
+    <!-- Font Awesome & Google Fonts -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Firebase SDK (needed for auth) -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
+    <!-- Stripe JS (for future payment flows) -->
+    <script src="https://js.stripe.com/v3/"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background: #f5f7fc;
+            color: #1e293b;
+            line-height: 1.5;
+        }
+
+        /* Header Styles */
+        .dashboard-header {
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            color: white;
+            padding: 1rem 0;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+
+        .header-container {
+            max-width: 1280px;
+            margin: 0 auto;
+            padding: 0 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 16px;
+        }
+
+        .logo-area {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .logo-area img {
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            background: white;
+            padding: 5px;
+        }
+
+        .logo-area h1 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #c084fc, #60a5fa);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            background: rgba(255,255,255,0.1);
+            padding: 6px 16px;
+            border-radius: 40px;
+        }
+
+        .user-avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: #4f46e5;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 1rem;
+        }
+
+        .logout-btn {
+            background: none;
+            border: none;
+            color: #f87171;
+            font-size: 1.2rem;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+
+        .logout-btn:hover {
+            color: #ffa2a2;
+            transform: scale(1.05);
+        }
+
+        /* Main Container */
+        .dashboard-main {
+            max-width: 1280px;
+            margin: 32px auto;
+            padding: 0 24px;
+        }
+
+        /* Stats Cards */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 20px;
+            margin-bottom: 40px;
+        }
+
+        .stat-card {
+            background: white;
+            border-radius: 24px;
+            padding: 20px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            transition: transform 0.2s;
+            border: 1px solid #e2e8f0;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 24px rgba(0,0,0,0.1);
+        }
+
+        .stat-title {
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #64748b;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .stat-number {
+            font-size: 2.2rem;
+            font-weight: 800;
+            color: #0f172a;
+        }
+
+        .stat-sub {
+            font-size: 0.8rem;
+            color: #475569;
+            margin-top: 8px;
+        }
+
+        /* Payout Action Buttons */
+        .action-buttons {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            margin-bottom: 20px;
+        }
+
+        .action-btn {
+            background: #4f46e5;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 40px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: 0.2s;
+            width: 100%;
+            text-align: center;
+            display: inline-block;
+            text-decoration: none;
+        }
+
+        .action-btn:hover {
+            background: #6366f1;
+            transform: translateY(-2px);
+        }
+
+        /* Tabs */
+        .tabs-container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            margin-bottom: 32px;
+            border: 1px solid #e2e8f0;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 8px;
+            padding: 12px 20px;
+            border-bottom: 1px solid #e2e8f0;
+            flex-wrap: wrap;
+        }
+
+        .tab-btn {
+            background: transparent;
+            border: none;
+            padding: 12px 24px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            border-radius: 40px;
+            transition: all 0.2s;
+            color: #475569;
+        }
+
+        .tab-btn i {
+            margin-right: 8px;
+        }
+
+        .tab-btn.active {
+            background: #4f46e5;
+            color: white;
+            box-shadow: 0 4px 10px rgba(79, 70, 229, 0.3);
+        }
+
+        .tab-content {
+            display: none;
+            padding: 24px;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* List Cards */
+        .items-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 24px;
+            margin-top: 16px;
+        }
+
+        .dashboard-card {
+            background: white;
+            border-radius: 20px;
+            overflow: hidden;
+            border: 1px solid #e2e8f0;
+            transition: all 0.2s;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.02);
+        }
+
+        .dashboard-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 20px rgba(0,0,0,0.08);
+        }
+
+        .card-img {
+            height: 160px;
+            background: #f1f5f9;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .card-img img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .card-badge {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            background: #ff6b6b;
+            color: white;
+            padding: 4px 10px;
+            border-radius: 30px;
+            font-size: 0.7rem;
+            font-weight: bold;
+        }
+
+        .card-badge.free {
+            background: #10b981;
+        }
+
+        .card-content {
+            padding: 16px;
+        }
+
+        .card-title {
+            font-weight: 700;
+            font-size: 1rem;
+            margin-bottom: 8px;
+            color: #0f172a;
+        }
+
+        .card-meta {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.8rem;
+            color: #64748b;
+            margin: 12px 0;
+        }
+
+        .price-tag {
+            font-weight: 800;
+            color: #4f46e5;
+            font-size: 1.1rem;
+        }
+
+        /* Table for sales & payouts */
+        .sales-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+            border-radius: 16px;
+            overflow: hidden;
+        }
+
+        .sales-table th,
+        .sales-table td {
+            padding: 14px 12px;
+            text-align: left;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .sales-table th {
+            background: #f1f5f9;
+            font-weight: 600;
+            color: #334155;
+        }
+
+        .status-badge {
+            padding: 4px 8px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            display: inline-block;
+        }
+        .status-pending { background: #fef3c7; color: #b45309; }
+        .status-paid { background: #d1fae5; color: #065f46; }
+        .status-approved { background: #d1fae5; color: #065f46; }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(8px);}
+            to { opacity: 1; transform: translateY(0);}
+        }
+
+        /* Responsive */
+        @media (max-width: 680px) {
+            .header-container {
+                flex-direction: column;
+                text-align: center;
+            }
+            .tabs {
+                justify-content: center;
+            }
+            .tab-btn {
+                padding: 8px 16px;
+                font-size: 0.85rem;
+            }
+            .sales-table {
+                font-size: 0.8rem;
+            }
+        }
+
+        .loading-spinner {
+            display: flex;
+            justify-content: center;
+            padding: 40px;
+        }
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid #e2e8f0;
+            border-top: 4px solid #4f46e5;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        
+        .notification-toast {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            background: #1e293b;
+            color: white;
+            padding: 12px 20px;
+            border-radius: 40px;
+            z-index: 1000;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .copy-icon {
+            cursor: pointer;
+            margin-left: 8px;
+            color: #94a3b8;
+        }
+        .copy-icon:hover {
+            color: white;
+        }
+    </style>
+</head>
+<body>
+
+<header class="dashboard-header">
+    <div class="header-container">
+        <div class="logo-area">
+            <img src="logo.png" alt="Tools Prompt" onerror="this.src='https://via.placeholder.com/40x40/4f46e5/white?text=TP'">
+            <h1>Tools Prompt Marketplace</h1>
+        </div>
+        <div class="user-info" id="userInfoSection">
+            <div class="user-avatar" id="userAvatar">👤</div>
+            <span id="userNameDisplay">Loading...</span>
+            <button class="logout-btn" id="logoutBtn" title="Logout"><i class="fas fa-sign-out-alt"></i></button>
+        </div>
+    </div>
+</header>
+
+<main class="dashboard-main">
+    <!-- Stats Overview Cards (dynamic) -->
+    <div class="stats-grid" id="statsGrid">
+        <div class="stat-card">
+            <div class="stat-title"><i class="fas fa-chart-line"></i> Total Earnings (Seller)</div>
+            <div class="stat-number" id="totalEarnings">₹0</div>
+            <div class="stat-sub">From your prompt sales</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-title"><i class="fas fa-tags"></i> Total Sales</div>
+            <div class="stat-number" id="totalSalesCount">0</div>
+            <div class="stat-sub">Prompts sold</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-title"><i class="fas fa-shopping-cart"></i> Purchases</div>
+            <div class="stat-number" id="totalPurchasesCount">0</div>
+            <div class="stat-sub">Prompts bought</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-title"><i class="fas fa-upload"></i> Your Listings</div>
+            <div class="stat-number" id="totalListingsCount">0</div>
+            <div class="stat-sub">Active prompts</div>
+        </div>
+    </div>
+
+    <!-- New Payout Section -->
+    <div class="payout-section" style="margin-bottom: 30px;">
+        <div class="stats-grid" style="margin-bottom: 20px;">
+            <div class="stat-card">
+                <div class="stat-title"><i class="fas fa-wallet"></i> Available Balance</div>
+                <div class="stat-number" id="availableBalance">₹0</div>
+                <div class="stat-sub">Ready for payout</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-title"><i class="fas fa-history"></i> Total Paid Out</div>
+                <div class="stat-number" id="totalPaidOut">₹0</div>
+                <div class="stat-sub">All-time</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-title"><i class="fas fa-credit-card"></i> Pending Requests</div>
+                <div class="stat-number" id="pendingRequests">0</div>
+                <div class="stat-sub">Awaiting approval</div>
+            </div>
+        </div>
+        <div class="action-buttons">
+            <button id="sellerInfoBtn" class="action-btn" style="width: auto;"><i class="fas fa-address-card"></i> Update Seller Info</button>
+            <button id="requestPayoutBtn" class="action-btn" style="width: auto; background: #10b981;"><i class="fas fa-rupee-sign"></i> Request Payout (Min ₹100)</button>
+        </div>
+    </div>
+
+    <!-- Tabs Section -->
+    <div class="tabs-container">
+        <div class="tabs">
+            <button class="tab-btn active" data-tab="purchases"><i class="fas fa-shopping-bag"></i> My Purchases</button>
+            <button class="tab-btn" data-tab="sales"><i class="fas fa-chart-simple"></i> My Sales & Earnings</button>
+            <button class="tab-btn" data-tab="listings"><i class="fas fa-list-ul"></i> My Prompts (Listings)</button>
+            <button class="tab-btn" data-tab="payouts"><i class="fas fa-history"></i> Payout History</button>
+        </div>
+
+        <!-- Purchases Tab -->
+        <div class="tab-content active" id="purchasesTab">
+            <div id="purchasesContainer">
+                <div class="loading-spinner"><div class="spinner"></div></div>
+            </div>
+        </div>
+
+        <!-- Sales Tab -->
+        <div class="tab-content" id="salesTab">
+            <div id="salesContainer">
+                <div class="loading-spinner"><div class="spinner"></div></div>
+            </div>
+        </div>
+
+        <!-- Listings Tab -->
+        <div class="tab-content" id="listingsTab">
+            <div id="listingsContainer">
+                <div class="loading-spinner"><div class="spinner"></div></div>
+            </div>
+        </div>
+
+        <!-- Payouts Tab -->
+        <div class="tab-content" id="payoutsTab">
+            <div id="payoutsContainer">
+                <div class="loading-spinner"><div class="spinner"></div></div>
+            </div>
+        </div>
+    </div>
+</main>
+
+<script>
+    // ---------- Firebase config ----------
+    const firebaseConfig = {
+        apiKey: "AIzaSyCgc0xRtijpyPhOovfwg-MzyahsUFh-hiQ",
+        authDomain: "toolsprompt-5b07e.firebaseapp.com",
+        projectId: "toolsprompt-5b07e",
+        storageBucket: "toolsprompt-5b07e.firebasestorage.app",
+        messagingSenderId: "402263780942",
+        appId: "1:402263780942:web:1013a347dbb72db6b31d1f",
+        measurementId: "G-K4KXR4FZCP"
+    };
+    
+    let firebaseInitialized = false;
+    let currentFirebaseUser = null;
+
+    async function initFirebase() {
+        if (typeof firebase === 'undefined') {
+            console.error('Firebase SDK not loaded');
+            return false;
+        }
+        if (!firebaseInitialized && firebase.apps.length === 0) {
+            try {
+                firebase.initializeApp(firebaseConfig);
+                firebaseInitialized = true;
+                console.log('Firebase initialized');
+            } catch(e) { console.error(e); }
+        }
+        return firebaseInitialized;
+    }
+
+    async function getCurrentUser() {
+        await initFirebase();
+        return new Promise((resolve) => {
+            const unsubscribe = firebase.auth().onAuthStateChanged(user => {
+                unsubscribe();
+                resolve(user);
+            });
+        });
+    }
+
+    // Helper: Show notification
+    function showNotification(message, type = 'info') {
+        const toast = document.createElement('div');
+        toast.className = 'notification-toast';
+        toast.innerHTML = `<i class="fas fa-${type === 'success' ? 'check-circle' : 'info-circle'}"></i> ${message}`;
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 3000);
+    }
+
+    // Copy prompt text to clipboard
+    async function copyPromptText(text, btnElement) {
+        try {
+            await navigator.clipboard.writeText(text);
+            const originalHtml = btnElement.innerHTML;
+            btnElement.innerHTML = '<i class="fas fa-check"></i> Copied!';
+            btnElement.style.background = '#10b981';
+            setTimeout(() => {
+                btnElement.innerHTML = originalHtml;
+                btnElement.style.background = '#4f46e5';
+            }, 2000);
+            showNotification('Prompt copied!', 'success');
+        } catch(err) {
+            showNotification('Copy failed', 'error');
+        }
+    }
+
+    // Fetch purchases
+    async function fetchPurchases(userId) {
+        try {
+            const res = await fetch(`/api/user/${userId}/purchases`);
+            if (!res.ok) throw new Error('Failed to fetch purchases');
+            const data = await res.json();
+            return data.purchases || [];
+        } catch(e) {
+            console.error(e);
+            return [];
+        }
+    }
+
+    // Fetch sales
+    async function fetchSales(userId) {
+        try {
+            const res = await fetch(`/api/user/${userId}/sales`);
+            if (!res.ok) throw new Error('Failed to fetch sales');
+            const data = await res.json();
+            return data.sales || [];
+        } catch(e) {
+            return [];
+        }
+    }
+
+    // Fetch user's own prompts (listings)
+    async function fetchUserPrompts(userId) {
+        try {
+            const res = await fetch(`/api/user/${userId}/prompts`);
+            if (!res.ok) throw new Error('Failed to fetch listings');
+            const data = await res.json();
+            return data.prompts || [];
+        } catch(e) {
+            return [];
+        }
+    }
+
+    // Fetch earnings summary
+    async function fetchEarnings(userId) {
+        try {
+            const res = await fetch(`/api/user/${userId}/earnings`);
+            if (!res.ok) throw new Error('Earnings fetch error');
+            const data = await res.json();
+            return data;
+        } catch(e) {
+            return { totalEarnings: 0, totalSales: 0, totalPrompts: 0, totalPurchases: 0 };
+        }
+    }
+
+    // ----- Payout related functions -----
+    async function fetchSellerInfo(userId) {
+        try {
+            const res = await fetch(`/api/seller-info/${userId}`);
+            const data = await res.json();
+            return data.sellerInfo;
+        } catch(e) {
+            return null;
+        }
+    }
+
+    async function fetchPayouts(userId) {
+        try {
+            const res = await fetch(`/api/user/${userId}/payouts`);
+            const data = await res.json();
+            return data.payouts || [];
+        } catch(e) {
+            return [];
+        }
+    }
+
+    async function updatePayoutUI(userId, totalEarnings) {
+        const sellerInfo = await fetchSellerInfo(userId);
+        const payouts = await fetchPayouts(userId);
+        const totalPaidOut = payouts.reduce((sum, p) => sum + (p.status === 'paid' ? p.amount : 0), 0);
+        const pendingRequests = payouts.filter(p => p.status === 'pending').length;
+        const available = totalEarnings - totalPaidOut;
+
+        document.getElementById('availableBalance').innerText = `₹${available}`;
+        document.getElementById('totalPaidOut').innerText = `₹${totalPaidOut}`;
+        document.getElementById('pendingRequests').innerText = pendingRequests;
+
+        const requestBtn = document.getElementById('requestPayoutBtn');
+        if (requestBtn) {
+            if (available >= 100 && sellerInfo) {
+                requestBtn.disabled = false;
+                requestBtn.title = '';
+            } else {
+                requestBtn.disabled = true;
+                requestBtn.title = sellerInfo ? 'Need at least ₹100 available' : 'Please fill seller info first';
+            }
+        }
+
+        renderPayoutHistory(payouts);
+    }
+
+    function renderPayoutHistory(payouts) {
+        const container = document.getElementById('payoutsContainer');
+        if (!payouts.length) {
+            container.innerHTML = `<div class="empty-state"><i class="fas fa-history"></i><p>No payout requests yet.</p></div>`;
+            return;
+        }
+        let html = `<table class="sales-table"><thead><tr><th>Date</th><th>Amount</th><th>Status</th><th>Transaction ID</th></tr></thead><tbody>`;
+        payouts.forEach(p => {
+            const date = p.createdAt ? new Date(p.createdAt).toLocaleDateString() : '—';
+            html += `<tr>
+                <td>${date}</td>
+                <td>₹${p.amount}</td>
+                <td><span class="status-badge status-${p.status}">${p.status}</span></td>
+                <td>${p.transactionId || '—'}</td>
+            </tr>`;
+        });
+        html += `</tbody></table>`;
+        container.innerHTML = html;
+    }
+
+    // Render Purchases
+    function renderPurchases(purchases) {
+        const container = document.getElementById('purchasesContainer');
+        if (!purchases.length) {
+            container.innerHTML = `<div class="empty-state"><i class="fas fa-shopping-cart"></i><h3>No purchases yet</h3><p>Buy premium prompts from the marketplace to see them here.</p><a href="/" class="action-btn" style="display: inline-block; width: auto; margin-top: 16px;">Browse Marketplace</a></div>`;
+            return;
+        }
+        let html = `<div class="items-grid">`;
+        purchases.forEach(p => {
+            const title = p.promptTitle || 'Untitled Prompt';
+            const promptText = p.promptText || 'No prompt text available.';
+            const price = p.amount || 0;
+            const date = p.date ? new Date(p.date).toLocaleDateString() : 'Recent';
+            const imageUrl = p.imageUrl || 'https://via.placeholder.com/300x160/4f46e5/ffffff?text=AI+Prompt';
+            html += `
+                <div class="dashboard-card">
+                    <div class="card-img">
+                        <img src="${imageUrl}" alt="${title}" onerror="this.src='https://via.placeholder.com/300x160/4f46e5/ffffff?text=Prompt'">
+                        <span class="card-badge ${price === 0 ? 'free' : ''}">${price > 0 ? '₹'+price : 'Free'}</span>
+                    </div>
+                    <div class="card-content">
+                        <div class="card-title">${escapeHtml(title)}</div>
+                        <div class="card-meta"><span>Purchased: ${date}</span><span><i class="fas fa-rupee-sign"></i> ${price}</span></div>
+                        <button class="action-btn copy-purchase-btn" data-prompt-text="${escapeAttr(promptText)}" style="margin-top: 8px;"><i class="far fa-copy"></i> Copy Prompt</button>
+                    </div>
+                </div>
+            `;
+        });
+        html += `</div>`;
+        container.innerHTML = html;
+        document.querySelectorAll('.copy-purchase-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const text = btn.getAttribute('data-prompt-text');
+                if (text) copyPromptText(text, btn);
+            });
+        });
+    }
+
+    // Render Sales Table
+    function renderSales(sales) {
+        const container = document.getElementById('salesContainer');
+        if (!sales.length) {
+            container.innerHTML = `<div class="empty-state"><i class="fas fa-chart-line"></i><h3>No sales yet</h3><p>When users buy your prompts, they'll appear here.</p><a href="/" class="action-btn" style="display: inline-block; width: auto; margin-top: 16px;">Sell More Prompts</a></div>`;
+            return;
+        }
+        let tableHtml = `<table class="sales-table"><thead><tr><th>Prompt Title</th><th>Buyer</th><th>Amount (₹)</th><th>Date</th><th>Your Earnings (80%)</th></tr></thead><tbody>`;
+        sales.forEach(sale => {
+            const earnings = Math.round((sale.amount || 0) * 0.8);
+            const date = sale.date ? new Date(sale.date).toLocaleDateString() : '—';
+            tableHtml += `<tr>
+                <td><strong>${escapeHtml(sale.promptTitle || 'Prompt')}</strong></td>
+                <td>${escapeHtml(sale.buyerName || 'Anonymous')}</td>
+                <td>₹${sale.amount || 0}</td>
+                <td>${date}</td>
+                <td class="price-tag">₹${earnings}</td>
+            </tr>`;
+        });
+        tableHtml += `</tbody></table>`;
+        container.innerHTML = tableHtml;
+    }
+
+    // Render user's own prompts listings
+    function renderListings(prompts) {
+        const container = document.getElementById('listingsContainer');
+        if (!prompts.length) {
+            container.innerHTML = `<div class="empty-state"><i class="fas fa-cloud-upload-alt"></i><h3>You haven't listed any prompts</h3><p>Start selling your AI prompts today! Click the "Sell Your Prompts" button on the homepage.</p><a href="/" class="action-btn" style="display: inline-block; width: auto; margin-top: 16px;">Go to Marketplace</a></div>`;
+            return;
+        }
+        let html = `<div class="items-grid">`;
+        prompts.forEach(p => {
+            const title = p.title || 'Untitled';
+            const price = p.price || 0;
+            const salesCount = p.salesCount || 0;
+            const imageUrl = p.thumbnailUrl || p.imageUrl || 'https://via.placeholder.com/300x160/4f46e5/ffffff?text=Your+Prompt';
+            const promptText = p.promptText || 'No prompt text';
+            html += `
+                <div class="dashboard-card">
+                    <div class="card-img">
+                        <img src="${imageUrl}" alt="${title}" onerror="this.src='https://via.placeholder.com/300x160/4f46e5/ffffff?text=Prompt'">
+                        <span class="card-badge ${price === 0 ? 'free' : ''}">${price > 0 ? '₹'+price : 'Free'}</span>
+                    </div>
+                    <div class="card-content">
+                        <div class="card-title">${escapeHtml(title)}</div>
+                        <div class="card-meta"><span><i class="fas fa-chart-line"></i> ${salesCount} sold</span><span><i class="fas fa-eye"></i> ${p.views || 0} views</span></div>
+                        <button class="action-btn copy-listing-btn" data-prompt-text="${escapeAttr(promptText)}" style="margin-bottom: 8px;"><i class="far fa-copy"></i> Copy Prompt Text</button>
+                        <a href="/prompt/${p.id}" class="action-btn" style="background: #334155; margin-top: 4px;" target="_blank"><i class="fas fa-external-link-alt"></i> View Listing</a>
+                    </div>
+                </div>
+            `;
+        });
+        html += `</div>`;
+        container.innerHTML = html;
+        document.querySelectorAll('.copy-listing-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const text = btn.getAttribute('data-prompt-text');
+                if (text) copyPromptText(text, btn);
+            });
+        });
+    }
+
+    // Update stats cards from earnings data
+    function updateStats(earningsData) {
+        document.getElementById('totalEarnings').innerText = `₹${earningsData.totalEarnings || 0}`;
+        document.getElementById('totalSalesCount').innerText = earningsData.totalSales || 0;
+        document.getElementById('totalPurchasesCount').innerText = earningsData.totalPurchases || 0;
+        document.getElementById('totalListingsCount').innerText = earningsData.totalPrompts || 0;
+    }
+
+    // Main load dashboard data
+    async function loadDashboardData(user) {
+        if (!user) return;
+        const userId = user.uid;
+        try {
+            const earningsData = await fetchEarnings(userId);
+            updateStats(earningsData);
+            const [purchases, sales, userPrompts] = await Promise.all([
+                fetchPurchases(userId),
+                fetchSales(userId),
+                fetchUserPrompts(userId)
+            ]);
+            renderPurchases(purchases);
+            renderSales(sales);
+            renderListings(userPrompts);
+            await updatePayoutUI(userId, earningsData.totalEarnings);
+        } catch (err) {
+            console.error('Dashboard data error', err);
+            document.getElementById('purchasesContainer').innerHTML = `<div class="empty-state"><i class="fas fa-exclamation-triangle"></i><p>Error loading data. Please refresh.</p></div>`;
+        }
+    }
+
+    // Tab switching
+    function initTabs() {
+        const btns = document.querySelectorAll('.tab-btn');
+        btns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                const tabId = btn.getAttribute('data-tab');
+                document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
+                document.getElementById(`${tabId}Tab`).classList.add('active');
+                btns.forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+            });
+        });
+    }
+
+    // Display user info
+    function displayUserInfo(user) {
+        const nameSpan = document.getElementById('userNameDisplay');
+        const avatarDiv = document.getElementById('userAvatar');
+        if (user) {
+            const displayName = user.displayName || user.email?.split('@')[0] || 'User';
+            nameSpan.innerText = displayName;
+            const initial = displayName.charAt(0).toUpperCase();
+            avatarDiv.innerHTML = `<span style="font-weight:bold;">${initial}</span>`;
+        } else {
+            nameSpan.innerText = 'Not logged in';
+            avatarDiv.innerHTML = '👤';
+        }
+    }
+
+    // Logout
+    async function logout() {
+        try {
+            await firebase.auth().signOut();
+            localStorage.removeItem('user');
+            window.location.href = '/login.html?returnUrl=' + encodeURIComponent(window.location.pathname);
+        } catch(e) {
+            console.error(e);
+            window.location.href = '/';
+        }
+    }
+
+    // Entry point
+    async function initDashboard() {
+        await initFirebase();
+        const user = await getCurrentUser();
+        if (!user) {
+            window.location.href = '/login.html?returnUrl=' + encodeURIComponent(window.location.pathname);
+            return;
+        }
+        currentFirebaseUser = user;
+        displayUserInfo(user);
+        await loadDashboardData(user);
+        initTabs();
+
+        const logoutBtn = document.getElementById('logoutBtn');
+        if (logoutBtn) logoutBtn.addEventListener('click', logout);
+
+        const sellerInfoBtn = document.getElementById('sellerInfoBtn');
+        if (sellerInfoBtn) {
+            sellerInfoBtn.addEventListener('click', () => {
+                window.location.href = '/sellerinfo.html';
+            });
+        }
+
+        const requestPayoutBtn = document.getElementById('requestPayoutBtn');
+        if (requestPayoutBtn) {
+            requestPayoutBtn.addEventListener('click', async () => {
+                const user = await getCurrentUser();
+                if (!user) {
+                    showNotification('Please login to request payout', 'error');
+                    return;
+                }
+                const availableText = document.getElementById('availableBalance').innerText;
+                const available = parseInt(availableText.replace('₹', ''));
+                if (available < 100) {
+                    showNotification('Minimum payout amount is ₹500', 'error');
+                    return;
+                }
+                if (confirm(`Request payout of ₹${available}? This will be processed by admin.`)) {
+                    const response = await fetch('/api/request-payout', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ userId: user.uid, amount: available })
+                    });
+                    const result = await response.json();
+                    if (result.success) {
+                        showNotification('Payout request submitted!', 'success');
+                        loadDashboardData(user);
+                    } else {
+                        showNotification(result.error || 'Request failed', 'error');
+                    }
+                }
+            });
+        }
+    }
+
+    // Helper functions
+    function escapeHtml(str) {
+        if (!str) return '';
+        return str.replace(/[&<>]/g, function(m) {
+            if (m === '&') return '&amp;';
+            if (m === '<') return '&lt;';
+            if (m === '>') return '&gt;';
+            return m;
+        }).replace(/[\uD800-\uDBFF][\uDC00-\uDFFF]/g, function(c) {
+            return c;
+        });
+    }
+    function escapeAttr(str) {
+        if (!str) return '';
+        return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    // Start
+    initDashboard();
+</script>
+</body>
+</html>

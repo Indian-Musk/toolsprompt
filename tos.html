@@ -1,232 +1,594 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
-<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5992381116749724"
-     crossorigin="anonymous"></script>
-<!-- Google tag (gtag.js) -->
-<script async src="https://www.googletagmanager.com/gtag/js?id=G-K4KXR4FZCP"></script>
-<script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag(){dataLayer.push(arguments);}
-  gtag('js', new Date());
-
-  gtag('config', 'G-K4KXR4FZCP');
-</script>
-
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Terms of Service | ToolsPrompt</title>
+    <title>Terms & Conditions - Tools Prompt Marketplace</title>
+    <meta name="description" content="Terms and Conditions for Tools Prompt - AI Prompt Marketplace. Read our terms for buying and selling AI prompts.">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="styles.css">
-    <link rel="icon" type="image/png" href="/favicon.png">
-<!-- Add to <head> section -->
-<script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>   
- <style>
-        .tos-content {
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background: #f5f7fc;
+            color: #1e293b;
+            line-height: 1.6;
+        }
+
+        /* Header Styles */
+        .site-header {
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            color: white;
+            padding: 1rem 0;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+
+        .header-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 16px;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            text-decoration: none;
+        }
+
+        .logo img {
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
             background: white;
-            border-radius: 15px;
-            padding: 40px;
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
-            line-height: 1.8;
+            padding: 5px;
         }
-        
-        .tos-content h2 {
-            color: #4e54c8;
-            margin-top: 30px;
-            margin-bottom: 15px;
+
+        .logo span {
+            font-size: 1.5rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #c084fc, #60a5fa);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
         }
-        
-        .tos-content h3 {
-            color: #4e54c8;
-            margin-top: 25px;
-            margin-bottom: 10px;
+
+        .nav-links {
+            display: flex;
+            gap: 24px;
+            list-style: none;
         }
-        
-        .tos-content ul {
-            padding-left: 20px;
-            margin: 15px 0;
+
+        .nav-links a {
+            color: #e2e8f0;
+            text-decoration: none;
+            transition: color 0.3s ease;
         }
-        
-        .tos-content li {
-            margin-bottom: 10px;
+
+        .nav-links a:hover {
+            color: #c084fc;
         }
-        
-        .update-date {
-            font-style: italic;
-            color: #777;
-            margin-bottom: 30px;
+
+        /* Main Content */
+        .main-container {
+            max-width: 1000px;
+            margin: 40px auto;
+            padding: 0 24px;
         }
-        
-        .highlight {
-            background-color: rgba(78, 84, 200, 0.05);
-            border-left: 4px solid #4e54c8;
-            padding: 15px 20px;
+
+        .terms-card {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+            overflow: hidden;
+        }
+
+        .terms-header {
+            background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+            color: white;
+            padding: 40px 32px;
+            text-align: center;
+        }
+
+        .terms-header h1 {
+            font-size: 2rem;
+            margin-bottom: 12px;
+        }
+
+        .terms-header p {
+            opacity: 0.9;
+            font-size: 1rem;
+        }
+
+        .last-updated {
+            background: #f1f5f9;
+            padding: 12px 24px;
+            text-align: center;
+            font-size: 0.85rem;
+            color: #64748b;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .terms-content {
+            padding: 40px 32px;
+        }
+
+        .section {
+            margin-bottom: 32px;
+        }
+
+        .section h2 {
+            color: #1e293b;
+            font-size: 1.5rem;
+            margin-bottom: 16px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid #e2e8f0;
+        }
+
+        .section h3 {
+            color: #334155;
+            font-size: 1.2rem;
+            margin: 20px 0 12px 0;
+        }
+
+        .section p {
+            color: #475569;
+            margin-bottom: 12px;
+        }
+
+        .section ul, .section ol {
+            margin: 12px 0 12px 24px;
+            color: #475569;
+        }
+
+        .section li {
+            margin-bottom: 8px;
+        }
+
+        .highlight-box {
+            background: #f8fafc;
+            border-left: 4px solid #4f46e5;
+            padding: 20px;
+            border-radius: 12px;
             margin: 20px 0;
-            border-radius: 0 8px 8px 0;
+        }
+
+        .highlight-box p {
+            margin-bottom: 0;
+        }
+
+        .table-of-contents {
+            background: #f8fafc;
+            padding: 24px;
+            border-radius: 12px;
+            margin-bottom: 32px;
+        }
+
+        .table-of-contents h3 {
+            margin-top: 0;
+            margin-bottom: 16px;
+            color: #1e293b;
+        }
+
+        .table-of-contents ul {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 12px;
+            list-style: none;
+            margin: 0;
+            padding: 0;
+        }
+
+        .table-of-contents li a {
+            color: #4f46e5;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .table-of-contents li a:hover {
+            text-decoration: underline;
+        }
+
+        .accept-btn {
+            background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+            color: white;
+            border: none;
+            padding: 14px 32px;
+            border-radius: 40px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .accept-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(79, 70, 229, 0.3);
+        }
+
+        /* Footer */
+        .site-footer {
+            background: #0f172a;
+            color: #94a3b8;
+            padding: 40px 0 20px;
+            margin-top: 60px;
+        }
+
+        .footer-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 24px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 40px;
+        }
+
+        .footer-section h3 {
+            color: white;
+            margin-bottom: 16px;
+            font-size: 1.1rem;
+        }
+
+        .footer-links {
+            list-style: none;
+        }
+
+        .footer-links li {
+            margin-bottom: 8px;
+        }
+
+        .footer-links a {
+            color: #94a3b8;
+            text-decoration: none;
+            transition: color 0.3s ease;
+        }
+
+        .footer-links a:hover {
+            color: #c084fc;
+        }
+
+        .copyright {
+            text-align: center;
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #1e293b;
+            font-size: 0.85rem;
+        }
+
+        @media (max-width: 768px) {
+            .header-container {
+                flex-direction: column;
+            }
+            
+            .terms-header {
+                padding: 30px 20px;
+            }
+            
+            .terms-header h1 {
+                font-size: 1.5rem;
+            }
+            
+            .terms-content {
+                padding: 24px 20px;
+            }
+            
+            .section h2 {
+                font-size: 1.3rem;
+            }
+            
+            .table-of-contents ul {
+                grid-template-columns: 1fr;
+            }
         }
     </style>
 </head>
 <body>
-    <!-- Header -->
-    <header>
-        <div class="container">
+    <header class="site-header">
+        <div class="header-container">
+            <a href="/" class="logo">
+                <img src="logo.png" alt="Tools Prompt Logo" onerror="this.src='https://via.placeholder.com/40x40/4f46e5/white?text=TP'">
+                <span>Tools Prompt</span>
+            </a>
             <nav>
-                <div class="logo">
-                 <img src="logo.png" alt="Logo" style="width:100px;height:60px;">
-                    <span>ToolsPrompt</span>
-                </div>
-                <div class="nav-links">
-                    <a href="index.html">Home</a>
-                    <a href="promptconverter.html">Prompt Converter</a>
-                    <a href="features.html">Features</a>
-                    <a href="showcase.html">Showcase</a>
-                    <a href="howitworks.html">How It Works</a>
-                </div>
-                <button class="cta-button">Get Started</button>
-                <div class="mobile-toggle">
-                    <i class="fas fa-bars"></i>
-                </div>
+                <ul class="nav-links">
+                    <li><a href="/">Home</a></li>
+                    <li><a href="/dashboard.html">Dashboard</a></li>
+                    <li><a href="/privacy.html">Privacy Policy</a></li>
+                    <li><a href="/terms.html">Terms</a></li>
+                </ul>
             </nav>
         </div>
     </header>
 
-    <!-- Terms of Service Section -->
-    <section class="terms-of-service">
-        <div class="container">
-            <div class="section-title">
-                <h2>Terms of Service</h2>
-                <p class="update-date">Effective Date: July 14, 2025</p>
+    <main class="main-container">
+        <div class="terms-card">
+            <div class="terms-header">
+                <h1><i class="fas fa-file-contract"></i> Terms & Conditions</h1>
+                <p>Welcome to Tools Prompt Marketplace - Read our terms carefully</p>
             </div>
-            
-            <div class="tos-content">
-                <div class="highlight">
-                    <p><strong>Important:</strong> By accessing or using ToolsPrompt, you agree to be bound by these Terms of Service. If you do not agree with any part of these terms, you must not use our services.</p>
-                </div>
-                
-                <h2>1. Acceptance of Terms</h2>
-                <p>These Terms of Service ("Terms") govern your access to and use of ToolsPrompt's website, services, and applications (collectively, the "Service"). By accessing or using the Service, you agree to be bound by these Terms.</p>
-                
-                <h2>2. Description of Service</h2>
-                <p>ToolsPrompt provides a platform for AI prompt engineering, including but not limited to:</p>
-                <ul>
-                    <li>Prompt generation and optimization tools</li>
-                    <li>Prompt templates and libraries</li>
-                    <li>AI-generated content creation</li>
-                    <li>Community sharing features</li>
-                </ul>
-                
-                <h2>3. User Accounts</h2>
-                <h3>3.1 Account Creation</h3>
-                <p>To access certain features, you must create an account. You agree to provide accurate and complete information and to keep this information updated.</p>
-                
-                <h3>3.2 Account Security</h3>
-                <p>You are responsible for maintaining the confidentiality of your account credentials and for all activities that occur under your account.</p>
-                
-                <h2>4. User Responsibilities</h2>
-                <h3>4.1 Acceptable Use</h3>
-                <p>You agree not to use the Service to:</p>
-                <ul>
-                    <li>Violate any applicable laws or regulations</li>
-                    <li>Infringe on intellectual property rights</li>
-                    <li>Generate illegal, harmful, or offensive content</li>
-                    <li>Interfere with the Service's operation</li>
-                </ul>
-                
-                <h3>4.2 Content Ownership</h3>
-                <p>You retain ownership of any content you create using our Service. By submitting content, you grant ToolsPrompt a worldwide, non-exclusive license to use, display, and distribute your content for the purpose of providing the Service.</p>
-                
-                <h2>5. Intellectual Property</h2>
-                <p>All rights, title, and interest in and to the Service (excluding content provided by users) are and will remain the exclusive property of ToolsPrompt and its licensors.</p>
-                
-                <h2>6. Payments and Subscriptions</h2>
-                <h3>6.1 Fees</h3>
-                <p>Certain features may require payment. You agree to pay all applicable fees as described on the Service.</p>
-                
-                <h3>6.2 Subscription Terms</h3>
-                <p>Subscriptions automatically renew until canceled. You may cancel your subscription at any time through your account settings.</p>
-                
-                <h2>7. Disclaimers</h2>
-                <p>THE SERVICE IS PROVIDED "AS IS" WITHOUT WARRANTIES OF ANY KIND. TOOLSPROMPT DISCLAIMS ALL WARRANTIES, EXPRESS OR IMPLIED, INCLUDING WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NON-INFRINGEMENT.</p>
-                
-                <h2>8. Limitation of Liability</h2>
-                <p>TOOLSPROMPT SHALL NOT BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES ARISING OUT OF OR RELATED TO YOUR USE OF THE SERVICE.</p>
-                
-                <h2>9. Termination</h2>
-                <p>We may terminate or suspend your access to the Service at any time, without prior notice, for conduct that we believe violates these Terms or is harmful to other users, us, or third parties.</p>
-                
-                <h2>10. Modifications to Terms</h2>
-                <p>We reserve the right to modify these Terms at any time. We will provide notice of material changes through the Service or via email. Continued use after changes constitutes acceptance.</p>
-                
-                <h2>11. Governing Law</h2>
-                <p>These Terms shall be governed by the laws of the State of California, without regard to its conflict of laws principles.</p>
-                
-                <h2>12. Contact Us</h2>
-                <p>If you have questions about these Terms, please contact us:</p>
-                <p><strong>Email:</strong> legal@toolsprompt.com</p>
-                <p><strong>Mailing Address:</strong><br>
-                ToolsPrompt Legal Department<br>
-                123 Innovation Drive<br>
-                Tech City, CA 94043</p>
+            <div class="last-updated">
+                <i class="fas fa-calendar-alt"></i> Last Updated: March 27, 2026
             </div>
-        </div>
-    </section>
 
-    <!-- Footer -->
-    <footer>
-        <div class="container">
-            <div class="footer-grid">
-                <div class="footer-column">
-                    <h3>ToolsPrompt</h3>
-                    <p>Master the art of AI communication with our advanced prompt engineering platform.</p>
-                    <div class="social-links">
-                        <a href="#"><i class="fab fa-twitter"></i></a>
-                        <a href="#"><i class="fab fa-instagram"></i></a>
-                        <a href="#"><i class="fab fa-discord"></i></a>
-                        <a href="#"><i class="fab fa-linkedin"></i></a>
+            <div class="terms-content">
+                <div class="table-of-contents">
+                    <h3><i class="fas fa-list"></i> Table of Contents</h3>
+                    <ul>
+                        <li><a href="#acceptance">1. Acceptance of Terms</a></li>
+                        <li><a href="#definitions">2. Definitions</a></li>
+                        <li><a href="#account">3. Account Registration</a></li>
+                        <li><a href="#buyers">4. Buyer Terms</a></li>
+                        <li><a href="#sellers">5. Seller Terms</a></li>
+                        <li><a href="#payments">6. Payments & Fees</a></li>
+                        <li><a href="#intellectual">7. Intellectual Property</a></li>
+                        <li><a href="#prohibited">8. Prohibited Content</a></li>
+                        <li><a href="#termination">9. Termination</a></li>
+                        <li><a href="#disclaimers">10. Disclaimers</a></li>
+                        <li><a href="#limitation">11. Limitation of Liability</a></li>
+                        <li><a href="#governing">12. Governing Law</a></li>
+                        <li><a href="#changes">13. Changes to Terms</a></li>
+                        <li><a href="#contact">14. Contact Us</a></li>
+                    </ul>
+                </div>
+
+                <div id="acceptance" class="section">
+                    <h2>1. Acceptance of Terms</h2>
+                    <p>By accessing or using the Tools Prompt website (www.toolsprompt.com), mobile applications, and related services (collectively, the "Platform"), you agree to be bound by these Terms and Conditions ("Terms"). If you do not agree to these Terms, please do not use our Platform.</p>
+                    <p>Tools Prompt operates as an AI Prompt Marketplace where users can buy and sell AI prompts for photo editing, video creation, and other creative applications. By using our Platform, you acknowledge that you have read, understood, and agree to be bound by these Terms.</p>
+                </div>
+
+                <div id="definitions" class="section">
+                    <h2>2. Definitions</h2>
+                    <ul>
+                        <li><strong>"Platform"</strong> refers to Tools Prompt website, mobile applications, and all related services.</li>
+                        <li><strong>"User"</strong> refers to any individual or entity that accesses or uses the Platform.</li>
+                        <li><strong>"Buyer"</strong> refers to a User who purchases Prompts on the Platform.</li>
+                        <li><strong>"Seller"</strong> refers to a User who lists and sells Prompts on the Platform.</li>
+                        <li><strong>"Prompt"</strong> refers to text-based instructions, descriptions, or parameters used to generate AI-generated content.</li>
+                        <li><strong>"Content"</strong> refers to any text, images, videos, or other materials uploaded to the Platform.</li>
+                        <li><strong>"Commission"</strong> refers to the fee deducted from each sale (currently 20% of the sale price).</li>
+                    </ul>
+                </div>
+
+                <div id="account" class="section">
+                    <h2>3. Account Registration</h2>
+                    <p>To access certain features of the Platform, you must create an account. You agree to:</p>
+                    <ul>
+                        <li>Provide accurate, current, and complete information during registration.</li>
+                        <li>Maintain the security of your password and accept responsibility for all activities that occur under your account.</li>
+                        <li>Notify us immediately of any unauthorized use of your account.</li>
+                        <li>Be at least 18 years old to create an account and use the Platform.</li>
+                    </ul>
+                    <div class="highlight-box">
+                        <p><i class="fas fa-shield-alt"></i> <strong>Account Security:</strong> Tools Prompt uses Firebase Authentication to secure your account. We recommend enabling two-factor authentication for enhanced security.</p>
                     </div>
                 </div>
-                
-                <div class="footer-column">
-                    <h3>Resources</h3>
-                    <ul class="footer-links">
-                        <li><a href="#">Prompt Library</a></li>
-                        <li><a href="#">Tutorials</a></li>
-                        <li><a href="blog.html">Blog</a></li>
-                        <li><a href="#">API Documentation</a></li>
-                        <li><a href="#">Community Forum</a></li>
+
+                <div id="buyers" class="section">
+                    <h2>4. Buyer Terms</h2>
+                    <h3>4.1 Purchasing Prompts</h3>
+                    <p>When you purchase a Prompt on Tools Prompt, you receive a non-exclusive, non-transferable license to use the Prompt for personal or commercial purposes, subject to the following conditions:</p>
+                    <ul>
+                        <li>You may not resell, redistribute, or sublicense the Prompt itself (the text instructions).</li>
+                        <li>You may use the Prompt to generate content for your own projects, including commercial projects.</li>
+                        <li>You may not claim ownership of the Prompt as your own original work.</li>
+                    </ul>
+                    
+                    <h3>4.2 Payment Processing</h3>
+                    <p>All payments are processed securely through Razorpay, a PCI-DSS compliant payment gateway. Tools Prompt does not store your payment information. By making a purchase, you agree to Razorpay's terms of service.</p>
+                    
+                    <h3>4.3 Refund Policy</h3>
+                    <p>Due to the digital nature of Prompts, all sales are final. However, if you encounter technical issues or receive an incorrect Prompt, please contact us within 7 days of purchase at support@toolsprompt.com for assistance.</p>
+                </div>
+
+                <div id="sellers" class="section">
+                    <h2>5. Seller Terms</h2>
+                    <h3>5.1 Listing Prompts</h3>
+                    <p>Sellers may list Prompts for sale on the Platform. By listing a Prompt, you represent and warrant that:</p>
+                    <ul>
+                        <li>You are the original creator of the Prompt or have the legal right to sell it.</li>
+                        <li>The Prompt does not infringe on any third-party intellectual property rights.</li>
+                        <li>The Prompt does not violate any laws or these Terms.</li>
+                        <li>You have the right to grant the license described in these Terms.</li>
+                    </ul>
+                    
+                    <h3>5.2 Seller Information</h3>
+                    <p>Sellers must provide accurate payment information (UPI ID or bank account details) to receive payouts. Payouts are processed after sales are confirmed and verified.</p>
+                    
+                    <h3>5.3 Commission Structure</h3>
+                    <p>Tools Prompt charges a 20% commission on each sale. The commission covers platform maintenance, payment processing fees, and customer support. Sellers receive 80% of the sale price.</p>
+                    <div class="highlight-box">
+                        <p><i class="fas fa-chart-line"></i> <strong>Payout Schedule:</strong> Payouts are processed monthly for amounts ₹500 or more. Sellers can request payouts through their dashboard. Minimum payout amount is ₹100.</p>
+                    </div>
+                    
+                    <h3>5.4 Content Ownership</h3>
+                    <p>Sellers retain ownership of their Prompts. By listing a Prompt, you grant Tools Prompt a non-exclusive, worldwide, royalty-free license to display, promote, and distribute your Prompt on the Platform.</p>
+                </div>
+
+                <div id="payments" class="section">
+                    <h2>6. Payments & Fees</h2>
+                    <h3>6.1 Pricing</h3>
+                    <p>Sellers set their own prices for Prompts. Tools Prompt reserves the right to suggest pricing guidelines. Prices are displayed in Indian Rupees (₹).</p>
+                    
+                    <h3>6.2 Payment Processing</h3>
+                    <p>All transactions are processed through Razorpay. Tools Prompt does not store credit card or banking information. Payment processing fees are included in the 20% commission.</p>
+                    
+                    <h3>6.3 Taxes</h3>
+                    <p>Sellers are responsible for reporting and paying any applicable taxes on their earnings. Tools Prompt does not withhold taxes from payouts unless required by law.</p>
+                </div>
+
+                <div id="intellectual" class="section">
+                    <h2>7. Intellectual Property</h2>
+                    <p>All content on the Tools Prompt Platform, including but not limited to logos, designs, text, graphics, software, and code, is the property of Tools Prompt or its licensors and is protected by copyright, trademark, and other intellectual property laws.</p>
+                    <p>You may not copy, modify, distribute, or create derivative works of any content on the Platform without explicit permission from Tools Prompt.</p>
+                </div>
+
+                <div id="prohibited" class="section">
+                    <h2>8. Prohibited Content</h2>
+                    <p>The following types of content are strictly prohibited on Tools Prompt:</p>
+                    <ul>
+                        <li>Prompts that generate illegal, harmful, or dangerous content</li>
+                        <li>Content that infringes on third-party intellectual property rights</li>
+                        <li>Prompts that generate explicit adult content or pornography</li>
+                        <li>Content promoting hate speech, violence, discrimination, or harassment</li>
+                        <li>Malicious code, viruses, or harmful software</li>
+                        <li>Content that violates any applicable laws or regulations</li>
+                    </ul>
+                    <p>Tools Prompt reserves the right to remove any content that violates these Terms and to suspend or terminate accounts of users who violate these Terms.</p>
+                </div>
+
+                <div id="termination" class="section">
+                    <h2>9. Termination</h2>
+                    <p>Tools Prompt may terminate or suspend your account immediately, without prior notice, for conduct that violates these Terms or is harmful to other users, the Platform, or third parties. Upon termination:</p>
+                    <ul>
+                        <li>Your right to use the Platform will immediately cease.</li>
+                        <li>Pending payouts may be withheld if termination is due to policy violations.</li>
+                        <li>You will not be entitled to any refunds for previously purchased Prompts.</li>
                     </ul>
                 </div>
-                
-                <div class="footer-column">
-                    <h3>Company</h3>
-                    <ul class="footer-links">
-                        <li><a href="#">About Us</a></li>
-                        <li><a href="#">Careers</a></li>
-                        <li><a href="#">Press</a></li>
-                        <li><a href="#">Contact</a></li>
-                        <li><a href="#">Partnerships</a></li>
+
+                <div id="disclaimers" class="section">
+                    <h2>10. Disclaimers</h2>
+                    <p>THE PLATFORM IS PROVIDED "AS IS" AND "AS AVAILABLE" WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED. TOOLS PROMPT DOES NOT WARRANT THAT:</p>
+                    <ul>
+                        <li>The Platform will function uninterrupted, secure, or available at any particular time.</li>
+                        <li>Prompts listed by sellers are accurate, reliable, or fit for a particular purpose.</li>
+                        <li>The results generated from using Prompts will meet your expectations.</li>
+                    </ul>
+                    <p>Tools Prompt is not responsible for any AI-generated content created using Prompts purchased on the Platform. Users are solely responsible for ensuring their use of Prompts complies with applicable laws.</p>
+                </div>
+
+                <div id="limitation" class="section">
+                    <h2>11. Limitation of Liability</h2>
+                    <p>TO THE MAXIMUM EXTENT PERMITTED BY LAW, TOOLS PROMPT SHALL NOT BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES, INCLUDING WITHOUT LIMITATION, LOSS OF PROFITS, DATA, USE, GOODWILL, OR OTHER INTANGIBLE LOSSES, RESULTING FROM:</p>
+                    <ul>
+                        <li>Your use or inability to use the Platform.</li>
+                        <li>Any conduct or content of any third party on the Platform.</li>
+                        <li>Any content obtained from the Platform.</li>
+                        <li>Unauthorized access, use, or alteration of your transmissions or content.</li>
+                    </ul>
+                    <p>Tools Prompt's total liability shall not exceed the amount paid by you, if any, for accessing the Platform or ₹1,000, whichever is less.</p>
+                </div>
+
+                <div id="governing" class="section">
+                    <h2>12. Governing Law</h2>
+                    <p>These Terms shall be governed by and construed in accordance with the laws of India, without regard to its conflict of law provisions. Any disputes arising under or in connection with these Terms shall be subject to the exclusive jurisdiction of the courts in Hyderabad, Telangana, India.</p>
+                </div>
+
+                <div id="changes" class="section">
+                    <h2>13. Changes to Terms</h2>
+                    <p>Tools Prompt reserves the right to modify these Terms at any time. We will notify users of material changes by posting the new Terms on the Platform and updating the "Last Updated" date. Your continued use of the Platform after any such changes constitutes your acceptance of the new Terms.</p>
+                </div>
+
+                <div id="contact" class="section">
+                    <h2>14. Contact Us</h2>
+                    <p>If you have any questions about these Terms, please contact us:</p>
+                    <ul>
+                        <li><i class="fas fa-envelope"></i> Email: support@toolsprompt.com</li>
+                        <li><i class="fab fa-whatsapp"></i> WhatsApp: +91 98765 43210</li>
+                        <li><i class="fas fa-globe"></i> Website: www.toolsprompt.com</li>
                     </ul>
                 </div>
-                
-                <div class="footer-column">
-                    <h3>Legal</h3>
-                    <ul class="footer-links">
-                        <li><a href="tos.html">Terms of Service</a></li>
-                        <li><a href="privacy.html">Privacy Policy</a></li>
-                        <li><a href="copyright.html">Copyright</a></li>
-                        <li><a href="cookies-ethics.html">Cookies</a></li>
-                        <li><a href="cookies-ethics.html">AI Ethics</a></li>
-                    </ul>
+
+                <div class="highlight-box">
+                    <p><i class="fas fa-hand-peace"></i> By using Tools Prompt, you acknowledge that you have read, understood, and agree to be bound by these Terms and Conditions. Thank you for being part of our community!</p>
                 </div>
+
+                <button class="accept-btn" onclick="acceptTerms()">
+                    <i class="fas fa-check-circle"></i> I Accept the Terms & Conditions
+                </button>
             </div>
-            
-            <div class="copyright">
-                &copy; 2023 ToolsPrompt.com. All rights reserved. AI-generated content is subject to respective platform terms.
+        </div>
+    </main>
+
+    <footer class="site-footer">
+        <div class="footer-container">
+            <div class="footer-section">
+                <h3>Tools Prompt</h3>
+                <p>The leading AI Prompt Marketplace where you can buy and sell viral AI prompts for photo editing, video creation, and more.</p>
             </div>
+            <div class="footer-section">
+                <h3>Quick Links</h3>
+                <ul class="footer-links">
+                    <li><a href="/">Home</a></li>
+                    <li><a href="/dashboard.html">Dashboard</a></li>
+                    <li><a href="/howitworks.html">How It Works</a></li>
+                </ul>
+            </div>
+            <div class="footer-section">
+                <h3>Legal</h3>
+                <ul class="footer-links">
+                    <li><a href="/terms.html">Terms & Conditions</a></li>
+                    <li><a href="/privacy.html">Privacy Policy</a></li>
+                    <li><a href="/cookies.html">Cookie Policy</a></li>
+                </ul>
+            </div>
+            <div class="footer-section">
+                <h3>Contact</h3>
+                <ul class="footer-links">
+                    <li><i class="fas fa-envelope"></i> support@toolsprompt.com</li>
+                    <li><i class="fab fa-whatsapp"></i> +91 98765 43210</li>
+                </ul>
+            </div>
+        </div>
+        <div class="copyright">
+            <p>&copy; 2026 Tools Prompt Marketplace. All rights reserved. | Buy & Sell AI Prompts</p>
         </div>
     </footer>
 
-    <script src="script.js"></script>
+    <script>
+        function acceptTerms() {
+            // Store acceptance in localStorage
+            localStorage.setItem('termsAccepted', 'true');
+            localStorage.setItem('termsAcceptedDate', new Date().toISOString());
+            
+            // Show success message
+            const btn = document.querySelector('.accept-btn');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '<i class="fas fa-check-circle"></i> Accepted! Redirecting...';
+            btn.style.background = '#20bf6b';
+            
+            setTimeout(() => {
+                // Redirect to homepage or dashboard
+                if (localStorage.getItem('user')) {
+                    window.location.href = '/dashboard.html';
+                } else {
+                    window.location.href = '/';
+                }
+            }, 1500);
+        }
+        
+        // Check if terms were already accepted
+        document.addEventListener('DOMContentLoaded', function() {
+            if (localStorage.getItem('termsAccepted') === 'true') {
+                const btn = document.querySelector('.accept-btn');
+                if (btn) {
+                    btn.innerHTML = '<i class="fas fa-check-circle"></i> You have already accepted the Terms';
+                    btn.disabled = true;
+                    btn.style.background = '#20bf6b';
+                    btn.style.opacity = '0.7';
+                }
+            }
+        });
+    </script>
 </body>
 </html>

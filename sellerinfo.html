@@ -1,0 +1,344 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Seller Information - tools prompt</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body { background: #f5f7fc; padding: 40px 20px; }
+        .container { max-width: 800px; margin: 0 auto; background: white; border-radius: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); overflow: hidden; }
+        .header { background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); color: white; padding: 24px; text-align: center; }
+        .header h1 { font-size: 1.5rem; margin-bottom: 8px; }
+        .header p { opacity: 0.8; font-size: 0.9rem; }
+        .form-container { padding: 32px; }
+        .form-group { margin-bottom: 24px; }
+        label { display: block; margin-bottom: 8px; font-weight: 500; color: #1e293b; }
+        input, textarea { width: 100%; padding: 12px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 1rem; transition: all 0.2s; }
+        input:focus, textarea:focus { outline: none; border-color: #4f46e5; box-shadow: 0 0 0 3px rgba(79,70,229,0.1); }
+        .row { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .submit-btn { background: #4f46e5; color: white; border: none; padding: 14px; border-radius: 40px; font-size: 1rem; font-weight: 600; cursor: pointer; width: 100%; transition: all 0.2s; }
+        .submit-btn:hover { background: #6366f1; transform: translateY(-2px); }
+        .submit-btn:disabled { background: #94a3b8; cursor: not-allowed; transform: none; }
+        .info-text { font-size: 0.85rem; color: #64748b; margin-top: 8px; }
+        .loading-spinner { display: inline-block; width: 20px; height: 20px; border: 2px solid white; border-top: 2px solid transparent; border-radius: 50%; animation: spin 0.8s linear infinite; margin-right: 8px; vertical-align: middle; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .error-message { background: #fee2e2; color: #dc2626; padding: 12px; border-radius: 8px; margin-bottom: 20px; display: none; }
+        .success-message { background: #d1fae5; color: #065f46; padding: 12px; border-radius: 8px; margin-bottom: 20px; display: none; }
+        @media (max-width: 640px) { .row { grid-template-columns: 1fr; gap: 0; } .container { margin: 0; } body { padding: 20px; } }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1><i class="fas fa-user-circle"></i> Seller Information</h1>
+            <p>Provide your payout details to receive earnings</p>
+        </div>
+        <div class="form-container">
+            <div class="error-message" id="errorMessage">
+                <i class="fas fa-exclamation-circle"></i> <span id="errorText"></span>
+            </div>
+            <div class="success-message" id="successMessage">
+                <i class="fas fa-check-circle"></i> <span id="successText"></span>
+            </div>
+            <form id="sellerForm">
+                <div class="form-group">
+                    <label>Full Name *</label>
+                    <input type="text" id="fullName" required placeholder="Enter your legal name">
+                </div>
+                <div class="form-group">
+                    <label>Email *</label>
+                    <input type="email" id="email" required placeholder="your@email.com">
+                </div>
+                <div class="form-group">
+                    <label>UPI ID (recommended)</label>
+                    <input type="text" id="upiId" placeholder="yourname@okhdfcbank">
+                    <div class="info-text">Fastest way to receive payouts</div>
+                </div>
+                <div class="row">
+                    <div class="form-group">
+                        <label>Bank Account Number</label>
+                        <input type="text" id="bankAccount" placeholder="Account number">
+                    </div>
+                    <div class="form-group">
+                        <label>IFSC Code</label>
+                        <input type="text" id="bankIfsc" placeholder="IFSC code">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Bank Name</label>
+                    <input type="text" id="bankName" placeholder="Bank name">
+                </div>
+                <div class="form-group">
+                    <label>PAN Card Number (optional)</label>
+                    <input type="text" id="pan" placeholder="ABCDE1234F">
+                    <div class="info-text">Required for tax purposes</div>
+                </div>
+                <button type="submit" class="submit-btn" id="submitBtn">
+                    <i class="fas fa-save"></i> Submit Information
+                </button>
+            </form>
+        </div>
+    </div>
+    <script>
+        // Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyCgc0xRtijpyPhOovfwg-MzyahsUFh-hiQ",
+            authDomain: "toolsprompt-5b07e.firebaseapp.com",
+            projectId: "toolsprompt-5b07e",
+            storageBucket: "toolsprompt-5b07e.firebasestorage.app",
+            messagingSenderId: "402263780942",
+            appId: "1:402263780942:web:1013a347dbb72db6b31d1f",
+            measurementId: "G-K4KXR4FZCP"
+        };
+
+        let firebaseInitialized = false;
+        let currentUser = null;
+
+        // Initialize Firebase
+        async function initializeFirebase() {
+            if (typeof firebase === 'undefined') {
+                console.error('Firebase SDK not loaded');
+                showError('Firebase SDK not loaded. Please refresh the page.');
+                return false;
+            }
+            
+            if (!firebaseInitialized && firebase.apps.length === 0) {
+                try {
+                    firebase.initializeApp(firebaseConfig);
+                    firebaseInitialized = true;
+                    console.log('Firebase initialized successfully');
+                } catch (error) {
+                    console.error('Firebase initialization error:', error);
+                    showError('Failed to initialize authentication. Please refresh the page.');
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        // Get current user from Firebase
+        async function getCurrentUser() {
+            await initializeFirebase();
+            
+            return new Promise((resolve) => {
+                const unsubscribe = firebase.auth().onAuthStateChanged(user => {
+                    unsubscribe();
+                    resolve(user);
+                });
+            });
+        }
+
+        // Show error message
+        function showError(message) {
+            const errorDiv = document.getElementById('errorMessage');
+            const errorText = document.getElementById('errorText');
+            errorText.textContent = message;
+            errorDiv.style.display = 'block';
+            
+            // Hide success message if showing
+            document.getElementById('successMessage').style.display = 'none';
+            
+            // Auto-hide after 5 seconds
+            setTimeout(() => {
+                errorDiv.style.display = 'none';
+            }, 5000);
+        }
+
+        // Show success message
+        function showSuccess(message) {
+            const successDiv = document.getElementById('successMessage');
+            const successText = document.getElementById('successText');
+            successText.textContent = message;
+            successDiv.style.display = 'block';
+            
+            // Hide error message if showing
+            document.getElementById('errorMessage').style.display = 'none';
+            
+            // Auto-hide after 3 seconds
+            setTimeout(() => {
+                successDiv.style.display = 'none';
+            }, 3000);
+        }
+
+        // Validate form
+        function validateForm() {
+            const fullName = document.getElementById('fullName').value.trim();
+            const email = document.getElementById('email').value.trim();
+            
+            if (!fullName) {
+                showError('Please enter your full name');
+                return false;
+            }
+            
+            if (!email) {
+                showError('Please enter your email address');
+                return false;
+            }
+            
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!emailRegex.test(email)) {
+                showError('Please enter a valid email address');
+                return false;
+            }
+            
+            const upiId = document.getElementById('upiId').value.trim();
+            const bankAccount = document.getElementById('bankAccount').value.trim();
+            
+            if (!upiId && !bankAccount) {
+                showError('Please provide either UPI ID or bank account details');
+                return false;
+            }
+            
+            return true;
+        }
+
+        // Save seller information
+        async function saveSellerInfo(user) {
+            const fullName = document.getElementById('fullName').value.trim();
+            const email = document.getElementById('email').value.trim();
+            const upiId = document.getElementById('upiId').value.trim();
+            const bankAccount = document.getElementById('bankAccount').value.trim();
+            const bankIfsc = document.getElementById('bankIfsc').value.trim();
+            const bankName = document.getElementById('bankName').value.trim();
+            const pan = document.getElementById('pan').value.trim().toUpperCase();
+            
+            const data = {
+                userId: user.uid,
+                name: fullName,
+                email: email,
+                upiId: upiId || null,
+                bankAccount: bankAccount || null,
+                bankIfsc: bankIfsc || null,
+                bankName: bankName || null,
+                pan: pan || null
+            };
+            
+            try {
+                const response = await fetch('/api/seller-info', {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${await user.getIdToken()}`
+                    },
+                    body: JSON.stringify(data)
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showSuccess('Seller information saved successfully!');
+                    setTimeout(() => {
+                        window.location.href = '/dashboard.html';
+                    }, 2000);
+                } else {
+                    throw new Error(result.error || 'Failed to save seller information');
+                }
+            } catch (error) {
+                console.error('Save error:', error);
+                showError(error.message || 'Failed to save seller information. Please try again.');
+            }
+        }
+
+        // Handle form submission
+        async function handleSubmit(e) {
+            e.preventDefault();
+            
+            const submitBtn = document.getElementById('submitBtn');
+            const originalText = submitBtn.innerHTML;
+            
+            if (!validateForm()) {
+                return;
+            }
+            
+            try {
+                // Disable button and show loading state
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = '<span class="loading-spinner"></span> Saving...';
+                
+                // Get current user from Firebase
+                const user = await getCurrentUser();
+                
+                if (!user) {
+                    showError('Please login to save seller information');
+                    setTimeout(() => {
+                        window.location.href = '/login.html?returnUrl=' + encodeURIComponent(window.location.pathname);
+                    }, 1500);
+                    return;
+                }
+                
+                currentUser = user;
+                await saveSellerInfo(user);
+                
+            } catch (error) {
+                console.error('Submit error:', error);
+                showError(error.message || 'An error occurred. Please try again.');
+            } finally {
+                // Restore button state (but page might redirect)
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = originalText;
+            }
+        }
+
+        // Check if user is logged in on page load
+        async function checkAuth() {
+            try {
+                const user = await getCurrentUser();
+                
+                if (!user) {
+                    showError('Please login to save seller information');
+                    setTimeout(() => {
+                        window.location.href = '/login.html?returnUrl=' + encodeURIComponent(window.location.pathname);
+                    }, 2000);
+                    return false;
+                }
+                
+                currentUser = user;
+                
+                // Pre-fill email if available
+                if (user.email) {
+                    const emailField = document.getElementById('email');
+                    if (emailField && !emailField.value) {
+                        emailField.value = user.email;
+                    }
+                }
+                
+                // Pre-fill name if available
+                if (user.displayName) {
+                    const nameField = document.getElementById('fullName');
+                    if (nameField && !nameField.value) {
+                        nameField.value = user.displayName;
+                    }
+                }
+                
+                return true;
+            } catch (error) {
+                console.error('Auth check error:', error);
+                showError('Authentication failed. Please login again.');
+                setTimeout(() => {
+                    window.location.href = '/login.html?returnUrl=' + encodeURIComponent(window.location.pathname);
+                }, 2000);
+                return false;
+            }
+        }
+
+        // Initialize page
+        async function init() {
+            await initializeFirebase();
+            const isLoggedIn = await checkAuth();
+            
+            if (isLoggedIn) {
+                const form = document.getElementById('sellerForm');
+                form.addEventListener('submit', handleSubmit);
+            }
+        }
+        
+        // Start initialization
+        init();
+    </script>
+</body>
+</html>

@@ -22,6 +22,19 @@ body {
     overflow-x: hidden;
 }
 
+.card-element {
+    padding: 12px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    background: white;
+    margin-bottom: 15px;
+}
+
+.card-element.StripeElement--focus {
+    border-color: #4e54c8;
+    box-shadow: 0 0 0 3px rgba(78, 84, 200, 0.1);
+}
+
 /* YouTube Shorts Player with Vertical Scrolling */
 .shorts-player-container {
     position: fixed;

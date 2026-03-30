@@ -1,229 +1,629 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- Google tag (gtag.js) -->
-<script async src="https://www.googletagmanager.com/gtag/js?id=G-LS811PSS3V"></script>
-<script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag(){dataLayer.push(arguments);}
-  gtag('js', new Date());
-  gtag('config', 'G-LS811PSS3V');
-</script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Privacy Policy | ToolsPrompt</title>
+    <title>Privacy Policy - Tools Prompt Marketplace</title>
+    <meta name="description" content="Privacy Policy for Tools Prompt - AI Prompt Marketplace. Learn how we collect, use, and protect your personal information.">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="styles.css">
-    <link rel="icon" type="image/png" href="/favicon.png">
-<!-- Add to <head> section -->
-<script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>   
- <style>
-        .privacy-content {
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background: #f5f7fc;
+            color: #1e293b;
+            line-height: 1.6;
+        }
+
+        /* Header Styles */
+        .site-header {
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            color: white;
+            padding: 1rem 0;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+
+        .header-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 16px;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            text-decoration: none;
+        }
+
+        .logo img {
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
             background: white;
-            border-radius: 15px;
-            padding: 40px;
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
-            line-height: 1.8;
+            padding: 5px;
         }
-        
-        .privacy-content h2 {
-            color: #4e54c8;
-            margin-top: 30px;
-            margin-bottom: 15px;
+
+        .logo span {
+            font-size: 1.5rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #c084fc, #60a5fa);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
         }
-        
-        .privacy-content h3 {
-            color: #4e54c8;
-            margin-top: 25px;
-            margin-bottom: 10px;
+
+        .nav-links {
+            display: flex;
+            gap: 24px;
+            list-style: none;
         }
-        
-        .privacy-content ul {
-            padding-left: 20px;
-            margin: 15px 0;
+
+        .nav-links a {
+            color: #e2e8f0;
+            text-decoration: none;
+            transition: color 0.3s ease;
         }
-        
-        .privacy-content li {
-            margin-bottom: 10px;
+
+        .nav-links a:hover {
+            color: #c084fc;
         }
-        
-        .update-date {
-            font-style: italic;
-            color: #777;
-            margin-bottom: 30px;
+
+        /* Main Content */
+        .main-container {
+            max-width: 1000px;
+            margin: 40px auto;
+            padding: 0 24px;
+        }
+
+        .privacy-card {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+            overflow: hidden;
+        }
+
+        .privacy-header {
+            background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+            color: white;
+            padding: 40px 32px;
+            text-align: center;
+        }
+
+        .privacy-header h1 {
+            font-size: 2rem;
+            margin-bottom: 12px;
+        }
+
+        .privacy-header p {
+            opacity: 0.9;
+            font-size: 1rem;
+        }
+
+        .last-updated {
+            background: #f1f5f9;
+            padding: 12px 24px;
+            text-align: center;
+            font-size: 0.85rem;
+            color: #64748b;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .privacy-content {
+            padding: 40px 32px;
+        }
+
+        .section {
+            margin-bottom: 32px;
+        }
+
+        .section h2 {
+            color: #1e293b;
+            font-size: 1.5rem;
+            margin-bottom: 16px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid #e2e8f0;
+        }
+
+        .section h3 {
+            color: #334155;
+            font-size: 1.2rem;
+            margin: 20px 0 12px 0;
+        }
+
+        .section p {
+            color: #475569;
+            margin-bottom: 12px;
+        }
+
+        .section ul, .section ol {
+            margin: 12px 0 12px 24px;
+            color: #475569;
+        }
+
+        .section li {
+            margin-bottom: 8px;
+        }
+
+        .highlight-box {
+            background: #f8fafc;
+            border-left: 4px solid #4f46e5;
+            padding: 20px;
+            border-radius: 12px;
+            margin: 20px 0;
+        }
+
+        .highlight-box p {
+            margin-bottom: 0;
+        }
+
+        .table-of-contents {
+            background: #f8fafc;
+            padding: 24px;
+            border-radius: 12px;
+            margin-bottom: 32px;
+        }
+
+        .table-of-contents h3 {
+            margin-top: 0;
+            margin-bottom: 16px;
+            color: #1e293b;
+        }
+
+        .table-of-contents ul {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 12px;
+            list-style: none;
+            margin: 0;
+            padding: 0;
+        }
+
+        .table-of-contents li a {
+            color: #4f46e5;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .table-of-contents li a:hover {
+            text-decoration: underline;
+        }
+
+        .cookie-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+
+        .cookie-table th, .cookie-table td {
+            border: 1px solid #e2e8f0;
+            padding: 12px;
+            text-align: left;
+        }
+
+        .cookie-table th {
+            background: #f1f5f9;
+            font-weight: 600;
+        }
+
+        /* Footer */
+        .site-footer {
+            background: #0f172a;
+            color: #94a3b8;
+            padding: 40px 0 20px;
+            margin-top: 60px;
+        }
+
+        .footer-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 24px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 40px;
+        }
+
+        .footer-section h3 {
+            color: white;
+            margin-bottom: 16px;
+            font-size: 1.1rem;
+        }
+
+        .footer-links {
+            list-style: none;
+        }
+
+        .footer-links li {
+            margin-bottom: 8px;
+        }
+
+        .footer-links a {
+            color: #94a3b8;
+            text-decoration: none;
+            transition: color 0.3s ease;
+        }
+
+        .footer-links a:hover {
+            color: #c084fc;
+        }
+
+        .copyright {
+            text-align: center;
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #1e293b;
+            font-size: 0.85rem;
+        }
+
+        @media (max-width: 768px) {
+            .header-container {
+                flex-direction: column;
+            }
+            
+            .privacy-header {
+                padding: 30px 20px;
+            }
+            
+            .privacy-header h1 {
+                font-size: 1.5rem;
+            }
+            
+            .privacy-content {
+                padding: 24px 20px;
+            }
+            
+            .section h2 {
+                font-size: 1.3rem;
+            }
+            
+            .table-of-contents ul {
+                grid-template-columns: 1fr;
+            }
+            
+            .cookie-table {
+                display: block;
+                overflow-x: auto;
+            }
         }
     </style>
 </head>
 <body>
-    <!-- Header -->
-    <header>
-        <div class="container">
+    <header class="site-header">
+        <div class="header-container">
+            <a href="/" class="logo">
+                <img src="logo.png" alt="Tools Prompt Logo" onerror="this.src='https://via.placeholder.com/40x40/4f46e5/white?text=TP'">
+                <span>Tools Prompt</span>
+            </a>
             <nav>
-                <div class="logo">
-                   <img src="logo.png" alt="Logo" style="width:100px;height:60px;">
-                    <span>ToolsPrompt</span>
-                </div>
-                <div class="nav-links">
-                    <a href="index.html">Home</a>
-                    <a href="promptconverter.html">Prompt Converter</a>
-                    <a href="features.html">Features</a>
-                    <a href="showcase.html">Showcase</a>
-                    <a href="howitworks.html">How It Works</a>
-                </div>
-                <button class="cta-button">Get Started</button>
-                <div class="mobile-toggle">
-                    <i class="fas fa-bars"></i>
-                </div>
+                <ul class="nav-links">
+                    <li><a href="/">Home</a></li>
+                    <li><a href="/dashboard.html">Dashboard</a></li>
+                    <li><a href="/terms.html">Terms & Conditions</a></li>
+                    <li><a href="/privacy.html">Privacy Policy</a></li>
+                </ul>
             </nav>
         </div>
     </header>
 
-    <!-- Privacy Policy Section -->
-    <section class="privacy-policy">
-        <div class="container">
-            <div class="section-title">
-                <h2>Privacy Policy</h2>
-                <p class="update-date">Last updated: [14.07.2025]</p>
+    <main class="main-container">
+        <div class="privacy-card">
+            <div class="privacy-header">
+                <h1><i class="fas fa-shield-alt"></i> Privacy Policy</h1>
+                <p>Your privacy matters. Learn how we protect your information</p>
             </div>
-            
-            <div class="privacy-content">
-                <p>Your privacy is important to us. This Privacy Policy explains how ToolsPrompt collects, uses, and protects your personal information when you use our services.</p>
-                
-                <h2>Information We Collect</h2>
-                <p>We collect information when you:</p>
-                <ul>
-                    <li>Register for an account</li>
-                    <li>Use our prompt tools and services</li>
-                    <li>Contact our support team</li>
-                    <li>Participate in surveys or promotions</li>
-                </ul>
-                
-                <h3>Personal Information</h3>
-                <p>When you register, we collect your name and email address. If you sign in with Google, we collect your Google account information.</p>
-                
-                <h3>Usage Data</h3>
-                <p>We automatically collect information about how you interact with our services, including:</p>
-                <ul>
-                    <li>IP address</li>
-                    <li>Browser type and version</li>
-                    <li>Pages visited and time spent</li>
-                    <li>Prompt usage data</li>
-                </ul>
-                
-                <h3>Cookies</h3>
-                <p>We use cookies to:</p>
-                <ul>
-                    <li>Authenticate your session</li>
-                    <li>Remember your preferences</li>
-                    <li>Analyze service usage</li>
-                    <li>Improve our services</li>
-                </ul>
-                
-                <h2>How We Use Your Information</h2>
-                <p>We use the information we collect to:</p>
-                <ul>
-                    <li>Provide and improve our services</li>
-                    <li>Personalize your experience</li>
-                    <li>Process transactions</li>
-                    <li>Communicate with you</li>
-                    <li>Enhance security and prevent fraud</li>
-                </ul>
-                
-                <h2>Data Sharing and Disclosure</h2>
-                <p>We do not sell your personal information. We may share information with:</p>
-                <ul>
-                    <li>Service providers who assist in our operations</li>
-                    <li>Legal authorities when required by law</li>
-                    <li>Affiliates during business transfers</li>
-                </ul>
-                
-                <h2>Data Security</h2>
-                <p>We implement security measures including:</p>
-                <ul>
-                    <li>Encryption of sensitive data</li>
-                    <li>Secure server infrastructure</li>
-                    <li>Regular security audits</li>
-                </ul>
-                
-                <h2>Your Privacy Rights</h2>
-                <p>You have the right to:</p>
-                <ul>
-                    <li>Access your personal information</li>
-                    <li>Correct inaccurate information</li>
-                    <li>Delete your account and data</li>
-                    <li>Opt-out of marketing communications</li>
-                </ul>
-                
-                <h2>Changes to This Policy</h2>
-                <p>We may update this policy periodically. We'll notify you of significant changes through email or service notifications.</p>
-                
-                <h2>Contact Us</h2>
-                <p>If you have questions about this policy, contact us at:</p>
-                <p><strong>Email:</strong> privacy@toolsprompt.com</p>
-                <p><strong>Mailing Address:</strong><br>
-                ToolsPrompt Privacy Office<br>
-                123 Privacy Lane<br>
-                Tech City, TC 12345</p>
+            <div class="last-updated">
+                <i class="fas fa-calendar-alt"></i> Last Updated: March 27, 2026
             </div>
-        </div>
-    </section>
 
-    <!-- Footer -->
-    <footer>
-        <div class="container">
-            <div class="footer-grid">
-                <div class="footer-column">
-                    <h3>ToolsPrompt</h3>
-                    <p>Master the art of AI communication with our advanced prompt engineering platform.</p>
-                    <div class="social-links">
-                        <a href="#"><i class="fab fa-twitter"></i></a>
-                        <a href="#"><i class="fab fa-instagram"></i></a>
-                        <a href="#"><i class="fab fa-discord"></i></a>
-                        <a href="#"><i class="fab fa-linkedin"></i></a>
+            <div class="privacy-content">
+                <div class="table-of-contents">
+                    <h3><i class="fas fa-list"></i> Table of Contents</h3>
+                    <ul>
+                        <li><a href="#introduction">1. Introduction</a></li>
+                        <li><a href="#information">2. Information We Collect</a></li>
+                        <li><a href="#usage">3. How We Use Your Information</a></li>
+                        <li><a href="#sharing">4. Information Sharing</a></li>
+                        <li><a href="#cookies">5. Cookies & Tracking</a></li>
+                        <li><a href="#security">6. Data Security</a></li>
+                        <li><a href="#retention">7. Data Retention</a></li>
+                        <li><a href="#rights">8. Your Rights</a></li>
+                        <li><a href="#children">9. Children's Privacy</a></li>
+                        <li><a href="#third-party">10. Third-Party Services</a></li>
+                        <li><a href="#international">11. International Data Transfers</a></li>
+                        <li><a href="#changes">12. Changes to This Policy</a></li>
+                        <li><a href="#contact">13. Contact Us</a></li>
+                    </ul>
+                </div>
+
+                <div id="introduction" class="section">
+                    <h2>1. Introduction</h2>
+                    <p>Welcome to Tools Prompt ("we," "our," "us"). We are committed to protecting your personal information and your right to privacy. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you visit our website www.toolsprompt.com, use our mobile applications, or interact with our services (collectively, the "Platform").</p>
+                    <p>Please read this privacy policy carefully. If you do not agree with the terms of this privacy policy, please do not access the Platform.</p>
+                </div>
+
+                <div id="information" class="section">
+                    <h2>2. Information We Collect</h2>
+                    <p>We collect personal information that you voluntarily provide to us when you register on the Platform, express an interest in obtaining information about us or our products and services, participate in activities on the Platform, or otherwise contact us.</p>
+                    
+                    <h3>2.1 Information You Provide</h3>
+                    <ul>
+                        <li><strong>Account Information:</strong> Name, email address, password, profile picture.</li>
+                        <li><strong>Seller Information:</strong> UPI ID, bank account details, PAN card number, and payment preferences.</li>
+                        <li><strong>Transaction Information:</strong> Purchase history, sales records, payment details.</li>
+                        <li><strong>Communication Data:</strong> Messages, comments, feedback, and support requests.</li>
+                        <li><strong>Uploaded Content:</strong> Prompts, images, videos, thumbnails, and descriptions.</li>
+                    </ul>
+                    
+                    <h3>2.2 Information Automatically Collected</h3>
+                    <ul>
+                        <li><strong>Device Information:</strong> IP address, browser type, operating system, device identifiers.</li>
+                        <li><strong>Usage Data:</strong> Pages visited, time spent, clicks, scroll behavior, and interaction patterns.</li>
+                        <li><strong>Location Data:</strong> Approximate geographic location based on IP address.</li>
+                        <li><strong>Cookies and Similar Technologies:</strong> Session information, preferences, and analytics data.</li>
+                    </ul>
+                    
+                    <h3>2.3 Information from Third Parties</h3>
+                    <ul>
+                        <li><strong>Firebase Authentication:</strong> Google sign-in information.</li>
+                        <li><strong>Razorpay:</strong> Payment processing information (we do not store full payment details).</li>
+                        <li><strong>Google Analytics:</strong> Website usage and demographic data.</li>
+                    </ul>
+                </div>
+
+                <div id="usage" class="section">
+                    <h2>3. How We Use Your Information</h2>
+                    <p>We use the information we collect for various purposes, including:</p>
+                    <ul>
+                        <li><strong>Platform Operations:</strong> To create and manage your account, process transactions, and provide customer support.</li>
+                        <li><strong>Marketplace Functionality:</strong> To facilitate buying and selling of prompts, process payments, and calculate earnings.</li>
+                        <li><strong>Communication:</strong> To send you updates, notifications, and respond to your inquiries.</li>
+                        <li><strong>Improvement:</strong> To analyze usage patterns, optimize user experience, and enhance platform features.</li>
+                        <li><strong>Security:</strong> To detect fraud, prevent abuse, and protect the integrity of our Platform.</li>
+                        <li><strong>Legal Compliance:</strong> To comply with applicable laws, regulations, and legal processes.</li>
+                        <li><strong>Marketing:</strong> To send promotional content (with your consent where required).</li>
+                    </ul>
+                    <div class="highlight-box">
+                        <p><i class="fas fa-gavel"></i> <strong>Legal Basis for Processing:</strong> We process your personal information based on contract performance (for account creation and transactions), legitimate interests (for platform improvement and security), and consent (for marketing communications).</p>
                     </div>
                 </div>
-                
-                <div class="footer-column">
-                    <h3>Resources</h3>
-                    <ul class="footer-links">
-                        <li><a href="#">Prompt Library</a></li>
-                        <li><a href="#">Tutorials</a></li>
-                        <li><a href="blog.html">Blog</a></li>
-                        <li><a href="#">API Documentation</a></li>
-                        <li><a href="#">Community Forum</a></li>
+
+                <div id="sharing" class="section">
+                    <h2>4. Information Sharing</h2>
+                    <p>We do not sell your personal information. We may share information in the following circumstances:</p>
+                    <ul>
+                        <li><strong>Service Providers:</strong> With trusted third parties who assist in operating our Platform (e.g., Firebase for authentication, Razorpay for payments, Google Analytics for analytics).</li>
+                        <li><strong>Legal Requirements:</strong> When required by law, court order, or government regulation.</li>
+                        <li><strong>Business Transfers:</strong> In connection with a merger, acquisition, or sale of assets.</li>
+                        <li><strong>With Your Consent:</strong> When you explicitly authorize sharing.</li>
+                        <li><strong>Public Information:</strong> Your username, profile picture, and public listings are visible to other users.</li>
+                    </ul>
+                    <p><strong>Seller Information:</strong> Buyer names and purchase amounts are shared with sellers for transaction purposes. UPI and banking information is used only for payouts and is not shared with buyers.</p>
+                </div>
+
+                <div id="cookies" class="section">
+                    <h2>5. Cookies & Tracking</h2>
+                    <p>We use cookies and similar tracking technologies to enhance your experience on our Platform. Cookies are small data files stored on your device.</p>
+                    
+                    <table class="cookie-table">
+                        <thead>
+                            <tr>
+                                <th>Cookie Type</th>
+                                <th>Purpose</th>
+                                <th>Duration</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Essential Cookies</td>
+                                <td>Required for platform functionality, authentication, and security</td>
+                                <td>Session / Persistent</td>
+                            </tr>
+                            <tr>
+                                <td>Preference Cookies</td>
+                                <td>Remember your settings, language preferences, and layout</td>
+                                <td>1 year</td>
+                            </tr>
+                            <tr>
+                                <td>Analytics Cookies</td>
+                                <td>Google Analytics for usage tracking and performance analysis</td>
+                                <td>2 years</td>
+                            </tr>
+                            <tr>
+                                <td>Marketing Cookies</td>
+                                <td>Track ad performance and deliver relevant content</td>
+                                <td>90 days</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    
+                    <p>You can manage your cookie preferences through your browser settings. However, disabling essential cookies may affect platform functionality.</p>
+                </div>
+
+                <div id="security" class="section">
+                    <h2>6. Data Security</h2>
+                    <p>We implement appropriate technical and organizational security measures to protect your personal information, including:</p>
+                    <ul>
+                        <li>SSL/TLS encryption for all data transmission</li>
+                        <li>Firebase Authentication with secure token-based authentication</li>
+                        <li>Firestore security rules restricting unauthorized access</li>
+                        <li>Regular security audits and vulnerability assessments</li>
+                        <li>Access controls limiting employee data access</li>
+                    </ul>
+                    <p>While we strive to protect your information, no method of transmission over the Internet is 100% secure. You are responsible for maintaining the confidentiality of your account credentials.</p>
+                </div>
+
+                <div id="retention" class="section">
+                    <h2>7. Data Retention</h2>
+                    <p>We retain your personal information for as long as your account is active or as needed to provide services. After account termination, we may retain certain information for:</p>
+                    <ul>
+                        <li>Legal compliance (e.g., tax records for 7 years)</li>
+                        <li>Fraud prevention and security</li>
+                        <li>Resolution of disputes</li>
+                        <li>Enforcement of our Terms</li>
+                    </ul>
+                    <p>You may request deletion of your account and associated data by contacting support@toolsprompt.com. Some information may be retained in anonymized form for analytics purposes.</p>
+                </div>
+
+                <div id="rights" class="section">
+                    <h2>8. Your Rights</h2>
+                    <p>Depending on your location, you may have certain rights regarding your personal information:</p>
+                    <ul>
+                        <li><strong>Access:</strong> Request a copy of your personal information.</li>
+                        <li><strong>Correction:</strong> Update or correct inaccurate information.</li>
+                        <li><strong>Deletion:</strong> Request deletion of your personal information.</li>
+                        <li><strong>Portability:</strong> Receive your data in a structured, machine-readable format.</li>
+                        <li><strong>Objection:</strong> Object to processing based on legitimate interests.</li>
+                        <li><strong>Withdraw Consent:</strong> Withdraw previously given consent for marketing.</li>
+                    </ul>
+                    <p>To exercise these rights, contact us at support@toolsprompt.com. We will respond within 30 days. Identity verification may be required.</p>
+                    <div class="highlight-box">
+                        <p><i class="fas fa-map-marker-alt"></i> <strong>For Indian Users:</strong> Under the Information Technology Act, 2000, you have the right to review your information and request corrections. Our grievance officer can be contacted at grievance@toolsprompt.com.</p>
+                    </div>
+                </div>
+
+                <div id="children" class="section">
+                    <h2>9. Children's Privacy</h2>
+                    <p>Our Platform is not intended for children under 18 years of age. We do not knowingly collect personal information from children under 18. If we learn we have collected information from a child under 18, we will delete that information promptly. If you believe we have collected information from a child, please contact us.</p>
+                </div>
+
+                <div id="third-party" class="section">
+                    <h2>10. Third-Party Services</h2>
+                    <p>Our Platform integrates with third-party services that have their own privacy policies:</p>
+                    <ul>
+                        <li><strong>Firebase:</strong> <a href="https://firebase.google.com/support/privacy" target="_blank">Firebase Privacy Policy</a></li>
+                        <li><strong>Razorpay:</strong> <a href="https://razorpay.com/privacy/" target="_blank">Razorpay Privacy Policy</a></li>
+                        <li><strong>Google Analytics:</strong> <a href="https://policies.google.com/privacy" target="_blank">Google Privacy Policy</a></li>
+                        <li><strong>Font Awesome:</strong> <a href="https://fontawesome.com/privacy" target="_blank">Font Awesome Privacy Policy</a></li>
+                    </ul>
+                    <p>We are not responsible for the privacy practices of third-party services.</p>
+                </div>
+
+                <div id="international" class="section">
+                    <h2>11. International Data Transfers</h2>
+                    <p>Tools Prompt is based in India. Your information may be transferred to, stored, and processed in countries other than your own. We ensure appropriate safeguards are in place for international data transfers in compliance with applicable data protection laws.</p>
+                </div>
+
+                <div id="changes" class="section">
+                    <h2>12. Changes to This Policy</h2>
+                    <p>We may update this Privacy Policy from time to time. We will notify you of material changes by:</p>
+                    <ul>
+                        <li>Posting the new policy on this page with an updated "Last Updated" date</li>
+                        <li>Sending an email notification (if you have an account)</li>
+                        <li>Displaying a prominent notice on the Platform</li>
+                    </ul>
+                    <p>Your continued use of the Platform after changes constitutes acceptance of the updated policy.</p>
+                </div>
+
+                <div id="contact" class="section">
+                    <h2>13. Contact Us</h2>
+                    <p>If you have questions, concerns, or complaints about this Privacy Policy or our data practices, please contact us:</p>
+                    <ul>
+                        <li><i class="fas fa-envelope"></i> Email: support@toolsprompt.com</li>
+                        <li><i class="fas fa-user-shield"></i> Toolsprompt (grievance@toolsprompt.com)</li>
+                        <li><i class="fas fa-map-marker-alt"></i> Address: Nh161,Akola By pass Near Davhi Village Malegaon India </li>
                     </ul>
                 </div>
-                
-                <div class="footer-column">
-                    <h3>Company</h3>
-                    <ul class="footer-links">
-                        <li><a href="#">About Us</a></li>
-                        <li><a href="#">Careers</a></li>
-                        <li><a href="#">Press</a></li>
-                        <li><a href="#">Contact</a></li>
-                        <li><a href="#">Partnerships</a></li>
-                    </ul>
-                </div>
-                
-                <div class="footer-column">
-                    <h3>Legal</h3>
-                    <ul class="footer-links">
-                        <li><a href="tos.html">Terms of Service</a></li>
-                        <li><a href="privacy.html">Privacy Policy</a></li>
-                        <li><a href="copyright.html">Copyright</a></li>
-                        <li><a href="cookies-ethics.html">Cookies</a></li>
-                        <li><a href="cookies-ethics.html">AI Ethics</a></li>
-                    </ul>
+
+                <div class="highlight-box">
+                    <p><i class="fas fa-heart" style="color: #ff6b6b;"></i> <strong>Your Trust Matters:</strong> At Tools Prompt, we are committed to transparency and protecting your privacy. Thank you for being part of our community!</p>
                 </div>
             </div>
-            
-            <div class="copyright">
-                &copy; 2023 ToolsPrompt.com. All rights reserved. AI-generated content is subject to respective platform terms.
+        </div>
+    </main>
+
+    <footer class="site-footer">
+        <div class="footer-container">
+            <div class="footer-section">
+                <h3>Tools Prompt</h3>
+                <p>The leading AI Prompt Marketplace where you can buy and sell viral AI prompts for photo editing, video creation, and more.</p>
             </div>
+            <div class="footer-section">
+                <h3>Quick Links</h3>
+                <ul class="footer-links">
+                    <li><a href="/">Home</a></li>
+                    <li><a href="/dashboard.html">Dashboard</a></li>
+                    <li><a href="/howitworks.html">How It Works</a></li>
+                </ul>
+            </div>
+            <div class="footer-section">
+                <h3>Legal</h3>
+                <ul class="footer-links">
+                    <li><a href="/terms.html">Terms & Conditions</a></li>
+                    <li><a href="/privacy.html">Privacy Policy</a></li>
+                    <li><a href="/cookies.html">Cookie Policy</a></li>
+                </ul>
+            </div>
+            <div class="footer-section">
+                <h3>Contact</h3>
+                <ul class="footer-links">
+                    <li><i class="fas fa-envelope"></i> support@toolsprompt.com</li>
+                    <li><i class="fab fa-whatsapp"></i> +91 98765 43210</li>
+                </ul>
+            </div>
+        </div>
+        <div class="copyright">
+            <p>&copy; 2026 Tools Prompt Marketplace. All rights reserved. | Buy & Sell AI Prompts</p>
         </div>
     </footer>
 
-    <script src="script.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Smooth scroll for anchor links
+            document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+                anchor.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const target = document.querySelector(this.getAttribute('href'));
+                    if (target) {
+                        target.scrollIntoView({
+                            behavior: 'smooth',
+                            block: 'start'
+                        });
+                    }
+                });
+            });
+            
+            // Add print functionality
+            const printBtn = document.createElement('button');
+            printBtn.innerHTML = '<i class="fas fa-print"></i> Print Policy';
+            printBtn.style.cssText = `
+                position: fixed;
+                bottom: 20px;
+                right: 20px;
+                background: #4f46e5;
+                color: white;
+                border: none;
+                padding: 12px 20px;
+                border-radius: 40px;
+                cursor: pointer;
+                z-index: 1000;
+                font-size: 0.9rem;
+                font-weight: 600;
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+                transition: all 0.3s ease;
+            `;
+            printBtn.onmouseover = () => { printBtn.style.transform = 'scale(1.05)'; };
+            printBtn.onmouseout = () => { printBtn.style.transform = 'scale(1)'; };
+            printBtn.onclick = () => window.print();
+            document.body.appendChild(printBtn);
+        });
+    </script>
 </body>
 </html>

@@ -9,7 +9,6 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "description": "",
   "dependencies": {
     "@google-cloud/firestore": "^7.11.3",
     "axios": "^1.13.2",
@@ -20,6 +19,17 @@
     "express-session": "^1.18.1",
     "firebase-admin": "^13.4.0",
     "multer": "^2.0.1",
-    "node-cache": "^5.1.2"
-  }
+    "node-cache": "^5.1.2",
+    "razorpay": "^2.9.6",
+    "stripe": "^20.4.1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Indian-Musk/toolsprompt.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Indian-Musk/toolsprompt/issues"
+  },
+  "homepage": "https://github.com/Indian-Musk/toolsprompt#readme",
+  "description": ""
 }

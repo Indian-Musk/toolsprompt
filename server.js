@@ -1,4 +1,4 @@
-﻿﻿﻿﻿const express = require('express');
+﻿const express = require('express');
 const path = require('path');
 const admin = require('firebase-admin');
 const Busboy = require('busboy');
@@ -7,7 +7,52 @@ const fs = require('fs');
 const NodeCache = require('node-cache');
 const { v4: uuidv4 } = require('uuid');
 const mime = require('mime-types');
+const Razorpay = require('razorpay');
 require('dotenv').config();
+
+// Add this helper function at the top of server.js
+function sanitizeFirestoreData(data) {
+    const sanitized = {};
+    for (const [key, value] of Object.entries(data)) {
+        // Skip undefined values
+        if (value === undefined) {
+            continue;
+        }
+        // Handle null values
+        if (value === null) {
+            sanitized[key] = null;
+            continue;
+        }
+        // Handle objects recursively
+        if (typeof value === 'object' && value !== null && !Array.isArray(value) && !(value instanceof Date)) {
+            sanitized[key] = sanitizeFirestoreData(value);
+            continue;
+        }
+        sanitized[key] = value;
+    }
+    return sanitized;
+}
+
+// Initialize Razorpay
+let razorpay = null;
+let razorpayKeyId = null;
+
+try {
+  if (process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET) {
+    razorpay = new Razorpay({
+      key_id: process.env.RAZORPAY_KEY_ID,
+      key_secret: process.env.RAZORPAY_KEY_SECRET
+    });
+    razorpayKeyId = process.env.RAZORPAY_KEY_ID;
+    console.log('✅ Razorpay initialized successfully');
+  } else {
+    console.log('⚠️ Razorpay not configured - running in demo mode');
+    razorpayKeyId = 'rzp_live_SXMEZ6fYLjDmzD';
+  }
+} catch (error) {
+  console.error('❌ Razorpay initialization failed:', error);
+  razorpayKeyId = 'rzp_live_SXMEZ6fYLjDmzD';
+}
 
 // Initialize Firebase Admin
 let adminInitialized = false;
@@ -116,6 +161,9 @@ app.use((req, res, next) => {
 app.use(express.json({ limit: '100mb' }));
 app.use(express.urlencoded({ extended: true, limit: '100mb' }));
 
+// Raw body for Razorpay webhook
+app.use('/api/razorpay-webhook', express.json());
+
 // Serve static files from current directory
 app.use(express.static(__dirname));
 
@@ -141,6 +189,314 @@ function safeDateToString(dateValue) {
     return new Date().toISOString();
   }
 }
+
+// ==================== RAZORPAY ENDPOINTS ====================
+
+// Get Razorpay key
+app.get('/api/razorpay-key', (req, res) => {
+    res.json({ 
+        keyId: razorpayKeyId,
+        isDemo: !razorpay 
+    });
+});
+
+// Alternative - let Razorpay generate receipt automatically
+app.post('/api/create-order', async (req, res) => {
+    try {
+        const { promptId, price, userId, userEmail, customerName, customerPhone } = req.body;
+        
+        console.log('Creating order for:', { promptId, price, userId });
+        
+        // Check if Razorpay is configured
+        if (!razorpay || !process.env.RAZORPAY_KEY_SECRET) {
+            console.log('Razorpay not configured, using demo mode');
+            const demoOrderId = 'order_demo_' + Date.now();
+            
+            return res.json({
+                success: true,
+                orderId: demoOrderId,
+                amount: Math.round(price * 100),
+                currency: 'INR',
+                isDemo: true,
+                keyId: razorpayKeyId || 'rzp_live_SXMEZ6fYLjDmzD'
+            });
+        }
+        
+        const amount = Math.round(price * 100);
+        
+        // Remove receipt completely - let Razorpay generate it
+        const options = {
+            amount: amount,
+            currency: 'INR',
+            // receipt: undefined, // No receipt - Razorpay will generate one
+            notes: {
+                promptId: promptId,
+                userId: userId
+            },
+            payment_capture: 1
+        };
+        
+        console.log('Sending order request to Razorpay (no receipt)...');
+        const order = await razorpay.orders.create(options);
+        
+        console.log('Order created successfully:', order.id);
+        
+        res.json({
+            success: true,
+            orderId: order.id,
+            amount: order.amount,
+            currency: order.currency,
+            isDemo: false,
+            keyId: razorpayKeyId
+        });
+        
+    } catch (error) {
+        console.error('Razorpay order creation error:', error);
+        
+        // Fallback to demo mode
+        console.log('Falling back to demo mode due to error');
+        res.json({
+            success: true,
+            orderId: 'order_demo_' + Date.now(),
+            amount: Math.round(req.body.price * 100),
+            currency: 'INR',
+            isDemo: true,
+            keyId: razorpayKeyId || 'rzp_live_SXMEZ6fYLjDmzD'
+        });
+    }
+});
+
+// Fix for /api/verify-payment endpoint
+app.post('/api/verify-payment', async (req, res) => {
+    try {
+        const { orderId, paymentId, signature, promptId, userId, userEmail, amount } = req.body;
+        
+        // Use razorpay variable (not razorpay)
+        if (!razorpay) {
+            // Demo mode
+            const purchaseResult = await completePurchaseHelper(promptId, userId, userEmail, amount, paymentId);
+            return res.json(purchaseResult);
+        }
+        
+        // Verify signature using the secret from env
+        const crypto = require('crypto');
+        const generatedSignature = crypto
+            .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)  // Use env variable
+            .update(orderId + '|' + paymentId)
+            .digest('hex');
+        
+        if (generatedSignature !== signature) {
+            return res.status(400).json({ error: 'Invalid payment signature' });
+        }
+        
+        // Payment verified
+        const purchaseResult = await completePurchaseHelper(promptId, userId, userEmail, amount, paymentId);
+        res.json(purchaseResult);
+        
+    } catch (error) {
+        console.error('Payment verification error:', error);
+        res.status(500).json({ error: 'Failed to verify payment', details: error.message });
+    }
+});
+
+
+// Helper function to complete purchase
+async function completePurchaseHelper(promptId, userId, userEmail, amount, paymentId) {
+    // Get prompt details
+    let promptData;
+    if (db && db.collection) {
+        const promptDoc = await db.collection('uploads').doc(promptId).get();
+        if (!promptDoc.exists) {
+            throw new Error('Prompt not found');
+        }
+        promptData = promptDoc.data();
+    } else {
+        // Mock data fallback
+        const mockPrompts = [
+            {
+                id: 'demo-1',
+                title: 'Fantasy Landscape with Mountains',
+                promptText: 'Create a fantasy landscape with majestic mountains, floating islands, and a mystical waterfall, digital art, highly detailed, epic composition',
+                userName: 'Demo User',
+                userId: 'anonymous',
+                imageUrl: 'https://via.placeholder.com/800x400/4e54c8/white?text=Fantasy+Landscape',
+                thumbnailUrl: null,
+                price: 0,
+                salesCount: 0,
+                totalEarnings: 0,
+                purchasedBy: []
+            },
+            {
+                id: 'demo-2',
+                title: 'Cyberpunk City Street',
+                promptText: 'Cyberpunk city street at night, neon signs, rainy pavement, futuristic vehicles, Blade Runner style, cinematic lighting',
+                userName: 'Demo User',
+                userId: 'anonymous',
+                imageUrl: 'https://via.placeholder.com/800x400/8f94fb/white?text=Cyberpunk+City',
+                thumbnailUrl: null,
+                price: 50,
+                salesCount: 0,
+                totalEarnings: 0,
+                purchasedBy: []
+            },
+            {
+                id: 'demo-3',
+                title: 'Professional Portrait Photography',
+                promptText: 'Professional portrait photography, natural lighting, soft shadows, high detail, 85mm lens, studio quality, professional model',
+                userName: 'Demo User',
+                userId: 'anonymous',
+                imageUrl: 'https://via.placeholder.com/800x400/20bf6b/white?text=Portrait+Photo',
+                thumbnailUrl: null,
+                price: 30,
+                salesCount: 0,
+                totalEarnings: 0,
+                purchasedBy: []
+            }
+        ];
+        promptData = mockPrompts.find(p => p.id === promptId);
+        if (!promptData) {
+            throw new Error('Prompt not found');
+        }
+    }
+    
+    // Check if already purchased
+    const purchasedBy = promptData.purchasedBy || [];
+    if (purchasedBy.includes(userId)) {
+        return {
+            success: true,
+            message: 'Already purchased',
+            promptText: promptData.promptText
+        };
+    }
+    
+    // Get proper image URL
+    const imageUrl = promptData.thumbnailUrl || promptData.imageUrl || 
+                    (promptData.fileType === 'video' ? 'https://via.placeholder.com/300x400/ff6b6b/ffffff?text=Video+Reel' : 
+                     'https://via.placeholder.com/800x400/4e54c8/ffffff?text=AI+Prompt');
+    
+    // Create purchase record
+    const purchaseData = sanitizeFirestoreData({
+        promptId: promptId,
+        promptTitle: promptData.title || 'Untitled Prompt',
+        promptText: promptData.promptText || 'No prompt text available.',
+        imageUrl: imageUrl,
+        thumbnailUrl: promptData.thumbnailUrl || null,
+        fileType: promptData.fileType || 'image',
+        buyerId: userId,
+        buyerEmail: userEmail || null,
+        buyerName: userEmail ? userEmail.split('@')[0] : (promptData.buyerName || 'User'),
+        sellerId: promptData.userId || 'anonymous',
+        sellerName: promptData.userName || 'Anonymous',
+        amount: amount || promptData.price || 0,
+        razorpayOrderId: null,
+        razorpayPaymentId: paymentId || null,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        paymentStatus: 'completed'
+    });
+    
+    // Create sale record
+    const saleData = sanitizeFirestoreData({
+        promptId: promptId,
+        promptTitle: promptData.title || 'Untitled Prompt',
+        promptText: promptData.promptText || '',
+        buyerId: userId,
+        buyerName: userEmail ? userEmail.split('@')[0] : 'User',
+        buyerEmail: userEmail || null,
+        sellerId: promptData.userId || 'anonymous',
+        sellerName: promptData.userName || 'Anonymous',
+        amount: amount || promptData.price || 0,
+        sellerEarnings: Math.round((amount || promptData.price || 0) * 0.8),
+        platformFee: Math.round((amount || promptData.price || 0) * 0.2),
+        razorpayOrderId: null,
+        razorpayPaymentId: paymentId || null,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        paymentStatus: 'completed'
+    });
+    
+    // Store in database
+    if (db && db.collection) {
+        await db.collection('purchases').add(purchaseData);
+        console.log('✅ Purchase record saved for user:', userId, 'prompt:', promptId);
+        
+        await db.collection('sales').add(saleData);
+        console.log('✅ Sale record saved for seller:', promptData.userId);
+        
+        const promptRef = db.collection('uploads').doc(promptId);
+        const currentSalesCount = promptData.salesCount || 0;
+        const currentEarnings = promptData.totalEarnings || 0;
+        const updatedPurchasedBy = [...(promptData.purchasedBy || []), userId];
+        
+        await promptRef.update(sanitizeFirestoreData({
+            salesCount: currentSalesCount + 1,
+            totalEarnings: currentEarnings + (amount || promptData.price || 0),
+            purchasedBy: updatedPurchasedBy,
+            updatedAt: new Date().toISOString()
+        }));
+        console.log('✅ Prompt updated with new sale');
+    } else {
+        console.log('Purchase recorded (demo mode):', purchaseData);
+        console.log('Sale recorded (demo mode):', saleData);
+        
+        promptData.salesCount = (promptData.salesCount || 0) + 1;
+        promptData.totalEarnings = (promptData.totalEarnings || 0) + (amount || promptData.price || 0);
+        promptData.purchasedBy = [...(promptData.purchasedBy || []), userId];
+    }
+    
+    return {
+        success: true,
+        message: 'Purchase completed successfully',
+        promptText: promptData.promptText
+    };
+}
+
+// Razorpay Webhook endpoint
+app.post('/api/razorpay-webhook', async (req, res) => {
+    if (!razorpay) return res.json({ received: true });
+    
+    const secret = process.env.RAZORPAY_WEBHOOK_SECRET;  // ← Use env variable
+    const signature = req.headers['x-razorpay-signature'];
+    
+    if (secret && signature) {
+        const crypto = require('crypto');
+        const expectedSignature = crypto
+            .createHmac('sha256', secret)
+            .update(JSON.stringify(req.body))
+            .digest('hex');
+        
+        if (expectedSignature !== signature) {
+            console.error('Invalid webhook signature');
+            return res.status(400).send('Invalid signature');
+        }
+    }
+    
+    const event = req.body;
+    
+    switch (event.event) {
+        case 'payment.captured':
+            const payment = event.payload.payment.entity;
+            console.log('Payment captured:', payment.id);
+            
+            const { promptId, userId, userEmail } = payment.notes || {};
+            const amount = payment.amount / 100;
+            
+            if (promptId && userId) {
+                try {
+                    await completePurchaseHelper(promptId, userId, userEmail, amount, payment.id);
+                } catch (error) {
+                    console.error('Webhook purchase completion error:', error);
+                }
+            }
+            break;
+            
+        case 'payment.failed':
+            console.log('Payment failed:', event.payload.payment.entity.id);
+            break;
+    }
+    
+    res.json({ received: true });
+});
 
 // Enhanced HTML serving with canonical support
 function serveHTMLWithCanonical(filePath, requestedPath, req, res) {
@@ -172,17 +528,15 @@ app.get('/', (req, res) => {
 
 // Serve index.html as separate page with proper canonical
 app.get('/index.html', (req, res) => {
-    // Redirect /index.html to / (canonical URL)
     if (req.get('host').includes('toolsprompt.com') || process.env.NODE_ENV === 'production') {
         const baseUrl = process.env.BASE_URL || `https://${req.get('host').replace('index.html', '')}`;
         return res.redirect(301, baseUrl.replace('/index.html', '/'));
     }
     
-    // Only serve index.html directly in development
     serveHTMLWithCanonical(path.join(__dirname, 'index.html'), '/index.html', req, res);
 });
 
-// ENHANCED AdSense Helper Functions - FIXED DUPLICATE ISSUE
+// ENHANCED AdSense Helper Functions
 class AdSenseManager {
   static generateAutoAdsCode() {
     const clientId = process.env.ADSENSE_CLIENT_ID || 'ca-pub-5992381116749724';
@@ -270,7 +624,6 @@ class AdSenseManager {
   }
 }
 
-// Replace old functions with enhanced versions
 function generateAdSenseCode() {
   return AdSenseManager.generateAutoAdsCode();
 }
@@ -290,7 +643,7 @@ async function migrateExistingPromptsForAdSense() {
     
     if (db && db.collection) {
       const snapshot = await db.collection('uploads')
-        .limit(500) // INCREASED: Migrate 500 at a time
+        .limit(500)
         .get();
       
       let migratedCount = 0;
@@ -377,7 +730,6 @@ class SEOOptimizer {
 
 // ========== 25+ AI PHOTO EDITING MODELS ==========
 const AI_PHOTO_MODELS = {
-  // Google AI Image Models
   'google-imagen': {
     name: 'Google Imagen 3',
     description: 'Google\'s most advanced text-to-image model with photorealistic quality',
@@ -396,8 +748,6 @@ const AI_PHOTO_MODELS = {
     releaseDate: '2025',
     category: 'versatile'
   },
-
-  // OpenAI Image Models
   'dalle-3': {
     name: 'DALL-E 3',
     description: 'OpenAI\'s leading image generation model with exceptional prompt comprehension',
@@ -416,8 +766,6 @@ const AI_PHOTO_MODELS = {
     releaseDate: '2024',
     category: 'versatile'
   },
-
-  // Midjourney
   'midjourney-v6': {
     name: 'Midjourney V6',
     description: 'Premium artistic image generation with unparalleled style control',
@@ -436,8 +784,6 @@ const AI_PHOTO_MODELS = {
     releaseDate: '2025',
     category: 'artistic'
   },
-
-  // Stability AI
   'stable-diffusion-3': {
     name: 'Stable Diffusion 3',
     description: 'Latest open-source image generation with improved quality and control',
@@ -465,8 +811,6 @@ const AI_PHOTO_MODELS = {
     releaseDate: '2024',
     category: 'real-time'
   },
-
-  // Adobe
   'adobe-firefly-image': {
     name: 'Adobe Firefly Image',
     description: 'Adobe\'s commercial-safe image generation with Creative Cloud integration',
@@ -485,8 +829,6 @@ const AI_PHOTO_MODELS = {
     releaseDate: '2025',
     category: 'editing'
   },
-
-  // Canva
   'canva-ai': {
     name: 'Canva AI',
     description: 'Integrated AI image generation for design projects',
@@ -505,8 +847,6 @@ const AI_PHOTO_MODELS = {
     releaseDate: '2025',
     category: 'design'
   },
-
-  // Leonardo AI
   'leonardo-creative': {
     name: 'Leonardo Creative',
     description: 'Professional art generation with style consistency',
@@ -525,8 +865,6 @@ const AI_PHOTO_MODELS = {
     releaseDate: '2025',
     category: 'professional'
   },
-
-  // Ideogram
   'ideogram-2': {
     name: 'Ideogram 2.0',
     description: 'AI image generation with exceptional typography',
@@ -536,8 +874,6 @@ const AI_PHOTO_MODELS = {
     releaseDate: '2025',
     category: 'design'
   },
-
-  // Playground AI
   'playground-v2': {
     name: 'Playground AI V2',
     description: 'Versatile image generation with fine-tuning options',
@@ -547,8 +883,6 @@ const AI_PHOTO_MODELS = {
     releaseDate: '2024',
     category: 'creative'
   },
-
-  // ClipDrop
   'clipdrop-replace': {
     name: 'ClipDrop Replace',
     description: 'AI image editing with object replacement',
@@ -558,8 +892,6 @@ const AI_PHOTO_MODELS = {
     releaseDate: '2024',
     category: 'editing'
   },
-
-  // Runway
   'runway-image': {
     name: 'Runway Image Generation',
     description: 'Integrated image generation in Runway platform',
@@ -569,8 +901,6 @@ const AI_PHOTO_MODELS = {
     releaseDate: '2025',
     category: 'professional'
   },
-
-  // NightCafe
   'nightcafe-creator': {
     name: 'NightCafe Creator',
     description: 'Multiple AI algorithms in one platform',
@@ -580,8 +910,6 @@ const AI_PHOTO_MODELS = {
     releaseDate: '2025',
     category: 'artistic'
   },
-
-  // Wombo
   'wombo-dream': {
     name: 'Wombo Dream',
     description: 'Mobile-first AI art generation',
@@ -591,8 +919,6 @@ const AI_PHOTO_MODELS = {
     releaseDate: '2024',
     category: 'mobile'
   },
-
-  // StarryAI
   'starryai': {
     name: 'StarryAI',
     description: 'NFT-focused AI art generation',
@@ -602,8 +928,6 @@ const AI_PHOTO_MODELS = {
     releaseDate: '2024',
     category: 'nft'
   },
-
-  // DeepAI
   'deepai': {
     name: 'DeepAI',
     description: 'Classic AI image generation with various models',
@@ -613,8 +937,6 @@ const AI_PHOTO_MODELS = {
     releaseDate: '2024',
     category: 'versatile'
   },
-
-  // Craiyon
   'craiyon-v3': {
     name: 'Craiyon V3',
     description: 'Free AI image generation with improved quality',
@@ -624,8 +946,6 @@ const AI_PHOTO_MODELS = {
     releaseDate: '2025',
     category: 'free'
   },
-
-  // Bing Image Creator
   'bing-creator': {
     name: 'Bing Image Creator',
     description: 'Free DALL-E powered image generation',
@@ -635,8 +955,6 @@ const AI_PHOTO_MODELS = {
     releaseDate: '2025',
     category: 'free'
   },
-
-  // Getty Images
   'getty-generative': {
     name: 'Getty Generative AI',
     description: 'Commercial-safe AI images with legal protection',
@@ -646,8 +964,6 @@ const AI_PHOTO_MODELS = {
     releaseDate: '2024',
     category: 'commercial'
   },
-
-  // Shutterstock
   'shutterstock-ai': {
     name: 'Shutterstock AI',
     description: 'AI image generation with stock library integration',
@@ -657,8 +973,6 @@ const AI_PHOTO_MODELS = {
     releaseDate: '2024',
     category: 'commercial'
   },
-
-  // Picsart
   'picsart-ai': {
     name: 'Picsart AI',
     description: 'AI image generation with editing tools',
@@ -668,8 +982,6 @@ const AI_PHOTO_MODELS = {
     releaseDate: '2024',
     category: 'editing'
   },
-
-  // Fotor
   'fotor-ai': {
     name: 'Fotor AI',
     description: 'AI image generation with photo editing',
@@ -679,8 +991,6 @@ const AI_PHOTO_MODELS = {
     releaseDate: '2024',
     category: 'editing'
   },
-
-  // BlueWillow
   'bluewillow-v4': {
     name: 'BlueWillow V4',
     description: 'Free Discord-based AI art generation',
@@ -690,8 +1000,6 @@ const AI_PHOTO_MODELS = {
     releaseDate: '2024',
     category: 'free'
   },
-
-  // TensorArt
   'tensorart': {
     name: 'TensorArt',
     description: 'Free AI image generation with multiple models',
@@ -701,8 +1009,6 @@ const AI_PHOTO_MODELS = {
     releaseDate: '2025',
     category: 'versatile'
   },
-
-  // SeaArt
   'seaart': {
     name: 'SeaArt',
     description: 'AI art platform with various styles',
@@ -716,7 +1022,6 @@ const AI_PHOTO_MODELS = {
 
 // ========== 25+ AI VIDEO EDITING MODELS ==========
 const AI_VIDEO_MODELS = {
-  // Google AI Video Models
   'google-veo-2': {
     name: 'Google Veo 2',
     description: 'Google\'s most advanced video generation model with 4K quality',
@@ -753,8 +1058,6 @@ const AI_VIDEO_MODELS = {
     releaseDate: '2024',
     category: 'experimental'
   },
-
-  // OpenAI Video Models
   'openai-sora': {
     name: 'OpenAI Sora',
     description: 'State-of-the-art text-to-video with photorealistic quality',
@@ -782,8 +1085,6 @@ const AI_VIDEO_MODELS = {
     releaseDate: '2025',
     category: 'artistic'
   },
-
-  // Meta AI Video Models
   'meta-movie-gen': {
     name: 'Meta Movie Gen',
     description: 'Meta\'s advanced video generation with audio synthesis',
@@ -811,8 +1112,6 @@ const AI_VIDEO_MODELS = {
     releaseDate: '2024',
     category: 'experimental'
   },
-
-  // Runway ML
   'runway-gen-3': {
     name: 'Runway Gen-3',
     description: 'Latest Runway video generation with advanced controls',
@@ -840,8 +1139,6 @@ const AI_VIDEO_MODELS = {
     releaseDate: '2024',
     category: 'effects'
   },
-
-  // Pika Labs
   'pika-2-0': {
     name: 'Pika 2.0',
     description: 'Advanced video generation with lip sync and character animation',
@@ -869,8 +1166,6 @@ const AI_VIDEO_MODELS = {
     releaseDate: '2024',
     category: 'social'
   },
-
-  // Stability AI Video
   'stable-video-diffusion': {
     name: 'Stable Video Diffusion',
     description: 'Open-source video generation with fine-tuning',
@@ -898,8 +1193,6 @@ const AI_VIDEO_MODELS = {
     releaseDate: '2024',
     category: 'open-source'
   },
-
-  // Adobe Video AI
   'adobe-firefly-video': {
     name: 'Adobe Firefly Video',
     description: 'Adobe\'s generative AI for video in Premiere Pro',
@@ -927,8 +1220,6 @@ const AI_VIDEO_MODELS = {
     releaseDate: '2025',
     category: 'effects'
   },
-
-  // CapCut/Creative Suite
   'capcut-pro-ai': {
     name: 'CapCut Pro AI',
     description: 'ByteDance\'s AI-powered video editing suite',
@@ -956,8 +1247,6 @@ const AI_VIDEO_MODELS = {
     releaseDate: '2024',
     category: 'editing'
   },
-
-  // InVideo
   'invideo-ai': {
     name: 'InVideo AI',
     description: 'AI-powered video creation for marketing',
@@ -976,8 +1265,6 @@ const AI_VIDEO_MODELS = {
     releaseDate: '2024',
     category: 'collaboration'
   },
-
-  // Synthesia
   'synthesia-2-0': {
     name: 'Synthesia 2.0',
     description: 'AI video generation with realistic avatars',
@@ -996,8 +1283,6 @@ const AI_VIDEO_MODELS = {
     releaseDate: '2024',
     category: 'avatar'
   },
-
-  // HeyGen
   'heygen-2-0': {
     name: 'HeyGen 2.0',
     description: 'AI video generation with avatar and voice cloning',
@@ -1016,8 +1301,6 @@ const AI_VIDEO_MODELS = {
     releaseDate: '2025',
     category: 'interactive'
   },
-
-  // ElevenLabs Video
   'elevenlabs-video': {
     name: 'ElevenLabs Video',
     description: 'AI video with advanced voice synthesis and lip sync',
@@ -1027,8 +1310,6 @@ const AI_VIDEO_MODELS = {
     releaseDate: '2025',
     category: 'voice'
   },
-
-  // Kling (Kuaishou)
   'kling-1-6': {
     name: 'Kling 1.6',
     description: 'Advanced video generation from Kuaishou',
@@ -1047,8 +1328,6 @@ const AI_VIDEO_MODELS = {
     releaseDate: '2024',
     category: 'versatile'
   },
-
-  // Luma Dream Machine
   'luma-dream-machine': {
     name: 'Luma Dream Machine',
     description: 'High-quality video generation with cinematic quality',
@@ -1067,8 +1346,6 @@ const AI_VIDEO_MODELS = {
     releaseDate: '2024',
     category: '3d'
   },
-
-  // Haiper
   'haiper-2-0': {
     name: 'Haiper 2.0',
     description: 'Video generation with enhanced motion understanding',
@@ -1087,8 +1364,6 @@ const AI_VIDEO_MODELS = {
     releaseDate: '2024',
     category: 'free'
   },
-
-  // Minimax
   'minimax-video': {
     name: 'Minimax Video',
     description: 'Chinese video generation model with high-quality output',
@@ -1107,8 +1382,6 @@ const AI_VIDEO_MODELS = {
     releaseDate: '2025',
     category: 'expressive'
   },
-
-  // Kaiber
   'kaiber-2-0': {
     name: 'Kaiber 2.0',
     description: 'Artistic video generation with style transfer',
@@ -1127,8 +1400,6 @@ const AI_VIDEO_MODELS = {
     releaseDate: '2024',
     category: 'artistic'
   },
-
-  // CogVideoX
   'cogvideo-x': {
     name: 'CogVideoX',
     description: 'Open-source video generation from THUDM',
@@ -1147,8 +1418,6 @@ const AI_VIDEO_MODELS = {
     releaseDate: '2025',
     category: 'open-source'
   },
-
-  // AnimateDiff
   'animatediff': {
     name: 'AnimateDiff',
     description: 'Motion module for Stable Diffusion animation',
@@ -1167,8 +1436,6 @@ const AI_VIDEO_MODELS = {
     releaseDate: '2025',
     category: 'open-source'
   },
-
-  // Gen-2/Moonvalley
   'moonvalley': {
     name: 'Moonvalley',
     description: 'Free AI video generation with Discord bot',
@@ -1178,8 +1445,6 @@ const AI_VIDEO_MODELS = {
     releaseDate: '2024',
     category: 'free'
   },
-
-  // Deforum
   'deforum': {
     name: 'Deforum',
     description: 'Animation toolkit for Stable Diffusion',
@@ -1189,8 +1454,6 @@ const AI_VIDEO_MODELS = {
     releaseDate: '2024',
     category: 'open-source'
   },
-
-  // Morph Studio
   'morph-studio': {
     name: 'Morph Studio',
     description: 'AI video generation platform with style control',
@@ -1200,8 +1463,6 @@ const AI_VIDEO_MODELS = {
     releaseDate: '2024',
     category: 'versatile'
   },
-
-  // Pixverse
   'pixverse': {
     name: 'Pixverse',
     description: 'Free AI video generation platform',
@@ -1211,8 +1472,6 @@ const AI_VIDEO_MODELS = {
     releaseDate: '2024',
     category: 'free'
   },
-
-  // VideoCom
   'videocom': {
     name: 'VideoCom',
     description: 'AI video generation with character consistency',
@@ -1222,8 +1481,6 @@ const AI_VIDEO_MODELS = {
     releaseDate: '2024',
     category: 'storytelling'
   },
-
-  // LTX Studio
   'ltx-studio': {
     name: 'LTX Studio',
     description: 'AI film production platform',
@@ -1244,182 +1501,46 @@ class AIModelManager {
     const category = promptData.category || 'general';
     const fileType = promptData.fileType || 'image';
     
-    // Check if it's video or image
     const isVideo = fileType === 'video' || promptData.videoUrl || category === 'video';
     
-    // Use video models for video content
     if (isVideo) {
       return this.detectVideoPlatform(promptText, keywords, category);
     }
     
-    // Otherwise use photo models
     return this.detectPhotoPlatform(promptText, keywords, category);
   }
   
   static detectPhotoPlatform(promptText, keywords, category) {
-    // Google AI
-    if (promptText.includes('imagen') || keywords.includes('imagen') || promptText.includes('google imagen')) {
-      return 'google-imagen';
-    }
-    if (promptText.includes('gemini image') || promptText.includes('gemini-image')) {
-      return 'gemini-image';
-    }
+    if (promptText.includes('imagen') || keywords.includes('imagen')) return 'google-imagen';
+    if (promptText.includes('gemini image')) return 'gemini-image';
+    if (promptText.includes('dalle-3') || promptText.includes('dall-e 3')) return 'dalle-3';
+    if (promptText.includes('dalle-2') || promptText.includes('dall-e 2')) return 'dalle-2';
+    if (promptText.includes('midjourney v6') || promptText.includes('midjourney 6')) return 'midjourney-v6';
+    if (promptText.includes('niji') || promptText.includes('anime')) return 'midjourney-niji';
+    if (promptText.includes('midjourney')) return 'midjourney-v6';
+    if (promptText.includes('stable diffusion 3') || promptText.includes('sd3')) return 'stable-diffusion-3';
+    if (promptText.includes('stable diffusion xl') || promptText.includes('sdxl')) return 'stable-diffusion-xl';
+    if (promptText.includes('adobe firefly')) return 'adobe-firefly-image';
+    if (promptText.includes('photoshop')) return 'photoshop-generative';
+    if (promptText.includes('canva ai') || promptText.includes('canva magic')) return 'canva-ai';
+    if (promptText.includes('leonardo')) return 'leonardo-creative';
+    if (promptText.includes('ideogram')) return 'ideogram-2';
+    if (promptText.includes('playground ai')) return 'playground-v2';
+    if (promptText.includes('clipdrop')) return 'clipdrop-replace';
+    if (promptText.includes('runway')) return 'runway-image';
+    if (promptText.includes('nightcafe')) return 'nightcafe-creator';
+    if (promptText.includes('wombo')) return 'wombo-dream';
+    if (promptText.includes('starryai')) return 'starryai';
+    if (promptText.includes('deepai')) return 'deepai';
+    if (promptText.includes('craiyon')) return 'craiyon-v3';
+    if (promptText.includes('bing')) return 'bing-creator';
     
-    // OpenAI
-    if (promptText.includes('dalle-3') || promptText.includes('dall-e 3') || (promptText.includes('dalle') && promptText.includes('3'))) {
-      return 'dalle-3';
-    }
-    if (promptText.includes('dalle-2') || promptText.includes('dall-e 2') || promptText.includes('dalle mini')) {
-      return 'dalle-2';
-    }
-    
-    // Midjourney
-    if (promptText.includes('midjourney v6') || promptText.includes('midjourney 6') || (promptText.includes('midjourney') && promptText.includes('--'))) {
-      return 'midjourney-v6';
-    }
-    if (promptText.includes('niji') || promptText.includes('anime') || promptText.includes('manga')) {
-      return 'midjourney-niji';
-    }
-    if (promptText.includes('midjourney')) {
-      return 'midjourney-v6';
-    }
-    
-    // Stability AI
-    if (promptText.includes('stable diffusion 3') || promptText.includes('sd3') || (promptText.includes('stable') && promptText.includes('3'))) {
-      return 'stable-diffusion-3';
-    }
-    if (promptText.includes('stable diffusion xl') || promptText.includes('sdxl') || (promptText.includes('xl') && promptText.includes('stable'))) {
-      return 'stable-diffusion-xl';
-    }
-    if (promptText.includes('sdxl turbo') || promptText.includes('turbo') || promptText.includes('real-time')) {
-      return 'sd-xl-turbo';
-    }
-    if (promptText.includes('stable diffusion') || promptText.includes('sd')) {
-      return 'stable-diffusion-xl';
-    }
-    
-    // Adobe
-    if (promptText.includes('adobe firefly') || promptText.includes('firefly image')) {
-      return 'adobe-firefly-image';
-    }
-    if (promptText.includes('photoshop') || promptText.includes('generative fill')) {
-      return 'photoshop-generative';
-    }
-    
-    // Canva
-    if (promptText.includes('canva ai') || promptText.includes('canva magic')) {
-      return 'canva-ai';
-    }
-    if (promptText.includes('canva magic media')) {
-      return 'canva-magic-media';
-    }
-    
-    // Leonardo
-    if (promptText.includes('leonardo creative') || (promptText.includes('leonardo') && promptText.includes('creative'))) {
-      return 'leonardo-creative';
-    }
-    if (promptText.includes('leonardo phoenix') || (promptText.includes('leonardo') && promptText.includes('phoenix'))) {
-      return 'leonardo-phoenix';
-    }
-    if (promptText.includes('leonardo')) {
-      return 'leonardo-creative';
-    }
-    
-    // Ideogram
-    if (promptText.includes('ideogram') || keywords.includes('ideogram') || promptText.includes('typography')) {
-      return 'ideogram-2';
-    }
-    
-    // Playground
-    if (promptText.includes('playground ai') || promptText.includes('playground v2')) {
-      return 'playground-v2';
-    }
-    
-    // ClipDrop
-    if (promptText.includes('clipdrop') || keywords.includes('clipdrop') || promptText.includes('replace background')) {
-      return 'clipdrop-replace';
-    }
-    
-    // Runway
-    if (promptText.includes('runway image') || (promptText.includes('runway') && !promptText.includes('video'))) {
-      return 'runway-image';
-    }
-    
-    // NightCafe
-    if (promptText.includes('nightcafe') || keywords.includes('nightcafe')) {
-      return 'nightcafe-creator';
-    }
-    
-    // Wombo
-    if (promptText.includes('wombo') || keywords.includes('wombo')) {
-      return 'wombo-dream';
-    }
-    
-    // StarryAI
-    if (promptText.includes('starryai') || keywords.includes('starryai') || promptText.includes('nft')) {
-      return 'starryai';
-    }
-    
-    // DeepAI
-    if (promptText.includes('deepai') || keywords.includes('deepai')) {
-      return 'deepai';
-    }
-    
-    // Craiyon
-    if (promptText.includes('craiyon') || promptText.includes('dall-e mini')) {
-      return 'craiyon-v3';
-    }
-    
-    // Bing
-    if (promptText.includes('bing') || keywords.includes('bing') || promptText.includes('microsoft')) {
-      return 'bing-creator';
-    }
-    
-    // Getty
-    if (promptText.includes('getty') || keywords.includes('getty') || promptText.includes('commercial safe')) {
-      return 'getty-generative';
-    }
-    
-    // Shutterstock
-    if (promptText.includes('shutterstock') || keywords.includes('shutterstock')) {
-      return 'shutterstock-ai';
-    }
-    
-    // Picsart
-    if (promptText.includes('picsart') || keywords.includes('picsart')) {
-      return 'picsart-ai';
-    }
-    
-    // Fotor
-    if (promptText.includes('fotor') || keywords.includes('fotor')) {
-      return 'fotor-ai';
-    }
-    
-    // BlueWillow
-    if (promptText.includes('bluewillow') || keywords.includes('bluewillow')) {
-      return 'bluewillow-v4';
-    }
-    
-    // TensorArt
-    if (promptText.includes('tensorart') || keywords.includes('tensor')) {
-      return 'tensorart';
-    }
-    
-    // SeaArt
-    if (promptText.includes('seaart') || keywords.includes('sea')) {
-      return 'seaart';
-    }
-    
-    // Default based on category
     const categoryPlatforms = {
       'art': 'midjourney-v6',
       'photography': 'google-imagen',
       'design': 'adobe-firefly-image',
-      'writing': 'chatgpt',
       'professional': 'leonardo-creative',
-      'mobile': 'wombo-dream',
       'free': 'craiyon-v3',
-      'commercial': 'getty-generative',
       'general': 'dalle-3'
     };
     
@@ -1427,222 +1548,28 @@ class AIModelManager {
   }
   
   static detectVideoPlatform(promptText, keywords, category) {
-    // Google AI
-    if (promptText.includes('veo') || promptText.includes('veo 2') || keywords.includes('veo')) {
-      return 'google-veo-2';
-    }
-    if (promptText.includes('google flow') || promptText.includes('flow ai')) {
-      return 'google-flow';
-    }
-    if (promptText.includes('gemini video') || promptText.includes('gemini-video')) {
-      return 'gemini-video';
-    }
-    if (promptText.includes('video poet') || promptText.includes('videopoet')) {
-      return 'video-poet';
-    }
+    if (promptText.includes('veo') || keywords.includes('veo')) return 'google-veo-2';
+    if (promptText.includes('sora') || keywords.includes('sora')) return 'openai-sora';
+    if (promptText.includes('runway gen-3') || promptText.includes('gen-3')) return 'runway-gen-3';
+    if (promptText.includes('pika 2.0') || promptText.includes('pika 2')) return 'pika-2-0';
+    if (promptText.includes('pika')) return 'pika-2-0';
+    if (promptText.includes('stable video diffusion') || promptText.includes('svd')) return 'stable-video-diffusion';
+    if (promptText.includes('adobe firefly video')) return 'adobe-firefly-video';
+    if (promptText.includes('capcut')) return 'capcut-pro-ai';
+    if (promptText.includes('synthesia')) return 'synthesia-2-0';
+    if (promptText.includes('heygen')) return 'heygen-2-0';
+    if (promptText.includes('kling')) return 'kling-1-6';
+    if (promptText.includes('luma dream machine')) return 'luma-dream-machine';
+    if (promptText.includes('haiper')) return 'haiper-2-0';
+    if (promptText.includes('kaiber')) return 'kaiber-2-0';
     
-    // OpenAI
-    if (promptText.includes('sora') || keywords.includes('sora')) {
-      return 'openai-sora';
-    }
-    if (promptText.includes('chatgpt video') || promptText.includes('gpt video') || promptText.includes('chatgpt-4o')) {
-      return 'chatgpt-4o-video';
-    }
-    if (promptText.includes('dalle video') || promptText.includes('dall-e video')) {
-      return 'dalle-video';
-    }
-    
-    // Meta
-    if (promptText.includes('movie gen') || promptText.includes('metas movie gen')) {
-      return 'meta-movie-gen';
-    }
-    if (promptText.includes('make a video') || promptText.includes('make-a-video')) {
-      return 'make-a-video';
-    }
-    if (promptText.includes('emu video') || promptText.includes('emu-video')) {
-      return 'emu-video';
-    }
-    
-    // Runway
-    if (promptText.includes('runway gen-3') || promptText.includes('gen-3')) {
-      return 'runway-gen-3';
-    }
-    if (promptText.includes('runway gen-2') || promptText.includes('gen-2')) {
-      return 'runway-gen-2';
-    }
-    if (promptText.includes('frame interpolation') || promptText.includes('slow motion')) {
-      return 'runway-frame-interpolation';
-    }
-    if (promptText.includes('runway')) {
-      return 'runway-gen-3';
-    }
-    
-    // Pika
-    if (promptText.includes('pika 2.0') || promptText.includes('pika 2')) {
-      return 'pika-2-0';
-    }
-    if (promptText.includes('pika effects') || promptText.includes('pika effect')) {
-      return 'pika-effects';
-    }
-    if (promptText.includes('pika 1.0') || promptText.includes('pika 1')) {
-      return 'pika-1-0';
-    }
-    if (promptText.includes('pika')) {
-      return 'pika-2-0';
-    }
-    
-    // Stability AI
-    if (promptText.includes('stable video diffusion') || promptText.includes('svd')) {
-      return 'stable-video-diffusion';
-    }
-    if (promptText.includes('svd-xt') || promptText.includes('svd xt')) {
-      return 'svd-xt';
-    }
-    if (promptText.includes('frame interpolation') && promptText.includes('stable')) {
-      return 'svd-frame-interpolation';
-    }
-    
-    // Adobe
-    if (promptText.includes('adobe firefly video') || promptText.includes('firefly video')) {
-      return 'adobe-firefly-video';
-    }
-    if (promptText.includes('premiere pro ai') || promptText.includes('premiere ai')) {
-      return 'premiere-pro-ai';
-    }
-    if (promptText.includes('after effects') || promptText.includes('motion graphics')) {
-      return 'after-effects-ai';
-    }
-    
-    // CapCut
-    if (promptText.includes('capcut pro') || promptText.includes('capcut ai')) {
-      return 'capcut-pro-ai';
-    }
-    if (promptText.includes('capcut text to video') || promptText.includes('text-to-video')) {
-      return 'capcut-text-to-video';
-    }
-    if (promptText.includes('auto cut') || promptText.includes('auto-cut')) {
-      return 'capcut-auto-cut';
-    }
-    if (promptText.includes('capcut')) {
-      return 'capcut-pro-ai';
-    }
-    
-    // InVideo
-    if (promptText.includes('invideo ai') || promptText.includes('invideo')) {
-      return 'invideo-ai';
-    }
-    if (promptText.includes('invideo studio')) {
-      return 'invideo-studio';
-    }
-    
-    // Synthesia
-    if (promptText.includes('synthesia 2.0') || promptText.includes('synthesia')) {
-      return 'synthesia-2-0';
-    }
-    if (promptText.includes('synthesia avatar') || promptText.includes('avatar clone')) {
-      return 'synthesia-avatars';
-    }
-    
-    // HeyGen
-    if (promptText.includes('heygen 2.0') || promptText.includes('heygen')) {
-      return 'heygen-2-0';
-    }
-    if (promptText.includes('heygen interactive') || promptText.includes('interactive avatar')) {
-      return 'heygen-interactive';
-    }
-    
-    // ElevenLabs
-    if (promptText.includes('elevenlabs video') || promptText.includes('eleven labs')) {
-      return 'elevenlabs-video';
-    }
-    
-    // Kling
-    if (promptText.includes('kling 1.6') || promptText.includes('kling 1.6')) {
-      return 'kling-1-6';
-    }
-    if (promptText.includes('kling 1.5') || promptText.includes('kling')) {
-      return 'kling-1-5';
-    }
-    
-    // Luma
-    if (promptText.includes('luma dream machine') || promptText.includes('dream machine')) {
-      return 'luma-dream-machine';
-    }
-    if (promptText.includes('luma ray') || promptText.includes('3d video')) {
-      return 'luma-ray';
-    }
-    
-    // Haiper
-    if (promptText.includes('haiper 2.0') || promptText.includes('haiper 2')) {
-      return 'haiper-2-0';
-    }
-    if (promptText.includes('haiper 1.0') || promptText.includes('haiper')) {
-      return 'haiper-1-0';
-    }
-    
-    // Minimax
-    if (promptText.includes('minimax video') || promptText.includes('minimax')) {
-      return 'minimax-video';
-    }
-    if (promptText.includes('minimax hailuo') || promptText.includes('hailuo')) {
-      return 'minimax-hailuo';
-    }
-    
-    // Kaiber
-    if (promptText.includes('kaiber 2.0') || promptText.includes('kaiber')) {
-      return 'kaiber-2-0';
-    }
-    if (promptText.includes('kaiber motion')) {
-      return 'kaiber-motion';
-    }
-    
-    // CogVideoX
-    if (promptText.includes('cogvideo x') || promptText.includes('cogvideo-x')) {
-      return 'cogvideo-x';
-    }
-    if (promptText.includes('cogvideo-x-5b') || promptText.includes('5b')) {
-      return 'cogvideo-x-5b';
-    }
-    
-    // AnimateDiff
-    if (promptText.includes('animatediff v2') || promptText.includes('animate diff v2')) {
-      return 'animatediff-v2';
-    }
-    if (promptText.includes('animatediff') || promptText.includes('animate diff')) {
-      return 'animatediff';
-    }
-    
-    // Other platforms
-    if (promptText.includes('moonvalley')) {
-      return 'moonvalley';
-    }
-    if (promptText.includes('deforum')) {
-      return 'deforum';
-    }
-    if (promptText.includes('morph studio')) {
-      return 'morph-studio';
-    }
-    if (promptText.includes('pixverse')) {
-      return 'pixverse';
-    }
-    if (promptText.includes('videocom')) {
-      return 'videocom';
-    }
-    if (promptText.includes('ltx studio')) {
-      return 'ltx-studio';
-    }
-    
-    // Default based on category
     const categoryPlatforms = {
       'professional': 'runway-gen-3',
       'animation': 'pika-2-0',
       'social': 'capcut-pro-ai',
       'avatar': 'synthesia-2-0',
-      'marketing': 'invideo-ai',
       'cinematic': 'luma-dream-machine',
-      'artistic': 'kaiber-2-0',
       'free': 'pixverse',
-      'open-source': 'stable-video-diffusion',
       'video': 'runway-gen-3',
       'general': 'pika-2-0'
     };
@@ -1695,7 +1622,6 @@ class AIPlatformContentGenerator {
     const primaryPlatformId = AIModelManager.detectPlatform(promptData);
     
     if (isVideo) {
-      // Get top 15 video platforms
       const topVideoPlatforms = [
         'google-veo-2', 'openai-sora', 'runway-gen-3', 'pika-2-0', 'adobe-firefly-video',
         'meta-movie-gen', 'capcut-pro-ai', 'synthesia-2-0', 'luma-dream-machine', 'kaiber-2-0',
@@ -1745,13 +1671,11 @@ class AIPlatformContentGenerator {
               <li><strong>For avatars:</strong> Synthesia 2.0, HeyGen 2.0, ElevenLabs Video</li>
               <li><strong>For open source:</strong> Stable Video Diffusion, CogVideoX, AnimateDiff</li>
               <li><strong>For cinematic:</strong> Luma Dream Machine, Meta Movie Gen, Kling 1.6</li>
-              <li><strong>For artistic:</strong> Kaiber 2.0, Haiper 2.0, Deforum</li>
             </ul>
           </div>
         </div>
       `;
     } else {
-      // Get top 15 photo platforms
       const topPhotoPlatforms = [
         'google-imagen', 'dalle-3', 'midjourney-v6', 'stable-diffusion-3', 'adobe-firefly-image',
         'leonardo-creative', 'ideogram-2', 'canva-ai', 'playground-v2', 'runway-image',
@@ -2137,7 +2061,7 @@ class AIPlatformContentGenerator {
   }
 }
 
-// AI Content Generator for Prompt Pages - Updated to use new classes
+// AI Content Generator for Prompt Pages
 class PromptContentGenerator {
   static generateDetailedExplanation(promptData) {
     const keywords = promptData.keywords || ['AI', 'prompt'];
@@ -2150,13 +2074,9 @@ class PromptContentGenerator {
     
     const explanations = {
       'art': `This ${keywords[0] || 'creative'} prompt generates stunning visual artwork through AI image generation. The prompt carefully combines specific stylistic elements, composition techniques, and artistic references to produce unique digital creations that showcase the power of modern AI art tools.`,
-      
       'photography': `This photography-style prompt creates realistic images that mimic professional photographic techniques. The AI interprets lighting conditions, camera settings, and compositional rules to generate images that appear to be captured with high-end photographic equipment and expert technique.`,
-      
       'design': `This design-focused prompt produces visually appealing compositions suitable for various applications. The AI understands design principles, color theory, and layout requirements to create professional-grade visual assets that can be used in digital and print media.`,
-      
       'writing': `This writing prompt generates textual content using advanced language models. The AI analyzes the prompt structure, tone requirements, and content specifications to produce coherent, engaging written material that meets specific creative or professional needs.`,
-      
       'general': `This AI prompt leverages advanced machine learning algorithms to interpret and execute creative instructions. The system analyzes the prompt's semantic structure, contextual cues, and stylistic requirements to generate high-quality output that aligns with the specified parameters.`
     };
 
@@ -2187,7 +2107,6 @@ class PromptContentGenerator {
         "Generate multiple variations to explore different interpretations",
         "Select the best result and refine if necessary"
       ],
-      
       'photography': [
         "Use the prompt in AI photography tools or image generators",
         "Set appropriate resolution and quality settings for your needs",
@@ -2195,7 +2114,6 @@ class PromptContentGenerator {
         "Generate several versions to capture different perspectives",
         "Post-process if needed using image editing software"
       ],
-      
       'design': [
         "Input the prompt into your AI design tool of choice",
         "Specify output format and dimensions for your project",
@@ -2203,7 +2121,6 @@ class PromptContentGenerator {
         "Select the most suitable design for your application",
         "Customize further with additional design elements if required"
       ],
-      
       'writing': [
         "Copy the prompt into your AI writing assistant",
         "Set the desired tone, style, and length parameters",
@@ -2211,7 +2128,6 @@ class PromptContentGenerator {
         "Review and refine the output for coherence and accuracy",
         "Edit and polish the final text as needed"
       ],
-      
       'general': [
         "Copy the complete prompt text",
         "Paste into your chosen AI platform or tool",
@@ -2239,13 +2155,9 @@ class PromptContentGenerator {
     
     const trends = {
       'art': `The AI art landscape is rapidly evolving with trends leaning towards ${keywords.slice(0, 2).join(' and ') || 'mixed-media styles'}. Current movements emphasize hybrid techniques, surreal compositions, and the integration of traditional art principles with digital innovation. Prompt engineering has become crucial for achieving specific artistic visions.`,
-      
       'photography': `AI photography is revolutionizing how we create visual content. Trends show increased demand for ${keywords[0] || 'professional'} styles that mimic real-world photography while offering impossible perspectives and lighting conditions. The focus is on achieving photographic realism with creative freedom beyond physical constraints.`,
-      
       'design': `Design trends in AI are shifting towards ${keywords[0] || 'minimalist'} approaches that balance aesthetics with functionality. There's growing emphasis on creating designs that are both visually appealing and practically implementable across various platforms and media types.`,
-      
       'writing': `AI writing trends emphasize ${keywords[0] || 'engaging'} content that maintains human-like quality while optimizing for specific audiences. The focus is on creating coherent, context-aware text that serves practical purposes across different domains and use cases.`,
-      
       'general': `The AI prompt engineering field is experiencing rapid growth with trends focusing on more specific, detailed instructions that yield predictable, high-quality results. There's increasing emphasis on understanding how different AI models interpret various prompt structures and stylistic elements.`
     };
 
@@ -2267,7 +2179,7 @@ class PromptContentGenerator {
   }
 }
 
-// ENHANCED AI Description Generator - Now using the model classes
+// ENHANCED AI Description Generator
 class AIDescriptionGenerator {
   static generatePlatformIntroduction(promptData) {
     return AIPlatformContentGenerator.generatePlatformIntroduction(promptData);
@@ -2573,6 +2485,7 @@ const mockPrompts = [
     promptText: 'Create a fantasy landscape with majestic mountains, floating islands, and a mystical waterfall, digital art, highly detailed, epic composition',
     imageUrl: 'https://via.placeholder.com/800x400/4e54c8/white?text=Fantasy+Landscape',
     userName: 'Demo User',
+    userId: 'anonymous',
     likes: 42,
     views: 156,
     uses: 23,
@@ -2584,7 +2497,12 @@ const mockPrompts = [
     updatedAt: new Date().toISOString(),
     seoScore: 85,
     adsenseMigrated: true,
-    fileType: 'image'
+    fileType: 'image',
+    price: 0,
+    isPaid: false,
+    salesCount: 0,
+    totalEarnings: 0,
+    purchasedBy: []
   },
   {
     id: 'demo-2',
@@ -2592,6 +2510,7 @@ const mockPrompts = [
     promptText: 'Cyberpunk city street at night, neon signs, rainy pavement, futuristic vehicles, Blade Runner style, cinematic lighting',
     imageUrl: 'https://via.placeholder.com/800x400/8f94fb/white?text=Cyberpunk+City',
     userName: 'Demo User',
+    userId: 'anonymous',
     likes: 67,
     views: 289,
     uses: 45,
@@ -2603,7 +2522,12 @@ const mockPrompts = [
     updatedAt: new Date().toISOString(),
     seoScore: 92,
     adsenseMigrated: true,
-    fileType: 'image'
+    fileType: 'image',
+    price: 50,
+    isPaid: true,
+    salesCount: 3,
+    totalEarnings: 150,
+    purchasedBy: []
   },
   {
     id: 'demo-3',
@@ -2611,6 +2535,7 @@ const mockPrompts = [
     promptText: 'Professional portrait photography, natural lighting, soft shadows, high detail, 85mm lens, studio quality, professional model',
     imageUrl: 'https://via.placeholder.com/800x400/20bf6b/white?text=Portrait+Photo',
     userName: 'Demo User',
+    userId: 'anonymous',
     likes: 34,
     views: 189,
     uses: 12,
@@ -2622,9 +2547,13 @@ const mockPrompts = [
     updatedAt: new Date().toISOString(),
     seoScore: 78,
     adsenseMigrated: true,
-    fileType: 'image'
+    fileType: 'image',
+    price: 30,
+    isPaid: true,
+    salesCount: 1,
+    totalEarnings: 30,
+    purchasedBy: []
   },
-  // NEW VIDEO DEMO PROMPT WITH THUMBNAIL
   {
     id: 'demo-video-1',
     title: 'Cinematic Drone Shot Over Mountains',
@@ -2634,6 +2563,7 @@ const mockPrompts = [
     videoUrl: 'https://storage.googleapis.com/mock-bucket/videos/sample-drone.mp4',
     mediaUrl: 'https://storage.googleapis.com/mock-bucket/videos/sample-drone.mp4',
     userName: 'Demo Video Creator',
+    userId: 'anonymous',
     likes: 89,
     views: 567,
     uses: 34,
@@ -2648,7 +2578,12 @@ const mockPrompts = [
     fileType: 'video',
     videoDuration: 10,
     videoFormat: 'mp4',
-    hasCustomThumbnail: true
+    hasCustomThumbnail: true,
+    price: 0,
+    isPaid: false,
+    salesCount: 0,
+    totalEarnings: 0,
+    purchasedBy: []
   }
 ];
 
@@ -2724,6 +2659,802 @@ function generateMockComments(count) {
   return mockComments.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 }
 
+// ==================== MARKETPLACE API ENDPOINTS ====================
+
+// Get user's prompts - WITHOUT orderBy to avoid index requirement
+app.get('/api/user/:userId/prompts', async (req, res) => {
+  try {
+    const userId = req.params.userId;
+    
+    if (db && db.collection) {
+      const snapshot = await db.collection('uploads')
+        .where('userId', '==', userId)
+        .limit(100)
+        .get();
+      
+      const prompts = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+        createdAt: safeDateToString(doc.data().createdAt)
+      }));
+      
+      prompts.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+      
+      res.json({ success: true, prompts });
+    } else {
+      const userPrompts = mockPrompts.filter(p => p.userId === userId || p.userName === 'Demo User');
+      res.json({ success: true, prompts: userPrompts });
+    }
+  } catch (error) {
+    console.error('Error fetching user prompts:', error);
+    res.status(500).json({ error: 'Failed to fetch prompts' });
+  }
+});
+
+// Get user's sales
+app.get('/api/user/:userId/sales', async (req, res) => {
+  try {
+    const userId = req.params.userId;
+    
+    if (db && db.collection) {
+      const snapshot = await db.collection('sales')
+        .where('sellerId', '==', userId)
+        .limit(100)
+        .get();
+      
+      const sales = snapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          promptId: data.promptId,
+          promptTitle: data.promptTitle || 'Untitled Prompt',
+          buyerId: data.buyerId,
+          buyerName: data.buyerName || 'Anonymous',
+          buyerEmail: data.buyerEmail || null,
+          amount: data.amount || 0,
+          sellerEarnings: data.sellerEarnings || Math.round((data.amount || 0) * 0.8),
+          platformFee: data.platformFee || Math.round((data.amount || 0) * 0.2),
+          date: safeDateToString(data.createdAt),
+          createdAt: safeDateToString(data.createdAt),
+          paymentStatus: data.paymentStatus || 'completed'
+        };
+      });
+      
+      sales.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+      
+      res.json({ success: true, sales });
+    } else {
+      const mockSales = [
+        {
+          promptTitle: 'Fantasy Landscape with Mountains',
+          buyerName: 'Anonymous User',
+          amount: 50,
+          sellerEarnings: 40,
+          date: new Date().toISOString()
+        }
+      ];
+      res.json({ success: true, sales: mockSales });
+    }
+  } catch (error) {
+    console.error('Error fetching sales:', error);
+    res.status(500).json({ error: 'Failed to fetch sales' });
+  }
+});
+
+// Get user's purchases
+app.get('/api/user/:userId/purchases', async (req, res) => {
+  try {
+    const userId = req.params.userId;
+    
+    if (db && db.collection) {
+      const snapshot = await db.collection('purchases')
+        .where('buyerId', '==', userId)
+        .limit(100)
+        .get();
+      
+      const purchases = snapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          promptId: data.promptId,
+          promptTitle: data.promptTitle || 'Untitled Prompt',
+          promptText: data.promptText || 'No prompt text available.',
+          imageUrl: data.imageUrl || 'https://via.placeholder.com/300x160/4f46e5/ffffff?text=AI+Prompt',
+          thumbnailUrl: data.thumbnailUrl || null,
+          fileType: data.fileType || 'image',
+          amount: data.amount || 0,
+          buyerName: data.buyerName || 'User',
+          sellerName: data.sellerName || 'Anonymous',
+          date: safeDateToString(data.createdAt),
+          createdAt: safeDateToString(data.createdAt),
+          paymentStatus: data.paymentStatus || 'completed'
+        };
+      });
+      
+      purchases.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+      
+      res.json({ success: true, purchases });
+    } else {
+      const mockPurchases = [
+        {
+          id: 'purchase-demo-1',
+          promptId: 'demo-2',
+          promptTitle: 'Cyberpunk City Street',
+          promptText: 'Cyberpunk city street at night, neon signs, rainy pavement, futuristic vehicles, Blade Runner style, cinematic lighting',
+          imageUrl: 'https://via.placeholder.com/800x400/8f94fb/white?text=Cyberpunk+City',
+          amount: 50,
+          buyerName: 'You',
+          sellerName: 'Demo User',
+          date: new Date().toISOString(),
+          createdAt: new Date().toISOString(),
+          paymentStatus: 'completed'
+        },
+        {
+          id: 'purchase-demo-2',
+          promptId: 'demo-3',
+          promptTitle: 'Professional Portrait Photography',
+          promptText: 'Professional portrait photography, natural lighting, soft shadows, high detail, 85mm lens, studio quality, professional model',
+          imageUrl: 'https://via.placeholder.com/800x400/20bf6b/white?text=Portrait+Photo',
+          amount: 30,
+          buyerName: 'You',
+          sellerName: 'Demo User',
+          date: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
+          createdAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
+          paymentStatus: 'completed'
+        }
+      ];
+      res.json({ success: true, purchases: mockPurchases });
+    }
+  } catch (error) {
+    console.error('Error fetching purchases:', error);
+    res.status(500).json({ error: 'Failed to fetch purchases' });
+  }
+});
+
+// Get user's earnings
+app.get('/api/user/:userId/earnings', async (req, res) => {
+  try {
+    const userId = req.params.userId;
+    
+    if (db && db.collection) {
+      const salesSnapshot = await db.collection('sales')
+        .where('sellerId', '==', userId)
+        .get();
+      
+      const earnings = salesSnapshot.docs.map(doc => ({
+        promptTitle: doc.data().promptTitle,
+        buyerName: doc.data().buyerName,
+        amount: doc.data().amount,
+        date: safeDateToString(doc.data().createdAt)
+      }));
+      
+      const totalEarnings = earnings.reduce((sum, e) => sum + Math.round(e.amount * 0.8), 0);
+      const totalSales = earnings.length;
+      
+      const promptsSnapshot = await db.collection('uploads')
+        .where('userId', '==', userId)
+        .get();
+      const totalPrompts = promptsSnapshot.size;
+      
+      const purchasesSnapshot = await db.collection('purchases')
+        .where('buyerId', '==', userId)
+        .get();
+      const totalPurchases = purchasesSnapshot.size;
+      
+      res.json({
+        success: true,
+        earnings,
+        totalEarnings,
+        totalSales,
+        totalPrompts,
+        totalPurchases
+      });
+    } else {
+      const mockEarnings = [
+        {
+          promptTitle: 'Fantasy Landscape with Mountains',
+          buyerName: 'Anonymous User',
+          amount: 50,
+          date: new Date().toISOString()
+        }
+      ];
+      res.json({
+        success: true,
+        earnings: mockEarnings,
+        totalEarnings: 40,
+        totalSales: 1,
+        totalPrompts: 3,
+        totalPurchases: 1
+      });
+    }
+  } catch (error) {
+    console.error('Error fetching earnings:', error);
+    res.status(500).json({ error: 'Failed to fetch earnings' });
+  }
+});
+
+// Check if user has purchased a prompt
+app.get('/api/check-purchase/:promptId', async (req, res) => {
+  try {
+    const promptId = req.params.promptId;
+    const userId = req.query.userId;
+    
+    if (!userId) {
+      return res.json({ purchased: false });
+    }
+    
+    if (db && db.collection) {
+      const purchaseSnapshot = await db.collection('purchases')
+        .where('promptId', '==', promptId)
+        .where('buyerId', '==', userId)
+        .limit(1)
+        .get();
+      
+      res.json({ purchased: !purchaseSnapshot.empty });
+    } else {
+      res.json({ purchased: false });
+    }
+  } catch (error) {
+    console.error('Error checking purchase:', error);
+    res.json({ purchased: false });
+  }
+});
+
+// Complete purchase after successful payment
+app.post('/api/complete-purchase', async (req, res) => {
+    try {
+        const { promptId, userId, userEmail, amount, paymentId } = req.body;
+        
+        if (!promptId || !userId) {
+            return res.status(400).json({ error: 'Missing required fields' });
+        }
+        
+        const result = await completePurchaseHelper(promptId, userId, userEmail, amount, paymentId);
+        res.json(result);
+        
+    } catch (error) {
+        console.error('Purchase completion error:', error);
+        res.status(500).json({ 
+            error: 'Failed to complete purchase',
+            details: error.message 
+        });
+    }
+});
+
+// ==================== ADMIN CONFIGURATION ====================
+const ADMIN_EMAILS = ['shaikhmujahid771@gmail.com', 'mujjuchatbot@gmail.com'];
+
+// ==================== OWNER / ADMIN ENDPOINTS ====================
+
+// Middleware to check if user is admin
+async function isAdmin(req, res, next) {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      console.log('No token provided for admin check');
+      return res.status(401).json({ error: 'No token provided' });
+    }
+
+    const idToken = authHeader.split('Bearer ')[1];
+    
+    if (!adminInitialized || !admin.auth) {
+      console.log('Firebase Admin not initialized, using mock admin');
+      if (process.env.NODE_ENV === 'development') {
+        req.user = { email: 'shaikhmujahid771@gmail.com', uid: 'test-user' };
+        return next();
+      }
+      return res.status(403).json({ error: 'Admin authentication not configured' });
+    }
+    
+    const decodedToken = await admin.auth().verifyIdToken(idToken);
+    const email = decodedToken.email;
+    
+    console.log('Admin check for email:', email);
+    
+    if (ADMIN_EMAILS.includes(email)) {
+      req.user = decodedToken;
+      console.log('Admin access granted for:', email);
+      next();
+    } else {
+      console.log('Admin access denied for:', email);
+      res.status(403).json({ error: 'Unauthorized - Admin access required' });
+    }
+  } catch (error) {
+    console.error('Admin auth error:', error);
+    res.status(401).json({ error: 'Authentication failed: ' + error.message });
+  }
+}
+
+// Get all sellers with their info and earnings
+app.get('/api/owner/sellers', async (req, res) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'No token provided' });
+  }
+  
+  const idToken = authHeader.split('Bearer ')[1];
+  
+  try {
+    if (!adminInitialized || !admin.auth) {
+      throw new Error('Admin not initialized');
+    }
+    const decodedToken = await admin.auth().verifyIdToken(idToken);
+    const email = decodedToken.email;
+    
+    if (!ADMIN_EMAILS.includes(email)) {
+      return res.status(403).json({ error: 'Unauthorized' });
+    }
+  } catch (error) {
+    console.error('Admin auth error:', error);
+    return res.status(401).json({ error: 'Authentication failed' });
+  }
+  
+  try {
+    let sellers = [];
+
+    if (db && db.collection) {
+      const sellersSnapshot = await db.collection('sellerInfo').get();
+      for (const doc of sellersSnapshot.docs) {
+        const sellerData = doc.data();
+        const userId = doc.id;
+
+        let totalEarnings = 0;
+        const salesSnapshot = await db.collection('sales').where('sellerId', '==', userId).get();
+        totalEarnings = salesSnapshot.docs.reduce((sum, d) => sum + (d.data().sellerEarnings || 0), 0);
+
+        let totalPaidOut = 0;
+        const payoutsSnapshot = await db.collection('payouts').where('sellerId', '==', userId).get();
+        totalPaidOut = payoutsSnapshot.docs.reduce((sum, d) => sum + (d.data().amount || 0), 0);
+
+        sellers.push({
+          userId,
+          ...sellerData,
+          totalEarnings,
+          totalPaidOut,
+          availableBalance: totalEarnings - totalPaidOut
+        });
+      }
+    } else {
+      sellers = [
+        {
+          userId: 'demo-seller-1',
+          name: 'Demo Seller',
+          email: 'seller@example.com',
+          upiId: 'seller@okhdfcbank',
+          bankAccount: '1234567890',
+          bankIfsc: 'HDFC0001234',
+          bankName: 'HDFC Bank',
+          status: 'approved',
+          totalEarnings: 800,
+          totalPaidOut: 500,
+          availableBalance: 300,
+          createdAt: new Date().toISOString()
+        }
+      ];
+    }
+
+    res.json({ success: true, sellers });
+  } catch (error) {
+    console.error('Error fetching sellers:', error);
+    res.status(500).json({ error: 'Failed to fetch sellers: ' + error.message });
+  }
+});
+
+// Get all sales
+app.get('/api/owner/sales', async (req, res) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'No token provided' });
+  }
+  
+  const idToken = authHeader.split('Bearer ')[1];
+  
+  try {
+    if (!adminInitialized || !admin.auth) {
+      throw new Error('Admin not initialized');
+    }
+    const decodedToken = await admin.auth().verifyIdToken(idToken);
+    const email = decodedToken.email;
+    
+    if (!ADMIN_EMAILS.includes(email)) {
+      return res.status(403).json({ error: 'Unauthorized' });
+    }
+  } catch (error) {
+    console.error('Admin auth error:', error);
+    return res.status(401).json({ error: 'Authentication failed' });
+  }
+  
+  try {
+    let sales = [];
+
+    if (db && db.collection) {
+      const snapshot = await db.collection('sales')
+        .orderBy('createdAt', 'desc')
+        .limit(500)
+        .get();
+      sales = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    } else {
+      sales = [
+        {
+          id: 'sale-1',
+          promptTitle: 'Fantasy Landscape',
+          buyerName: 'User1',
+          sellerName: 'Demo Seller',
+          amount: 50,
+          sellerEarnings: 40,
+          createdAt: new Date().toISOString()
+        }
+      ];
+    }
+
+    res.json({ success: true, sales });
+  } catch (error) {
+    console.error('Error fetching sales:', error);
+    res.status(500).json({ error: 'Failed to fetch sales: ' + error.message });
+  }
+});
+
+// Get all purchases
+app.get('/api/owner/purchases', async (req, res) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'No token provided' });
+  }
+  
+  const idToken = authHeader.split('Bearer ')[1];
+  
+  try {
+    if (!adminInitialized || !admin.auth) {
+      throw new Error('Admin not initialized');
+    }
+    const decodedToken = await admin.auth().verifyIdToken(idToken);
+    const email = decodedToken.email;
+    
+    if (!ADMIN_EMAILS.includes(email)) {
+      return res.status(403).json({ error: 'Unauthorized' });
+    }
+  } catch (error) {
+    console.error('Admin auth error:', error);
+    return res.status(401).json({ error: 'Authentication failed' });
+  }
+  
+  try {
+    let purchases = [];
+
+    if (db && db.collection) {
+      const snapshot = await db.collection('purchases')
+        .orderBy('createdAt', 'desc')
+        .limit(500)
+        .get();
+      purchases = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    } else {
+      purchases = [
+        {
+          id: 'purchase-1',
+          promptTitle: 'Cyberpunk City',
+          buyerName: 'User2',
+          sellerName: 'Demo Seller',
+          amount: 50,
+          createdAt: new Date().toISOString()
+        }
+      ];
+    }
+
+    res.json({ success: true, purchases });
+  } catch (error) {
+    console.error('Error fetching purchases:', error);
+    res.status(500).json({ error: 'Failed to fetch purchases: ' + error.message });
+  }
+});
+
+// Get all pending payouts
+app.get('/api/owner/pending-payouts', async (req, res) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'No token provided' });
+  }
+  
+  const idToken = authHeader.split('Bearer ')[1];
+  
+  try {
+    if (!adminInitialized || !admin.auth) {
+      throw new Error('Admin not initialized');
+    }
+    const decodedToken = await admin.auth().verifyIdToken(idToken);
+    const email = decodedToken.email;
+    
+    if (!ADMIN_EMAILS.includes(email)) {
+      return res.status(403).json({ error: 'Unauthorized' });
+    }
+  } catch (error) {
+    console.error('Admin auth error:', error);
+    return res.status(401).json({ error: 'Authentication failed' });
+  }
+  
+  try {
+    let payouts = [];
+
+    if (db && db.collection) {
+      const snapshot = await db.collection('payouts')
+        .where('status', '==', 'pending')
+        .orderBy('createdAt', 'asc')
+        .get();
+      payouts = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      console.log(`Found ${payouts.length} pending payouts`);
+    } else {
+      payouts = (global.payouts || []).filter(p => p.status === 'pending');
+    }
+
+    res.json({ success: true, payouts });
+  } catch (error) {
+    console.error('Error fetching pending payouts:', error);
+    res.status(500).json({ error: 'Failed to fetch pending payouts: ' + error.message });
+  }
+});
+
+// Mark payout as paid
+app.post('/api/owner/payout/:payoutId', async (req, res) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'No token provided' });
+  }
+  
+  const idToken = authHeader.split('Bearer ')[1];
+  
+  try {
+    if (!adminInitialized || !admin.auth) {
+      throw new Error('Admin not initialized');
+    }
+    const decodedToken = await admin.auth().verifyIdToken(idToken);
+    const email = decodedToken.email;
+    
+    if (!ADMIN_EMAILS.includes(email)) {
+      return res.status(403).json({ error: 'Unauthorized' });
+    }
+  } catch (error) {
+    console.error('Admin auth error:', error);
+    return res.status(401).json({ error: 'Authentication failed' });
+  }
+  
+  try {
+    const payoutId = req.params.payoutId;
+    const { transactionId, notes } = req.body;
+
+    if (db && db.collection) {
+      await db.collection('payouts').doc(payoutId).update({
+        status: 'paid',
+        paidAt: new Date().toISOString(),
+        transactionId: transactionId || null,
+        notes: notes || null,
+        updatedAt: new Date().toISOString()
+      });
+      console.log(`Payout ${payoutId} marked as paid`);
+    } else {
+      const payout = global.payouts?.find(p => p.id === payoutId);
+      if (payout) {
+        payout.status = 'paid';
+        payout.paidAt = new Date().toISOString();
+        payout.transactionId = transactionId;
+        console.log(`Demo: Payout ${payoutId} marked as paid`);
+      }
+    }
+
+    res.json({ success: true, message: 'Payout marked as paid' });
+  } catch (error) {
+    console.error('Error updating payout:', error);
+    res.status(500).json({ error: 'Failed to update payout: ' + error.message });
+  }
+});
+
+// Check if current user is admin
+app.get('/api/check-admin', async (req, res) => {
+    try {
+        const authHeader = req.headers.authorization;
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            return res.json({ isAdmin: false });
+        }
+        
+        if (!adminInitialized || !admin.auth) {
+            return res.json({ isAdmin: true });
+        }
+        
+        const idToken = authHeader.split('Bearer ')[1];
+        const decodedToken = await admin.auth().verifyIdToken(idToken);
+        const email = decodedToken.email;
+        const isAdmin = ADMIN_EMAILS.includes(email);
+        res.json({ isAdmin });
+    } catch (error) {
+        console.error('Admin check error:', error);
+        res.json({ isAdmin: false });
+    }
+});
+
+// ==================== SELLER INFO & PAYOUT ENDPOINTS ====================
+
+// Save seller information
+app.post('/api/seller-info', async (req, res) => {
+  try {
+    const { userId, name, email, upiId, bankAccount, bankIfsc, bankName, pan } = req.body;
+    if (!userId || !name || !email) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    const sellerData = sanitizeFirestoreData({
+      userId,
+      name,
+      email,
+      upiId: upiId || null,
+      bankAccount: bankAccount || null,
+      bankIfsc: bankIfsc || null,
+      bankName: bankName || null,
+      pan: pan || null,
+      status: 'pending',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    });
+
+    if (db && db.collection) {
+      await db.collection('sellerInfo').doc(userId).set(sellerData, { merge: true });
+      console.log(`✅ Seller info saved for user: ${userId}`);
+      res.json({ success: true, message: 'Seller info submitted successfully' });
+    } else {
+      if (!global.sellerInfo) global.sellerInfo = {};
+      global.sellerInfo[userId] = sellerData;
+      res.json({ success: true, message: 'Seller info saved (demo)' });
+    }
+  } catch (error) {
+    console.error('Error saving seller info:', error);
+    res.status(500).json({ error: 'Failed to save seller info' });
+  }
+});
+
+// Get seller info for a user
+app.get('/api/seller-info/:userId', async (req, res) => {
+  try {
+    const userId = req.params.userId;
+    let sellerInfo = null;
+
+    if (db && db.collection) {
+      const doc = await db.collection('sellerInfo').doc(userId).get();
+      if (doc.exists) sellerInfo = doc.data();
+    } else {
+      sellerInfo = global.sellerInfo?.[userId] || null;
+    }
+
+    res.json({ success: true, sellerInfo });
+  } catch (error) {
+    console.error('Error fetching seller info:', error);
+    res.status(500).json({ error: 'Failed to fetch seller info' });
+  }
+});
+
+// Request a payout
+app.post('/api/request-payout', async (req, res) => {
+  try {
+    const { userId, amount } = req.body;
+    if (!userId || !amount || amount < 100) {
+      return res.status(400).json({ error: 'Invalid payout request' });
+    }
+
+    let sellerInfo = null;
+    if (db && db.collection) {
+      const doc = await db.collection('sellerInfo').doc(userId).get();
+      if (doc.exists) sellerInfo = doc.data();
+    } else {
+      sellerInfo = global.sellerInfo?.[userId] || null;
+    }
+    if (!sellerInfo) {
+      return res.status(400).json({ error: 'Please complete seller information first' });
+    }
+
+    let totalEarnings = 0;
+    let totalPaidOut = 0;
+
+    if (db && db.collection) {
+      const salesSnapshot = await db.collection('sales').where('sellerId', '==', userId).get();
+      totalEarnings = salesSnapshot.docs.reduce((sum, doc) => sum + (doc.data().sellerEarnings || 0), 0);
+
+      const payoutsSnapshot = await db.collection('payouts').where('sellerId', '==', userId).get();
+      totalPaidOut = payoutsSnapshot.docs.reduce((sum, doc) => sum + (doc.data().amount || 0), 0);
+    } else {
+      totalEarnings = 500;
+      totalPaidOut = 0;
+    }
+
+    const available = totalEarnings - totalPaidOut;
+    if (available < amount) {
+      return res.status(400).json({ error: `Insufficient balance. Available: ₹${available}` });
+    }
+
+    const payoutRequest = sanitizeFirestoreData({
+      sellerId: userId,
+      amount,
+      status: 'pending',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    });
+
+    if (db && db.collection) {
+      await db.collection('payouts').add(payoutRequest);
+      console.log(`✅ Payout request created for user ${userId}: ₹${amount}`);
+    } else {
+      if (!global.payouts) global.payouts = [];
+      global.payouts.push({ id: 'mock-' + Date.now(), ...payoutRequest });
+    }
+
+    res.json({ success: true, message: 'Payout request submitted' });
+  } catch (error) {
+    console.error('Error requesting payout:', error);
+    res.status(500).json({ error: 'Failed to request payout' });
+  }
+});
+
+// Get payout history for a user
+app.get('/api/user/:userId/payouts', async (req, res) => {
+  try {
+    const userId = req.params.userId;
+    let payouts = [];
+
+    if (db && db.collection) {
+      const snapshot = await db.collection('payouts')
+        .where('sellerId', '==', userId)
+        .orderBy('createdAt', 'desc')
+        .limit(50)
+        .get();
+      payouts = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    } else {
+      payouts = (global.payouts || []).filter(p => p.sellerId === userId);
+    }
+
+    res.json({ success: true, payouts });
+  } catch (error) {
+    console.error('Error fetching payouts:', error);
+    res.status(500).json({ error: 'Failed to fetch payouts' });
+  }
+});
+
+// Delete prompt
+app.delete('/api/prompt/:id', async (req, res) => {
+  try {
+    const promptId = req.params.id;
+    const userId = req.query.userId;
+    
+    if (!userId) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+    
+    if (db && db.collection) {
+      const promptDoc = await db.collection('uploads').doc(promptId).get();
+      
+      if (!promptDoc.exists) {
+        return res.status(404).json({ error: 'Prompt not found' });
+      }
+      
+      const promptData = promptDoc.data();
+      
+      if (promptData.userId !== userId && promptData.userId !== 'anonymous') {
+        return res.status(403).json({ error: 'You do not have permission to delete this prompt' });
+      }
+      
+      await db.collection('uploads').doc(promptId).delete();
+      
+      cache.del(`prompt-${promptId}`);
+      cache.del(`uploads-page-1`);
+      
+      res.json({ success: true, message: 'Prompt deleted successfully' });
+    } else {
+      const index = mockPrompts.findIndex(p => p.id === promptId);
+      if (index !== -1) {
+        mockPrompts.splice(index, 1);
+      }
+      res.json({ success: true, message: 'Prompt deleted successfully' });
+    }
+  } catch (error) {
+    console.error('Delete prompt error:', error);
+    res.status(500).json({ error: 'Failed to delete prompt' });
+  }
+});
+
 // Health check endpoint
 app.get('/health', (req, res) => {
   res.json({ 
@@ -2743,7 +3474,8 @@ app.get('/health', (req, res) => {
       miniBrowser: true,
       videoUploads: true,
       youtubeShorts: true,
-      customThumbnails: true
+      customThumbnails: true,
+      marketplace: true
     },
     uploadLimits: {
       maxFileSize: '100MB',
@@ -2781,17 +3513,15 @@ app.get('/api/video/:videoId', async (req, res) => {
         const videoUrl = data.videoUrl || data.mediaUrl;
         
         if (videoUrl && videoUrl.startsWith('https://storage.googleapis.com/')) {
-          // For Firebase Storage videos, we need to generate a signed URL or proxy
           if (bucket) {
             const fileName = videoUrl.split('/').pop();
             const file = bucket.file(`videos/${fileName}`);
             
             if (range) {
-              // Handle range requests for video streaming
               const [metadata] = await file.getMetadata();
               const fileSize = metadata.size;
               
-              const CHUNK_SIZE = 10 ** 6; // 1MB chunks
+              const CHUNK_SIZE = 10 ** 6;
               const start = Number(range.replace(/\D/g, ''));
               const end = Math.min(start + CHUNK_SIZE, fileSize - 1);
               
@@ -2808,7 +3538,6 @@ app.get('/api/video/:videoId', async (req, res) => {
               const stream = file.createReadStream({ start, end });
               stream.pipe(res);
             } else {
-              // Redirect to the public URL if no range requested
               res.redirect(videoUrl);
             }
           } else {
@@ -2821,7 +3550,6 @@ app.get('/api/video/:videoId', async (req, res) => {
         res.status(404).send('Video not found');
       }
     } else {
-      // Mock video for development
       const mockVideoUrl = 'https://storage.googleapis.com/your-bucket/sample-video.mp4';
       res.redirect(mockVideoUrl);
     }
@@ -2848,7 +3576,6 @@ app.get('/api/thumbnail/:promptId', async (req, res) => {
       }
     }
     
-    // Fallback to placeholder
     res.redirect('https://via.placeholder.com/300x400/ff6b6b/ffffff?text=Video+Reel');
   } catch (error) {
     console.error('Thumbnail error:', error);
@@ -2941,42 +3668,18 @@ app.get('/sitemap.xml', async (req, res) => {
   }
 });
 
-// Pages Sitemap (static pages)
+// Pages Sitemap
 app.get('/sitemap-pages.xml', async (req, res) => {
   try {
     const baseUrl = process.env.BASE_URL || `https://${req.get('host')}`;
     
     const pages = [
-      {
-        loc: baseUrl + '/',
-        lastmod: new Date().toISOString(),
-        changefreq: 'daily',
-        priority: '1.0'
-      },
-      {
-        loc: baseUrl + '/index.html',
-        lastmod: new Date().toISOString(),
-        changefreq: 'daily',
-        priority: '0.9'
-      },
-      {
-        loc: baseUrl + '/promptconverter.html',
-        lastmod: new Date().toISOString(),
-        changefreq: 'daily',
-        priority: '0.8'
-      },
-      {
-        loc: baseUrl + '/howitworks.html',
-        lastmod: new Date().toISOString(),
-        changefreq: 'daily',
-        priority: '0.8'
-      },
-      {
-        loc: baseUrl + '/login.html',
-        lastmod: new Date().toISOString(),
-        changefreq: 'daily',
-        priority: '0.5'
-      }
+      { loc: baseUrl + '/', lastmod: new Date().toISOString(), changefreq: 'daily', priority: '1.0' },
+      { loc: baseUrl + '/index.html', lastmod: new Date().toISOString(), changefreq: 'daily', priority: '0.9' },
+      { loc: baseUrl + '/promptconverter.html', lastmod: new Date().toISOString(), changefreq: 'daily', priority: '0.8' },
+      { loc: baseUrl + '/howitworks.html', lastmod: new Date().toISOString(), changefreq: 'daily', priority: '0.8' },
+      { loc: baseUrl + '/login.html', lastmod: new Date().toISOString(), changefreq: 'daily', priority: '0.5' },
+      { loc: baseUrl + '/dashboard.html', lastmod: new Date().toISOString(), changefreq: 'daily', priority: '0.7' }
     ];
 
     const sitemap = SitemapGenerator.generateSitemap(pages);
@@ -2989,7 +3692,7 @@ app.get('/sitemap-pages.xml', async (req, res) => {
   }
 });
 
-// Posts Sitemap (dynamic prompts) - INCREASED to 500 prompts
+// Posts Sitemap
 app.get('/sitemap-posts.xml', async (req, res) => {
   try {
     const baseUrl = process.env.BASE_URL || `https://${req.get('host')}`;
@@ -2998,7 +3701,7 @@ app.get('/sitemap-posts.xml', async (req, res) => {
     if (db) {
       const snapshot = await db.collection('uploads')
         .orderBy('updatedAt', 'desc')
-        .limit(500) // INCREASED from 100 to 500
+        .limit(500)
         .get();
 
       prompts = snapshot.docs.map(doc => {
@@ -3016,8 +3719,7 @@ app.get('/sitemap-posts.xml', async (req, res) => {
 
     const urls = prompts.map(prompt => ({
       loc: `${baseUrl}/prompt/${prompt.id}`,
-      lastmod: prompt.updatedAt && prompt.updatedAt !== prompt.createdAt ? 
-               prompt.updatedAt : prompt.createdAt,
+      lastmod: prompt.updatedAt && prompt.updatedAt !== prompt.createdAt ? prompt.updatedAt : prompt.createdAt,
       changefreq: 'weekly',
       priority: '0.8'
     }));
@@ -3029,21 +3731,14 @@ app.get('/sitemap-posts.xml', async (req, res) => {
   } catch (error) {
     console.error('❌ Posts sitemap error:', error);
     const baseUrl = process.env.BASE_URL || `https://${req.get('host')}`;
-    const fallbackUrls = [
-      {
-        loc: baseUrl + '/',
-        lastmod: new Date().toISOString(),
-        changefreq: 'daily',
-        priority: '1.0'
-      }
-    ];
+    const fallbackUrls = [{ loc: baseUrl + '/', lastmod: new Date().toISOString(), changefreq: 'daily', priority: '1.0' }];
     const sitemap = SitemapGenerator.generateSitemap(fallbackUrls);
     res.set('Content-Type', 'application/xml');
     res.send(sitemap);
   }
 });
 
-// News Sitemap - INCREASED to 500 news
+// News Sitemap
 app.get('/sitemap-news.xml', async (req, res) => {
   try {
     const baseUrl = process.env.BASE_URL || `https://${req.get('host')}`;
@@ -3052,7 +3747,7 @@ app.get('/sitemap-news.xml', async (req, res) => {
     if (db && db.collection) {
       const snapshot = await db.collection('news')
         .orderBy('publishedAt', 'desc')
-        .limit(500) // INCREASED from 50 to 500
+        .limit(500)
         .get();
 
       news = snapshot.docs.map(doc => {
@@ -3083,136 +3778,238 @@ app.get('/sitemap-news.xml', async (req, res) => {
   }
 });
 
-// News upload endpoint - OPTIMIZED
-app.post('/api/upload-news', async (req, res) => {
-  console.log('📰 News upload request received');
-  
-  const busboy = Busboy({ headers: req.headers });
+// ==================== UPLOAD ENDPOINT ====================
+app.post('/api/upload', async (req, res) => {
+  console.log('📤 Upload request received');
+  const busboy = Busboy({ headers: req.headers, limits: { fileSize: 100 * 1024 * 1024 } });
   const fields = {};
-  let fileBuffer = null;
-  let fileName = null;
-  let fileType = null;
+  let mediaBuffer = null, thumbnailBuffer = null;
+  let uploadedMediaFileName = null, uploadedThumbnailFileName = null;
+  let mediaFileType = null, thumbnailFileType = null;
+  let uploadError = null;
 
-  busboy.on('field', (fieldname, val) => {
-    fields[fieldname] = val;
-  });
+  busboy.on('field', (fieldname, val) => { fields[fieldname] = val; });
 
   busboy.on('file', (fieldname, file, info) => {
-    if (fieldname !== 'image') {
-      return res.status(400).json({ error: 'Only image files are allowed' });
-    }
-
     const { filename, mimeType } = info;
-    fileName = filename;
-    fileType = mimeType;
-    
-    const chunks = [];
-    file.on('data', (data) => {
-      chunks.push(data);
-    });
-
-    file.on('end', () => {
-      fileBuffer = Buffer.concat(chunks);
-      
-      if (fileBuffer.length > 20 * 1024 * 1024) {
-        return res.status(400).json({ error: 'File size exceeds 20MB limit' });
+    if (fieldname === 'media') {
+      uploadedMediaFileName = filename;
+      mediaFileType = mimeType;
+      const allowedImageTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif'];
+      const allowedVideoTypes = ['video/mp4', 'video/webm', 'video/quicktime'];
+      const allowedTypes = [...allowedImageTypes, ...allowedVideoTypes];
+      if (!allowedTypes.includes(mimeType)) {
+        uploadError = new Error('Invalid file type. Allowed: JPEG, PNG, WebP, GIF, MP4, WebM');
+        return;
       }
-    });
+      const chunks = [];
+      file.on('data', (data) => chunks.push(data));
+      file.on('end', () => {
+        mediaBuffer = Buffer.concat(chunks);
+        if (mediaBuffer.length > 100 * 1024 * 1024) uploadError = new Error('File size exceeds 100MB limit');
+      });
+    } else if (fieldname === 'thumbnail') {
+      uploadedThumbnailFileName = filename;
+      thumbnailFileType = mimeType;
+      const allowedImageTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+      if (!allowedImageTypes.includes(mimeType)) {
+        uploadError = new Error('Invalid thumbnail file type. Allowed: JPEG, PNG, WebP');
+        return;
+      }
+      const chunks = [];
+      file.on('data', (data) => chunks.push(data));
+      file.on('end', () => {
+        thumbnailBuffer = Buffer.concat(chunks);
+        if (thumbnailBuffer.length > 5 * 1024 * 1024) uploadError = new Error('Thumbnail size exceeds 5MB limit');
+      });
+    }
   });
 
   busboy.on('finish', async () => {
     try {
-      if (!fields.title || !fields.content) {
-        return res.status(400).json({ error: 'Title and content are required' });
-      }
+      if (uploadError) return res.status(400).json({ error: uploadError.message });
+      if (!fields.title || !fields.promptText) return res.status(400).json({ error: 'Title and prompt text are required' });
+      if (!mediaBuffer) return res.status(400).json({ error: 'No media file provided' });
 
-      let imageUrl = 'https://via.placeholder.com/800x400/4e54c8/white?text=Prompt+Seen+News';
+      const isVideo = mediaFileType.startsWith('video/');
+      const isImage = mediaFileType.startsWith('image/');
+      if (!isVideo && !isImage) return res.status(400).json({ error: 'File must be an image or video' });
 
-      if (fileBuffer && bucket) {
-        const fileExtension = fileName.split('.').pop();
-        const newFileName = `news/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExtension}`;
-        const file = bucket.file(newFileName);
-
-        await file.save(fileBuffer, {
+      let mediaUrl, thumbnailUrl = null;
+      if (bucket) {
+        const timestamp = Date.now();
+        const uniqueId = uuidv4();
+        const mediaExtension = uploadedMediaFileName.split('.').pop();
+        const mediaFolder = isVideo ? 'videos' : 'prompts';
+        const storageMediaFileName = `${mediaFolder}/${timestamp}-${uniqueId}.${mediaExtension}`;
+        const mediaFile = bucket.file(storageMediaFileName);
+        await mediaFile.save(mediaBuffer, {
           metadata: {
-            contentType: fileType,
+            contentType: mediaFileType,
             metadata: {
-              uploadedBy: fields.author || 'editor',
-              uploadedAt: new Date().toISOString()
+              uploadedBy: fields.userName || 'anonymous',
+              uploadedAt: new Date().toISOString(),
+              fileType: isVideo ? 'video' : 'image',
+              originalName: uploadedMediaFileName,
+              hasThumbnail: !!thumbnailBuffer
             }
           }
         });
-
-        await file.makePublic();
-        imageUrl = `https://storage.googleapis.com/${bucket.name}/${newFileName}`;
+        await mediaFile.makePublic();
+        mediaUrl = `https://storage.googleapis.com/${bucket.name}/${storageMediaFileName}`;
+        if (thumbnailBuffer) {
+          const thumbExtension = uploadedThumbnailFileName.split('.').pop();
+          const thumbFileName = `thumbnails/${timestamp}-${uniqueId}.${thumbExtension}`;
+          const thumbFile = bucket.file(thumbFileName);
+          await thumbFile.save(thumbnailBuffer, {
+            metadata: {
+              contentType: thumbnailFileType,
+              metadata: {
+                uploadedBy: fields.userName || 'anonymous',
+                uploadedAt: new Date().toISOString(),
+                originalVideoId: uniqueId
+              }
+            }
+          });
+          await thumbFile.makePublic();
+          thumbnailUrl = `https://storage.googleapis.com/${bucket.name}/${thumbFileName}`;
+        }
+      } else {
+        if (isVideo) {
+          mediaUrl = `https://storage.googleapis.com/mock-bucket/videos/sample-${Date.now()}.mp4`;
+          thumbnailUrl = thumbnailBuffer ? `https://storage.googleapis.com/mock-bucket/thumbnails/sample-${Date.now()}.jpg` : 'https://via.placeholder.com/300x400/ff6b6b/ffffff?text=Video+Reel';
+        } else {
+          mediaUrl = 'https://via.placeholder.com/800x400/4e54c8/ffffff?text=Uploaded+Image';
+        }
       }
 
-      const newsTitle = NewsSEOOptimizer.generateNewsTitle(fields.title);
-      const metaDescription = NewsSEOOptimizer.generateNewsDescription(fields.content);
-      const slug = NewsSEOOptimizer.generateNewsSlug(fields.title);
-      const keywords = SEOOptimizer.extractKeywords(fields.title + ' ' + fields.content);
+      let category = fields.category || 'general';
+      if (!fields.category) category = isVideo ? 'video' : 'general';
 
-      const newsData = {
+      const seoTitle = SEOOptimizer.generateSEOTitle(fields.title);
+      const metaDescription = SEOOptimizer.generateMetaDescription(fields.promptText, fields.title);
+      const keywords = SEOOptimizer.extractKeywords(fields.title + ' ' + fields.promptText);
+      const slug = SEOOptimizer.generateSlug(fields.title);
+
+      const detectedPlatform = AIModelManager.detectPlatform({
+        promptText: fields.promptText,
         title: fields.title,
-        content: fields.content,
-        excerpt: fields.excerpt || (fields.content ? fields.content.substring(0, 200) + '...' : ''),
-        imageUrl: imageUrl,
-        author: fields.author || 'tools prompt Editor',
-        category: fields.category || 'ai-news',
-        tags: fields.tags ? fields.tags.split(',').map(tag => tag.trim()) : [],
         keywords: keywords,
-        seoTitle: newsTitle,
+        category: category,
+        fileType: isVideo ? 'video' : 'image'
+      });
+
+      let price = parseFloat(fields.price) || 0;
+      if (!price && fields.promptPrice) price = parseFloat(fields.promptPrice) || 0;
+      const isPaid = fields.isPaid === 'true' || price > 0;
+
+      const aboutDescription = fields.aboutDescription || '';
+
+      const promptData = {
+        title: fields.title,
+        promptText: fields.promptText,
+        mediaUrl: mediaUrl,
+        imageUrl: isImage ? mediaUrl : (thumbnailUrl || 'https://via.placeholder.com/300x400/ff6b6b/ffffff?text=Video+Reel'),
+        thumbnailUrl: thumbnailUrl,
+        videoUrl: isVideo ? mediaUrl : null,
+        fileType: isVideo ? 'video' : 'image',
+        category: category,
+        userName: fields.userName || 'Anonymous User',
+        userId: fields.userId || 'anonymous',
+        likes: 0,
+        views: 0,
+        uses: 0,
+        copies: 0,
+        commentCount: 0,
+        keywords: keywords,
+        seoTitle: seoTitle,
         metaDescription: metaDescription,
         slug: slug,
-        isBreaking: fields.isBreaking === 'true',
-        isFeatured: fields.isFeatured === 'true',
-        views: 0,
-        likes: 0,
-        shares: 0,
+        seoScore: Math.floor(Math.random() * 30) + 70,
+        adsenseMigrated: true,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
-        publishedAt: new Date().toISOString()
+        detectedPlatform: detectedPlatform,
+        price: price,
+        isPaid: isPaid,
+        salesCount: 0,
+        totalEarnings: 0,
+        purchasedBy: [],
+        aboutDescription: aboutDescription
       };
 
-      let docRef;
-      
-      if (db && db.collection) {
-        docRef = await db.collection('news').add(newsData);
-      } else {
-        docRef = { id: 'news-' + Date.now() };
-        global.mockNews.unshift({
-          id: docRef.id,
-          ...newsData
-        });
+      if (isVideo) {
+        promptData.videoDuration = null;
+        promptData.videoFormat = mediaFileType.split('/')[1];
+        promptData.isReel = true;
+        promptData.hasCustomThumbnail = !!thumbnailBuffer;
       }
 
-      const responseData = {
-        id: docRef.id,
-        ...newsData,
-        newsUrl: `/news/${docRef.id}`
-      };
+      let docRef;
+      if (db && db.collection) {
+        docRef = await db.collection('uploads').add(promptData);
+      } else {
+        docRef = { id: 'demo-' + Date.now() };
+        mockPrompts.unshift({ id: docRef.id, ...promptData });
+      }
 
-      cache.del('news-all');
-      
+      const priceMessage = isPaid ? ` with price ₹${price}` : ' as free';
       res.json({
         success: true,
-        news: responseData,
-        message: 'News published successfully!'
+        upload: { id: docRef.id, ...promptData },
+        message: isVideo ? `🎬 Video reel uploaded successfully${priceMessage}!` : `✅ Image uploaded successfully${priceMessage}!`,
+        fileType: isVideo ? 'video' : 'image',
+        detectedPlatform: detectedPlatform
       });
-
     } catch (error) {
-      console.error('❌ News upload error:', error);
-      res.status(500).json({ 
-        error: 'News publication failed', 
-        details: error.message
-      });
+      console.error('❌ Upload error:', error);
+      res.status(500).json({ error: 'Upload failed', details: error.message });
     }
   });
-
   req.pipe(busboy);
 });
 
-// Get news articles - WITH CACHING
+app.get('/api/prompt/:id/text', async (req, res) => {
+  try {
+    const promptId = req.params.id;
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+    const idToken = authHeader.split('Bearer ')[1];
+    const decodedToken = await admin.auth().verifyIdToken(idToken);
+    const userId = decodedToken.uid;
+
+    let promptData;
+    if (db && db.collection) {
+      const doc = await db.collection('uploads').doc(promptId).get();
+      if (!doc.exists) return res.status(404).json({ error: 'Prompt not found' });
+      promptData = doc.data();
+    } else {
+      promptData = mockPrompts.find(p => p.id === promptId);
+      if (!promptData) return res.status(404).json({ error: 'Prompt not found' });
+    }
+
+    const isPaid = promptData.price > 0;
+    if (isPaid) {
+      const purchaseQuery = await db.collection('purchases')
+        .where('promptId', '==', promptId)
+        .where('buyerId', '==', userId)
+        .limit(1)
+        .get();
+      if (purchaseQuery.empty) {
+        return res.status(403).json({ error: 'Not purchased' });
+      }
+    }
+
+    res.json({ promptText: promptData.promptText });
+  } catch (error) {
+    console.error('Error fetching prompt text:', error);
+    res.status(500).json({ error: 'Failed to fetch prompt text' });
+  }
+});
+
+// Get news articles
 app.get('/api/news', async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
@@ -3230,7 +4027,7 @@ app.get('/api/news', async (req, res) => {
     if (db && db.collection) {
       let query = db.collection('news')
         .orderBy('publishedAt', 'desc')
-        .limit(500); // INCREASED from 100 to 500
+        .limit(500);
       
       if (category && category !== 'all') {
         query = query.where('category', '==', category);
@@ -3272,7 +4069,7 @@ app.get('/api/news', async (req, res) => {
   }
 });
 
-// Individual news page - WITH CACHING
+// Individual news page
 app.get('/news/:id', async (req, res) => {
   try {
     const newsId = req.params.id;
@@ -3339,7 +4136,6 @@ app.get('/api/prompt/:id/comments', async (req, res) => {
     let totalCount = 0;
     
     if (db && db.collection) {
-      // Get total count
       const countSnapshot = await db.collection('uploads').doc(promptId)
         .collection('comments')
         .count()
@@ -3347,7 +4143,6 @@ app.get('/api/prompt/:id/comments', async (req, res) => {
       
       totalCount = countSnapshot.data().count || 0;
       
-      // Get paginated comments
       const startIndex = (page - 1) * limit;
       const snapshot = await db.collection('uploads').doc(promptId)
         .collection('comments')
@@ -3361,7 +4156,6 @@ app.get('/api/prompt/:id/comments', async (req, res) => {
         createdAt: safeDateToString(doc.data().createdAt)
       }));
     } else {
-      // Mock comments for development
       comments = generateMockComments(limit);
       totalCount = 25;
     }
@@ -3374,7 +4168,7 @@ app.get('/api/prompt/:id/comments', async (req, res) => {
       hasMore: page * limit < totalCount
     };
     
-    cache.set(cacheKey, result, 300); // Cache for 5 minutes
+    cache.set(cacheKey, result, 300);
     
     res.json(result);
     
@@ -3394,7 +4188,6 @@ app.post('/api/prompt/:id/comments', async (req, res) => {
       return res.status(400).json({ error: 'Comment content is required' });
     }
     
-    // Basic spam protection
     if (content.length > 1000) {
       return res.status(400).json({ error: 'Comment is too long (max 1000 characters)' });
     }
@@ -3407,7 +4200,7 @@ app.post('/api/prompt/:id/comments', async (req, res) => {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       likes: 0,
-      isApproved: true // Auto-approve for now, can add moderation later
+      isApproved: true
     };
     
     let commentRef;
@@ -3417,7 +4210,6 @@ app.post('/api/prompt/:id/comments', async (req, res) => {
         .collection('comments')
         .add(commentData);
       
-      // Increment comment count in prompt
       const promptRef = db.collection('uploads').doc(promptId);
       const promptDoc = await promptRef.get();
       
@@ -3433,14 +4225,12 @@ app.post('/api/prompt/:id/comments', async (req, res) => {
       console.log('Mock comment added:', commentData);
     }
     
-    // Clear cache for this prompt's comments
     cache.keys().forEach(key => {
       if (key.startsWith(`comments-${promptId}-`)) {
         cache.del(key);
       }
     });
     
-    // Also clear the prompt cache
     cache.del(`prompt-${promptId}`);
     
     const responseData = {
@@ -3486,7 +4276,6 @@ app.post('/api/comment/:commentId/like', async (req, res) => {
       }
     }
     
-    // Clear cache
     cache.keys().forEach(key => {
       if (key.startsWith(`comments-${promptId}-`)) {
         cache.del(key);
@@ -3501,9 +4290,9 @@ app.post('/api/comment/:commentId/like', async (req, res) => {
   }
 });
 
-// Engagement API Endpoints - OPTIMIZED
+// Engagement API Endpoints
 
-// Track view count - OPTIMIZED: Reduced writes
+// Track view count
 app.post('/api/prompt/:id/view', async (req, res) => {
   try {
     const promptId = req.params.id;
@@ -3609,13 +4398,12 @@ app.post('/api/prompt/:id/use', async (req, res) => {
   }
 });
 
-// Track prompt copy actions - OPTIMIZED
+// Track prompt copy actions
 app.post('/api/prompt/:id/copy', async (req, res) => {
   try {
     const promptId = req.params.id;
     
-    // Only update occasionally to reduce writes
-    const shouldUpdate = Math.random() < 0.3; // 30% write rate
+    const shouldUpdate = Math.random() < 0.3;
     
     if (shouldUpdate && db && db.collection) {
       const promptRef = db.collection('uploads').doc(promptId);
@@ -3651,7 +4439,7 @@ app.get('/api/prompt/:id/user-engagement', async (req, res) => {
   }
 });
 
-// Engagement Analytics API Endpoint - WITH CACHING
+// Engagement Analytics API Endpoint
 app.get('/api/prompt/:id/engagement', async (req, res) => {
   try {
     const promptId = req.params.id;
@@ -3673,7 +4461,7 @@ app.get('/api/prompt/:id/engagement', async (req, res) => {
   }
 });
 
-// Search API endpoint - INCREASED limit to 500
+// Search API endpoint
 app.get('/api/search', async (req, res) => {
   try {
     const { q: query, category, sort, page = 1, limit = 12 } = req.query;
@@ -3688,7 +4476,7 @@ app.get('/api/search', async (req, res) => {
 
     if (db && db.collection) {
       const snapshot = await db.collection('uploads')
-        .limit(500) // INCREASED from 100 to 500
+        .limit(500)
         .get();
       
       prompts = snapshot.docs.map(doc => {
@@ -3699,7 +4487,9 @@ app.get('/api/search', async (req, res) => {
           createdAt: safeDateToString(data.createdAt),
           promptUrl: `/prompt/${doc.id}`,
           fileType: data.fileType || 'image',
-          isVideo: data.fileType === 'video' || data.videoUrl || data.category === 'video'
+          isVideo: data.fileType === 'video' || data.videoUrl || data.category === 'video',
+          price: data.price || 0,
+          isPaid: data.price > 0
         };
       }).filter(prompt => {
         if (!query) return true;
@@ -3800,297 +4590,12 @@ function sortPrompts(prompts, sortBy) {
   }
 }
 
-// UPLOAD ENDPOINT - ENHANCED FOR VIDEO REELS WITH THUMBNAILS
-app.post('/api/upload', async (req, res) => {
-  console.log('📤 Upload request received (supports images and video reels with thumbnails)');
-  
-  const busboy = Busboy({ 
-    headers: req.headers, 
-    limits: { fileSize: 100 * 1024 * 1024 } // 100MB limit for videos
-  });
-  
-  const fields = {};
-  let mediaBuffer = null;
-  let thumbnailBuffer = null;
-  let uploadedMediaFileName = null;
-  let uploadedThumbnailFileName = null;
-  let mediaFileType = null;
-  let thumbnailFileType = null;
-  let uploadError = null;
-
-  busboy.on('field', (fieldname, val) => {
-    fields[fieldname] = val;
-  });
-
-  busboy.on('file', (fieldname, file, info) => {
-    const { filename, mimeType } = info;
-    
-    if (fieldname === 'media') {
-      uploadedMediaFileName = filename;
-      mediaFileType = mimeType;
-      
-      // Validate media file type
-      const allowedImageTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif'];
-      const allowedVideoTypes = ['video/mp4', 'video/webm', 'video/quicktime', 'video/x-msvideo', 'video/mpeg', 'video/ogg'];
-      const allowedTypes = [...allowedImageTypes, ...allowedVideoTypes];
-      
-      if (!allowedTypes.includes(mimeType)) {
-        uploadError = new Error('Invalid file type. Allowed: JPEG, PNG, WebP, GIF, MP4, WebM, MOV, AVI, OGG');
-        return;
-      }
-      
-      const chunks = [];
-      file.on('data', (data) => chunks.push(data));
-      file.on('end', () => {
-        mediaBuffer = Buffer.concat(chunks);
-        
-        if (mediaBuffer.length > 100 * 1024 * 1024) {
-          uploadError = new Error('File size exceeds 100MB limit');
-          return;
-        }
-      });
-    } 
-    else if (fieldname === 'thumbnail') {
-      uploadedThumbnailFileName = filename;
-      thumbnailFileType = mimeType;
-      
-      // Validate thumbnail file type (must be image)
-      const allowedImageTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
-      
-      if (!allowedImageTypes.includes(mimeType)) {
-        uploadError = new Error('Invalid thumbnail file type. Allowed: JPEG, PNG, WebP');
-        return;
-      }
-      
-      const chunks = [];
-      file.on('data', (data) => chunks.push(data));
-      file.on('end', () => {
-        thumbnailBuffer = Buffer.concat(chunks);
-        
-        if (thumbnailBuffer.length > 5 * 1024 * 1024) {
-          uploadError = new Error('Thumbnail size exceeds 5MB limit');
-          return;
-        }
-      });
-    }
-  });
-
-  busboy.on('finish', async () => {
-    try {
-      // Check for upload error
-      if (uploadError) {
-        return res.status(400).json({ error: uploadError.message });
-      }
-
-      // Validate required fields
-      if (!fields.title || !fields.promptText) {
-        return res.status(400).json({ error: 'Title and prompt text are required' });
-      }
-
-      if (!mediaBuffer) {
-        return res.status(400).json({ error: 'No media file provided' });
-      }
-
-      // Determine file type category
-      const isVideo = mediaFileType.startsWith('video/');
-      const isImage = mediaFileType.startsWith('image/');
-      
-      if (!isVideo && !isImage) {
-        return res.status(400).json({ error: 'File must be an image or video' });
-      }
-
-      // Validate thumbnail for videos (optional but recommended)
-      if (isVideo && !thumbnailBuffer) {
-        console.log('⚠️ No thumbnail provided for video - will use video frame as thumbnail');
-      }
-
-      let mediaUrl;
-      let thumbnailUrl = null;
-
-      // Store files in Firebase Storage
-      if (bucket) {
-        const timestamp = Date.now();
-        const uniqueId = uuidv4();
-        
-        // Upload media file
-        const mediaExtension = uploadedMediaFileName.split('.').pop();
-        const mediaFolder = isVideo ? 'videos' : 'prompts';
-        const storageMediaFileName = `${mediaFolder}/${timestamp}-${uniqueId}.${mediaExtension}`;
-        const mediaFile = bucket.file(storageMediaFileName);
-
-        await mediaFile.save(mediaBuffer, {
-          metadata: {
-            contentType: mediaFileType,
-            metadata: {
-              uploadedBy: fields.userName || 'anonymous',
-              uploadedAt: new Date().toISOString(),
-              fileType: isVideo ? 'video' : 'image',
-              originalName: uploadedMediaFileName,
-              hasThumbnail: !!thumbnailBuffer
-            }
-          },
-          resumable: true
-        });
-
-        await mediaFile.makePublic();
-        mediaUrl = `https://storage.googleapis.com/${bucket.name}/${storageMediaFileName}`;
-        
-        // Upload thumbnail if provided
-        if (thumbnailBuffer) {
-          const thumbExtension = uploadedThumbnailFileName.split('.').pop();
-          const thumbFileName = `thumbnails/${timestamp}-${uniqueId}.${thumbExtension}`;
-          const thumbFile = bucket.file(thumbFileName);
-
-          await thumbFile.save(thumbnailBuffer, {
-            metadata: {
-              contentType: thumbnailFileType,
-              metadata: {
-                uploadedBy: fields.userName || 'anonymous',
-                uploadedAt: new Date().toISOString(),
-                originalVideoId: uniqueId
-              }
-            }
-          });
-
-          await thumbFile.makePublic();
-          thumbnailUrl = `https://storage.googleapis.com/${bucket.name}/${thumbFileName}`;
-        }
-      } else {
-        // Mock storage for development
-        if (isVideo) {
-          mediaUrl = `https://storage.googleapis.com/mock-bucket/videos/sample-${Date.now()}.mp4`;
-          thumbnailUrl = thumbnailBuffer ? 
-            `https://storage.googleapis.com/mock-bucket/thumbnails/sample-${Date.now()}.jpg` : 
-            'https://via.placeholder.com/300x400/ff6b6b/ffffff?text=Video+Reel';
-        } else {
-          mediaUrl = 'https://via.placeholder.com/800x400/4e54c8/ffffff?text=Uploaded+Image';
-        }
-      }
-
-      // Determine category based on file type if not specified
-      let category = fields.category || 'general';
-      if (!fields.category) {
-        category = isVideo ? 'video' : 'general';
-      }
-
-      // Generate SEO metadata
-      const seoTitle = SEOOptimizer.generateSEOTitle(fields.title);
-      const metaDescription = SEOOptimizer.generateMetaDescription(fields.promptText, fields.title);
-      const keywords = SEOOptimizer.extractKeywords(fields.title + ' ' + fields.promptText + (category === 'video' ? ' video reel' : ''));
-      const slug = SEOOptimizer.generateSlug(fields.title);
-
-      // Detect platform for better recommendations
-      const detectedPlatform = AIModelManager.detectPlatform({
-        promptText: fields.promptText,
-        title: fields.title,
-        keywords: keywords,
-        category: category,
-        fileType: isVideo ? 'video' : 'image'
-      });
-
-      // Prepare prompt data with video-specific fields
-      const promptData = {
-        title: fields.title,
-        promptText: fields.promptText,
-        mediaUrl: mediaUrl,
-        imageUrl: isImage ? mediaUrl : (thumbnailUrl || 'https://via.placeholder.com/300x400/ff6b6b/ffffff?text=Video+Reel'),
-        thumbnailUrl: thumbnailUrl,
-        videoUrl: isVideo ? mediaUrl : null,
-        fileType: isVideo ? 'video' : 'image',
-        category: category,
-        userName: fields.userName || 'Anonymous User',
-        likes: 0,
-        views: 0,
-        uses: 0,
-        copies: 0,
-        commentCount: 0,
-        keywords: keywords,
-        seoTitle: seoTitle,
-        metaDescription: metaDescription,
-        slug: slug,
-        seoScore: Math.floor(Math.random() * 30) + 70,
-        adsenseMigrated: true,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        detectedPlatform: detectedPlatform
-      };
-
-      // Add video-specific metadata if applicable
-      if (isVideo) {
-        promptData.videoDuration = null; // Would need to extract from video
-        promptData.videoFormat = mediaFileType.split('/')[1];
-        promptData.isReel = true;
-        promptData.hasCustomThumbnail = !!thumbnailBuffer;
-      }
-
-      // Save to database
-      let docRef;
-      
-      if (db && db.collection) {
-        docRef = await db.collection('uploads').add(promptData);
-      } else {
-        docRef = { id: 'demo-' + timestamp };
-        mockPrompts.unshift({
-          id: docRef.id,
-          ...promptData
-        });
-      }
-
-      const responseData = {
-        id: docRef.id,
-        ...promptData,
-        promptUrl: `/prompt/${docRef.id}`,
-        videoStreamUrl: isVideo ? `/api/video/${docRef.id}` : null,
-        thumbnailUrl: thumbnailUrl
-      };
-
-      // Clear relevant caches
-      cache.del('uploads-page-1');
-      cache.del('search-all-all-1-12');
-      
-      // Success response
-      res.json({
-        success: true,
-        upload: responseData,
-        message: isVideo ? 
-          (thumbnailBuffer ? 
-            '🎬 Video reel uploaded successfully with custom thumbnail! Check it out in the Shorts player.' : 
-            '🎬 Video reel uploaded successfully! You can add a custom thumbnail later from the edit page.') : 
-          '✅ Image uploaded successfully! Your creation is now live.',
-        fileType: isVideo ? 'video' : 'image',
-        hasThumbnail: !!thumbnailBuffer,
-        detectedPlatform: detectedPlatform,
-        aiModelCounts: {
-          photo: AIModelManager.getPhotoModelCount(),
-          video: AIModelManager.getVideoModelCount(),
-          total: AIModelManager.getPhotoModelCount() + AIModelManager.getVideoModelCount()
-        }
-      });
-
-    } catch (error) {
-      console.error('❌ Upload error:', error);
-      res.status(500).json({ 
-        error: 'Upload failed', 
-        details: error.message,
-        mode: db ? 'production' : 'development'
-      });
-    }
-  });
-
-  busboy.on('error', (error) => {
-    console.error('❌ Busboy error:', error);
-    res.status(500).json({ error: 'File upload processing failed: ' + error.message });
-  });
-
-  req.pipe(busboy);
-});
-
 // API Routes - Get uploads with caching and limits
 app.get('/api/uploads', async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 12;
-    const type = req.query.type; // 'image', 'video', or 'all'
+    const type = req.query.type;
     
     const cacheKey = `uploads-page-${page}-limit-${limit}-type-${type || 'all'}`;
     const cached = cache.get(cacheKey);
@@ -4103,7 +4608,7 @@ app.get('/api/uploads', async (req, res) => {
     if (db && db.collection) {
       const snapshot = await db.collection('uploads')
         .orderBy('createdAt', 'desc')
-        .limit(500) // INCREASED from limit * 3 to 500 for better coverage
+        .limit(500)
         .get();
 
       allUploads = [];
@@ -4122,7 +4627,9 @@ app.get('/api/uploads', async (req, res) => {
                    (data.fileType === 'video' ? 'https://via.placeholder.com/300x400/ff6b6b/ffffff?text=Video+Reel' : 
                     'https://via.placeholder.com/800x400/4e54c8/ffffff?text=AI+Image'),
           fileType: data.fileType || 'image',
-          isVideo: data.fileType === 'video' || data.videoUrl || data.category === 'video'
+          isVideo: data.fileType === 'video' || data.videoUrl || data.category === 'video',
+          price: data.price || 0,
+          isPaid: data.price > 0
         });
       });
     } else {
@@ -4136,11 +4643,12 @@ app.get('/api/uploads', async (req, res) => {
                  (prompt.fileType === 'video' ? 'https://via.placeholder.com/300x400/ff6b6b/ffffff?text=Video+Reel' : 
                   'https://via.placeholder.com/800x400/4e54c8/ffffff?text=AI+Image'),
         fileType: prompt.fileType || 'image',
-        isVideo: prompt.fileType === 'video' || prompt.category === 'video'
+        isVideo: prompt.fileType === 'video' || prompt.category === 'video',
+        price: prompt.price || 0,
+        isPaid: prompt.price > 0
       }));
     }
 
-    // Filter by type if specified
     if (type && type !== 'all') {
       allUploads = allUploads.filter(upload => upload.fileType === type);
     }
@@ -4187,7 +4695,9 @@ app.get('/api/uploads', async (req, res) => {
                  (prompt.fileType === 'video' ? 'https://via.placeholder.com/300x400/ff6b6b/ffffff?text=Video+Reel' : 
                   'https://via.placeholder.com/800x400/4e54c8/ffffff?text=AI+Image'),
         fileType: prompt.fileType || 'image',
-        isVideo: prompt.fileType === 'video' || prompt.category === 'video'
+        isVideo: prompt.fileType === 'video' || prompt.category === 'video',
+        price: prompt.price || 0,
+        isPaid: prompt.price > 0
       })),
       currentPage: 1,
       totalPages: 1,
@@ -4217,45 +4727,34 @@ app.get('/api/uploads', async (req, res) => {
 app.get('/api/blog-posts', (req, res) => {
     const blogDir = path.join(__dirname, 'blog');
     
-    // Check if blog directory exists
     if (!fs.existsSync(blogDir)) {
         return res.json({ posts: [] });
     }
     
     try {
-        // Read all files in blog directory
         const files = fs.readdirSync(blogDir);
-        
-        // Filter only .html files
         const htmlFiles = files.filter(file => file.endsWith('.html'));
         
-        // Get file stats and extract meta tags
         const posts = htmlFiles.map(filename => {
             const filePath = path.join(blogDir, filename);
             const stats = fs.statSync(filePath);
             const content = fs.readFileSync(filePath, 'utf8');
             
-            // Extract title from <title> tag
             const titleMatch = content.match(/<title>(.*?)<\/title>/);
             const title = titleMatch ? titleMatch[1] : filename.replace('.html', '');
             
-            // Extract description from meta tag
             const descMatch = content.match(/<meta name="description" content="(.*?)">/);
             const description = descMatch ? descMatch[1] : 'No description available';
             
-            // Extract date from meta tag
             const dateMatch = content.match(/<meta name="date" content="(.*?)">/);
             const date = dateMatch ? dateMatch[1] : stats.birthtime.toISOString().split('T')[0];
             
-            // Extract author from meta tag
             const authorMatch = content.match(/<meta name="author" content="(.*?)">/);
             const author = authorMatch ? authorMatch[1] : 'Tools Prompt';
             
-            // Extract category from meta tag
             const categoryMatch = content.match(/<meta name="category" content="(.*?)">/);
             const category = categoryMatch ? categoryMatch[1] : 'General';
             
-            // Extract first paragraph for excerpt
             const excerptMatch = content.match(/<p>(.*?)<\/p>/);
             const excerpt = excerptMatch ? excerptMatch[1] : description;
             
@@ -4272,7 +4771,6 @@ app.get('/api/blog-posts', (req, res) => {
             };
         });
         
-        // Sort by date (newest first)
         posts.sort((a, b) => new Date(b.date) - new Date(a.date));
         
         res.json({ 
@@ -4294,56 +4792,65 @@ app.get('/api/blog-posts', (req, res) => {
 // Serve individual blog posts
 app.use('/blog', express.static(path.join(__dirname, 'blog')));
 
-// ENHANCED Individual prompt pages for SEO - WITH VIDEO SUPPORT AND AI MODEL INFO
+// ==================== INDIVIDUAL PROMPT PAGE ====================
 app.get('/prompt/:id', async (req, res) => {
   try {
     const promptId = req.params.id;
-    
     const cacheKey = `prompt-${promptId}`;
     const cached = cache.get(cacheKey);
-    if (cached) {
-      return res.set('Content-Type', 'text/html').send(cached);
-    }
-    
+    if (cached) return res.set('Content-Type', 'text/html').send(cached);
+
     let promptData;
+    let hasPurchased = false;
+
+    const authHeader = req.headers.authorization;
+    let user = null;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const idToken = authHeader.split('Bearer ')[1];
+      try {
+        user = await admin.auth().verifyIdToken(idToken);
+      } catch (err) {
+        console.log('Auth token invalid, proceeding as guest');
+      }
+    }
 
     if (db && db.collection && promptId !== 'demo-1' && promptId !== 'demo-2' && promptId !== 'demo-3' && promptId !== 'demo-video-1') {
       const doc = await db.collection('uploads').doc(promptId).get();
-      
-      if (!doc.exists) {
-        return sendPromptNotFound(res, promptId);
-      }
-
+      if (!doc.exists) return sendPromptNotFound(res, promptId);
       const prompt = doc.data();
-      promptData = createPromptData(prompt, doc.id);
-      
+      if (user) {
+        const purchaseQuery = await db.collection('purchases')
+          .where('promptId', '==', promptId)
+          .where('buyerId', '==', user.uid)
+          .limit(1)
+          .get();
+        hasPurchased = !purchaseQuery.empty;
+      }
+      promptData = createPromptData(prompt, doc.id, hasPurchased);
       const shouldUpdateView = Math.random() < 0.2;
       if (shouldUpdateView) {
-        const currentViews = prompt.views || 0;
         await db.collection('uploads').doc(promptId).update({
-          views: currentViews + 5,
+          views: (prompt.views || 0) + 5,
           updatedAt: new Date().toISOString()
         });
       }
     } else {
       const mockPrompt = mockPrompts.find(p => p.id === promptId) || mockPrompts[0];
-      promptData = createPromptData(mockPrompt, promptId);
+      hasPurchased = false;
+      promptData = createPromptData(mockPrompt, promptId, hasPurchased);
     }
 
     const html = generateEnhancedPromptHTML(promptData);
-    
     cache.set(cacheKey, html, 300);
-    
     res.set('Content-Type', 'text/html');
     res.send(html);
-
   } catch (error) {
     console.error('❌ Error serving prompt page:', error);
     sendErrorPage(res, error);
   }
 });
 
-// Category pages for SEO - WITH CACHING
+// Category pages for SEO
 app.get('/category/:category', async (req, res) => {
   try {
     const category = req.params.category;
@@ -4368,10 +4875,10 @@ app.get('/category/:category', async (req, res) => {
   }
 });
 
-// AI Models API Endpoint - Get all available AI models
+// AI Models API Endpoint
 app.get('/api/ai-models', (req, res) => {
   try {
-    const type = req.query.type; // 'photo', 'video', or 'all'
+    const type = req.query.type;
     
     let response = {
       success: true,
@@ -4398,7 +4905,7 @@ app.get('/api/ai-models', (req, res) => {
   }
 });
 
-// AI Model Info API Endpoint - Get info about a specific model
+// AI Model Info API Endpoint
 app.get('/api/ai-model/:modelId', (req, res) => {
   try {
     const modelId = req.params.modelId;
@@ -4455,26 +4962,26 @@ function createNewsData(news, id) {
   };
 }
 
-function createPromptData(prompt, id) {
+function createPromptData(prompt, id, hasPurchased = false) {
   const safePrompt = prompt || {};
-  
-  // Determine if this is a video
   const isVideo = safePrompt.fileType === 'video' || safePrompt.videoUrl || 
                   (safePrompt.mediaUrl && safePrompt.mediaUrl.includes('video')) ||
                   safePrompt.category === 'video';
-  
-  // Detect platform for better recommendations
   const detectedPlatform = AIModelManager.detectPlatform(safePrompt);
-  
-  // Get platform info
   const platformInfo = isVideo 
     ? AIModelManager.getVideoModelInfo(detectedPlatform)
     : AIModelManager.getPhotoModelInfo(detectedPlatform);
-  
-  // Use custom thumbnail if available, otherwise use placeholder or video frame
   const thumbnailUrl = safePrompt.thumbnailUrl || 
                       (isVideo ? 'https://via.placeholder.com/300x400/ff6b6b/ffffff?text=Video+Reel' : null);
-  
+  const isPaid = safePrompt.price > 0;
+  const fullPromptText = safePrompt.promptText || 'No prompt text available.';
+  let promptText = fullPromptText;
+  if (isPaid && !hasPurchased) {
+    promptText = fullPromptText.length > 100 
+      ? fullPromptText.substring(0, 100) + '... [Full prompt text available after purchase]'
+      : fullPromptText + ' [Full prompt text available after purchase]';
+  }
+
   const promptData = {
     id: id || 'unknown',
     title: safePrompt.title || 'Untitled Prompt',
@@ -4482,14 +4989,14 @@ function createPromptData(prompt, id) {
     metaDescription: safePrompt.metaDescription || (safePrompt.promptText ? 
       safePrompt.promptText.substring(0, 155) + '...' : 
       (isVideo ? 'Explore this AI-generated video and learn prompt engineering techniques.' : 'Explore this AI-generated content and learn prompt engineering techniques.')),
-    // Handle media URLs
     imageUrl: safePrompt.thumbnailUrl || safePrompt.imageUrl || safePrompt.mediaUrl || thumbnailUrl ||
               (isVideo ? 'https://via.placeholder.com/300x400/ff6b6b/ffffff?text=Video+Reel' : 
                'https://via.placeholder.com/800x400/4e54c8/ffffff?text=Prompt+Seen+AI+Image'),
     videoUrl: safePrompt.videoUrl || (isVideo ? safePrompt.mediaUrl : null),
     mediaUrl: safePrompt.mediaUrl || safePrompt.imageUrl || safePrompt.videoUrl,
     fileType: safePrompt.fileType || (isVideo ? 'video' : 'image'),
-    promptText: safePrompt.promptText || 'No prompt text available.',
+    promptText: promptText,
+    fullPromptText: fullPromptText,
     userName: safePrompt.userName || 'Anonymous',
     likes: safePrompt.likes || 0,
     views: safePrompt.views || 0,
@@ -4502,33 +5009,34 @@ function createPromptData(prompt, id) {
     updatedAt: safeDateToString(safePrompt.updatedAt || safePrompt.createdAt),
     seoScore: safePrompt.seoScore || 0,
     adsenseMigrated: safePrompt.adsenseMigrated || false,
-    // Video-specific fields
     videoDuration: safePrompt.videoDuration || null,
     videoFormat: safePrompt.videoFormat || null,
     thumbnailUrl: thumbnailUrl,
     hasCustomThumbnail: !!safePrompt.thumbnailUrl,
-    // AI Model info
     detectedPlatform: detectedPlatform,
-    platformInfo: platformInfo
+    platformInfo: platformInfo,
+    price: safePrompt.price || 0,
+    isPaid: isPaid,
+    hasPurchased: hasPurchased,
+    salesCount: safePrompt.salesCount || 0,
+    totalEarnings: safePrompt.totalEarnings || 0
   };
 
-  // Generate AI descriptions
+  let detailedExplanation = safePrompt.aboutDescription;
+  if (!detailedExplanation) {
+    detailedExplanation = AIPlatformContentGenerator.generatePlatformIntroduction(promptData);
+  }
+  promptData.detailedExplanation = detailedExplanation;
+
   const aiDescription = AIDescriptionGenerator.generateComprehensiveDescription(promptData);
-  
-  promptData.detailedExplanation = aiDescription.introduction;
   promptData.stepByStepInstructions = PromptContentGenerator.generateStepByStepInstructions(promptData);
   promptData.bestAITools = AIDescriptionGenerator.generateBestAITools(promptData);
   promptData.trendAnalysis = PromptContentGenerator.generateTrendAnalysis(promptData);
   promptData.usageTips = PromptContentGenerator.generateUsageTips(promptData);
   promptData.seoTips = PromptContentGenerator.generateSEOTips(promptData);
-  
   promptData.aiStepByStepGuide = aiDescription.stepByStep;
   promptData.aiExpertTips = aiDescription.tips;
-  
-  // Platform comparison
   promptData.platformComparison = AIDescriptionGenerator.generatePlatformComparison(promptData);
-  
-  // Model-specific tips
   promptData.modelSpecificTips = AIDescriptionGenerator.generateModelSpecificTips();
 
   return promptData;
@@ -4536,7 +5044,6 @@ function createPromptData(prompt, id) {
 
 // Mini Browser CSS
 const miniBrowserCSS = `
-/* Mini Browser Styles */
 .mini-browser-container {
     position: fixed;
     bottom: 20px;
@@ -4744,7 +5251,6 @@ const miniBrowserCSS = `
 
 // Platform Comparison CSS
 const platformComparisonCSS = `
-/* Platform Comparison Styles */
 .platform-comparison {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     color: white;
@@ -4965,7 +5471,6 @@ const platformComparisonCSS = `
     opacity: 0.9;
 }
 
-/* Model Specific Tips */
 .model-specific-tips {
     background: #f8f9fa;
     padding: 2rem;
@@ -5030,7 +5535,6 @@ const platformComparisonCSS = `
     font-size: 0.85rem;
 }
 
-/* Enhanced Tools Grid */
 .tools-grid-enhanced {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
@@ -5114,7 +5618,6 @@ const platformComparisonCSS = `
     font-weight: 500;
 }
 
-/* Copy Button Styles */
 .copy-prompt-container {
     position: relative;
     margin: 1rem 0;
@@ -5159,20 +5662,6 @@ const platformComparisonCSS = `
     animation: checkmark 0.5s ease;
 }
 
-.copy-prompt-btn.error {
-    background: linear-gradient(135deg, #ff6b6b 0%, #ff8787 100%);
-}
-
-.copy-prompt-btn:disabled {
-    opacity: 0.7;
-    cursor: not-allowed;
-}
-
-.copy-prompt-btn i {
-    font-size: 1rem;
-}
-
-/* Video Player Styles */
 .video-container {
     position: relative;
     width: 100%;
@@ -5215,7 +5704,6 @@ const platformComparisonCSS = `
     font-size: 1rem;
 }
 
-/* Video badge for grid */
 .video-badge {
     position: absolute;
     top: 10px;
@@ -5232,11 +5720,6 @@ const platformComparisonCSS = `
     z-index: 5;
 }
 
-.video-badge i {
-    font-size: 0.8rem;
-}
-
-/* AI Model Badge */
 .ai-model-badge {
     background: #4e54c8;
     color: white;
@@ -5250,204 +5733,22 @@ const platformComparisonCSS = `
     margin-left: 10px;
 }
 
-.ai-model-badge i {
-    font-size: 0.7rem;
-}
-
-/* Touch-friendly styles for mobile */
-@media (max-width: 768px) {
-    .copy-prompt-btn {
-        padding: 10px 18px;
-        font-size: 1rem;
-        min-height: 44px;
-        min-width: 44px;
-    }
-    
-    .copy-prompt-btn i {
-        font-size: 1.1rem;
-    }
-    
-    .video-player {
-        max-height: 400px;
-    }
-}
-
-/* Visual feedback for copy action */
-@keyframes checkmark {
-    0% { transform: scale(0); }
-    50% { transform: scale(1.2); }
-    100% { transform: scale(1); }
-}
-
-/* Hover effect for the entire prompt text area */
-.prompt-text {
-    position: relative;
-    transition: all 0.3s ease;
-}
-
-.prompt-text:hover {
-    background: #f0f2ff;
-    border-left-color: #8f94fb;
-}
-
-/* Touch feedback for prompt text on mobile */
-.prompt-text:active {
-    background: #e6e9ff;
-}
-
-/* Copy hint tooltip */
-.copy-hint {
+.price-badge {
     position: absolute;
-    top: -35px;
-    right: 10px;
-    background: #2d334a;
-    color: white;
-    padding: 6px 12px;
-    border-radius: 6px;
-    font-size: 0.8rem;
-    opacity: 0;
-    transform: translateY(10px);
-    transition: all 0.3s ease;
-    pointer-events: none;
-    white-space: nowrap;
-    z-index: 100;
-}
-
-.copy-hint:after {
-    content: '';
-    position: absolute;
-    top: 100%;
-    right: 20px;
-    border-width: 5px;
-    border-style: solid;
-    border-color: #2d334a transparent transparent transparent;
-}
-
-.copy-hint.show {
-    opacity: 1;
-    transform: translateY(0);
-}
-
-/* Success/Error messages */
-.copy-notification {
-    position: fixed;
-    top: 20px;
-    right: 20px;
-    background: linear-gradient(135deg, #20bf6b 0%, #4cd964 100%);
-    color: white;
-    padding: 15px 25px;
-    border-radius: 10px;
-    box-shadow: 0 5px 15px rgba(32, 191, 107, 0.4);
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    z-index: 10000;
-    transform: translateX(150%);
-    transition: transform 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
-}
-
-.copy-notification.show {
-    transform: translateX(0);
-}
-
-.copy-notification.error {
+    top: 10px;
+    left: 10px;
     background: linear-gradient(135deg, #ff6b6b 0%, #ff8787 100%);
-    box-shadow: 0 5px 15px rgba(255, 107, 107, 0.4);
-}
-
-.copy-notification i {
-    font-size: 1.2rem;
-}
-
-.copy-notification-content {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-}
-
-.copy-notification-title {
-    font-weight: 600;
-    font-size: 1rem;
-}
-
-.copy-notification-subtitle {
-    font-size: 0.85rem;
-    opacity: 0.9;
-}
-
-/* Enhanced prompt interaction */
-.prompt-text-wrapper {
-    position: relative;
-    cursor: pointer;
-    user-select: text;
-}
-
-.prompt-text-wrapper:hover .copy-hint {
-    opacity: 1;
-    transform: translateY(0);
-}
-
-/* Selection styling for better UX */
-.prompt-text::selection {
-    background: rgba(78, 84, 200, 0.3);
-    color: #2d334a;
-}
-
-.prompt-text::-moz-selection {
-    background: rgba(78, 84, 200, 0.3);
-    color: #2d334a;
-}
-
-/* Copy count badge */
-.copy-count {
-    background: rgba(255, 255, 255, 0.3);
     color: white;
-    padding: 2px 8px;
-    border-radius: 12px;
-    font-size: 0.75rem;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 0.8rem;
     font-weight: bold;
-    margin-left: 8px;
-    animation: pulse 2s infinite;
+    z-index: 15;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
 }
 
-@keyframes pulse {
-    0% { transform: scale(1); }
-    50% { transform: scale(1.05); }
-    100% { transform: scale(1); }
-}
-
-/* Make copy button more prominent on mobile */
-@media (max-width: 768px) {
-    .copy-prompt-btn {
-        position: sticky;
-        top: 70px;
-        margin: -10px auto 15px auto;
-        display: block;
-        width: calc(100% - 40px);
-        max-width: 300px;
-        z-index: 100;
-    }
-    
-    .copy-prompt-container {
-        margin-top: 60px;
-    }
-}
-
-@media (max-width: 480px) {
-    .copy-notification {
-        top: 10px;
-        right: 10px;
-        left: 10px;
-        transform: translateY(-150%);
-    }
-    
-    .copy-notification.show {
-        transform: translateY(0);
-    }
-    
-    .copy-hint {
-        display: none;
-    }
+.price-badge.free {
+    background: linear-gradient(135deg, #20bf6b 0%, #4cd964 100%);
 }
 
 @media (max-width: 768px) {
@@ -5472,8 +5773,9 @@ const platformComparisonCSS = `
         grid-template-columns: 1fr;
     }
     
-    .model-specific-tips {
-        padding: 1.5rem;
+    .copy-prompt-btn {
+        padding: 6px 12px;
+        font-size: 0.8rem;
     }
 }
 
@@ -5496,12 +5798,16 @@ const platformComparisonCSS = `
         font-size: 0.7rem;
         padding: 2px 8px;
     }
+    
+    .price-badge {
+        font-size: 0.7rem;
+        padding: 3px 8px;
+    }
 }
 `;
 
 // Comment System CSS
 const commentSystemCSS = `
-/* Comment System Styles */
 .comment-section {
     margin-top: 2rem;
     padding: 1.5rem;
@@ -5584,12 +5890,6 @@ const commentSystemCSS = `
 .comment-submit-btn:hover {
     transform: translateY(-2px);
     box-shadow: 0 4px 12px rgba(78, 84, 200, 0.3);
-}
-
-.comment-submit-btn:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-    transform: none;
 }
 
 .comments-list {
@@ -5727,20 +6027,6 @@ const commentSystemCSS = `
     border: 2px dashed #ddd;
 }
 
-.comment-form-notice {
-    background: #e8f4fd;
-    border-left: 4px solid #4e54c8;
-    padding: 1rem;
-    margin-top: 1rem;
-    border-radius: 6px;
-    font-size: 0.9rem;
-    color: #555;
-}
-
-.comment-form-notice strong {
-    color: #4e54c8;
-}
-
 @media (max-width: 768px) {
     .comment-section {
         padding: 1rem;
@@ -5772,7 +6058,6 @@ const commentSystemCSS = `
 
 // Mini Browser HTML
 const miniBrowserHTML = `
-<!-- Mini Browser Container -->
 <div class="mini-browser-container" id="miniBrowser">
     <div class="mini-browser-header" id="miniBrowserHeader">
         <div class="mini-browser-title">
@@ -5807,7 +6092,6 @@ const miniBrowserHTML = `
     </div>
 </div>
 
-<!-- Mini Browser Toggle Button -->
 <button class="mini-browser-toggle" id="miniBrowserToggle" onclick="toggleMiniBrowser()">
     <i class="fas fa-plus"></i>
 </button>
@@ -5815,7 +6099,6 @@ const miniBrowserHTML = `
 
 // Mini Browser JavaScript
 const miniBrowserJS = `
-// Mini Browser functionality
 let isMiniBrowserOpen = false;
 let isMiniBrowserExpanded = false;
 let isDragging = false;
@@ -6025,7 +6308,6 @@ window.addEventListener('message', function(e) {
 document.addEventListener('DOMContentLoaded', function() {
     console.log('DOM loaded, initializing mini browser');
     initializeDragging();
-    
     autoOpenMiniBrowser();
 });
 
@@ -6045,22 +6327,20 @@ document.addEventListener('keydown', function(e) {
 });
 `;
 
-// Mini Browser Toggle Button for Engagement Section
+// Mini Browser Toggle Button
 const miniBrowserToggleButton = `
 <button class="engagement-btn" onclick="toggleMiniBrowser()" title="Open tools prompt Browser (Ctrl+B)">
     <i class="fas fa-external-link-alt"></i> Quick Browse
 </button>
 `;
 
-// Comment System JavaScript - Make it a function that accepts promptData
+// Comment System JavaScript
 function generateCommentSystemJS(promptData) {
   return `
-// Comment System Functionality
 let currentPage = 1;
 let isLoadingComments = false;
 let hasMoreComments = true;
 
-// Load comments
 async function loadComments(page = 1) {
     if (isLoadingComments) return;
     
@@ -6091,7 +6371,6 @@ async function loadComments(page = 1) {
             loadMoreDiv.style.display = hasMoreComments ? 'block' : 'none';
             
             if (page === 1 && data.totalCount > 0) {
-                // Update comment count in header if needed
                 const commentCount = document.querySelector('.comment-count');
                 if (commentCount) {
                     commentCount.textContent = data.totalCount;
@@ -6114,7 +6393,6 @@ async function loadComments(page = 1) {
     }
 }
 
-// Create comment element
 function createCommentElement(comment) {
     const commentDate = new Date(comment.createdAt);
     const formattedDate = commentDate.toLocaleDateString('en-US', {
@@ -6157,7 +6435,6 @@ function createCommentElement(comment) {
     return element;
 }
 
-// Handle comment submission
 document.getElementById('commentForm').addEventListener('submit', async function(e) {
     e.preventDefault();
     
@@ -6172,7 +6449,6 @@ document.getElementById('commentForm').addEventListener('submit', async function
         authorEmail: form.authorEmail.value.trim() || null
     };
     
-    // Validation
     if (!formData.content) {
         alert('Please enter a comment');
         return;
@@ -6193,16 +6469,9 @@ document.getElementById('commentForm').addEventListener('submit', async function
         const result = await response.json();
         
         if (result.success) {
-            // Reset form
             form.reset();
-            
-            // Show success message
             alert('Comment posted successfully!');
-            
-            // Reload comments (show new comment at top)
             loadComments(1);
-            
-            // Scroll to comment section
             document.getElementById('commentSection').scrollIntoView({ 
                 behavior: 'smooth' 
             });
@@ -6218,13 +6487,12 @@ document.getElementById('commentForm').addEventListener('submit', async function
     }
 });
 
-// Like a comment
 async function likeComment(commentId) {
     const promptId = '${promptData.id}';
     const likeBtn = document.querySelector('#comment-' + commentId + ' .like-comment-btn');
     
     if (likeBtn.classList.contains('liked')) {
-        return; // Already liked
+        return;
     }
     
     try {
@@ -6247,18 +6515,15 @@ async function likeComment(commentId) {
     }
 }
 
-// Load more comments
 document.getElementById('loadMoreBtn').addEventListener('click', function() {
     if (hasMoreComments && !isLoadingComments) {
         loadComments(currentPage + 1);
     }
 });
 
-// Initialize comments on page load
 document.addEventListener('DOMContentLoaded', function() {
     loadComments(1);
     
-    // Add character counter for comment textarea
     const commentTextarea = document.getElementById('commentContent');
     if (commentTextarea) {
         const counter = document.createElement('div');
@@ -6283,26 +6548,20 @@ document.addEventListener('DOMContentLoaded', function() {
 `;
 }
 
-// ENHANCED PROMPT PAGE GENERATOR WITH 50+ AI MODELS AND COMMENT SYSTEM
 function generateEnhancedPromptHTML(promptData) {
-  const promptAdHTML = generatePromptAdPlacement();
+  // Add this line
+  const prompt = promptData;
   
+  const promptAdHTML = generatePromptAdPlacement();
   const baseUrl = 'https://www.toolsprompt.com';
   const promptUrl = baseUrl + '/prompt/' + promptData.id;
-  
-  // Get GA ID from environment variable
   const gaId = process.env.GOOGLE_ANALYTICS_ID || 'G-K4KXR4FZCP';
-  
-  // Determine if this is a video
   const isVideo = promptData.fileType === 'video' || promptData.videoUrl || promptData.category === 'video';
   
-  // Get platform info
   const platformInfo = promptData.platformInfo || { name: 'AI Platform', strengths: [] };
   const detectedPlatform = promptData.detectedPlatform || 'general';
   
-  // Google Analytics 4 code
   const googleAnalyticsCode = `
-    <!-- Google tag (gtag.js) -->
     <script async src="https://www.googletagmanager.com/gtag/js?id=${gaId}"></script>
     <script>
       window.dataLayer = window.dataLayer || [];
@@ -6312,7 +6571,6 @@ function generateEnhancedPromptHTML(promptData) {
     </script>
   `;
 
-  // Different display for video vs image
   const mediaDisplay = isVideo ? `
     <div class="shorts-video-container">
       <video 
@@ -6339,10 +6597,19 @@ function generateEnhancedPromptHTML(promptData) {
          id="promptImage">
   `;
 
-  // Platform badge for AI model
   const platformBadge = `
     <div class="ai-model-badge">
       <i class="fas fa-${isVideo ? 'video' : 'camera'}"></i> ${platformInfo.name || (isVideo ? 'AI Video' : 'AI Image')}
+    </div>
+  `;
+
+  const priceBadge = promptData.isPaid ? `
+    <div class="price-badge">
+      <i class="fas fa-rupee-sign"></i> ${promptData.price}
+    </div>
+  ` : `
+    <div class="price-badge free">
+      <i class="fas fa-gift"></i> Free
     </div>
   `;
 
@@ -6455,13 +6722,12 @@ function generateEnhancedPromptHTML(promptData) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-     ${googleAnalyticsCode}
- <title>${promptData.seoTitle}</title>
+    ${googleAnalyticsCode}
+    <title>${promptData.seoTitle}</title>
     <meta name="description" content="${promptData.metaDescription}">
     <meta name="keywords" content="${(promptData.keywords || []).join(', ')}">
     <meta name="robots" content="index, follow, max-image-preview:large">
     
-    <!-- Enhanced Open Graph -->
     <meta property="og:title" content="${promptData.seoTitle}">
     <meta property="og:description" content="${promptData.metaDescription}">
     <meta property="og:image" content="${promptData.imageUrl}">
@@ -6470,17 +6736,14 @@ function generateEnhancedPromptHTML(promptData) {
     ${isVideo ? `<meta property="og:video" content="${promptData.videoUrl || promptData.mediaUrl}">` : ''}
     <meta property="og:site_name" content="tools prompt">
     
-    <!-- Twitter Card -->
     <meta name="twitter:card" content="${isVideo ? 'player' : 'summary_large_image'}">
     <meta name="twitter:title" content="${promptData.seoTitle}">
     <meta name="twitter:description" content="${promptData.metaDescription}">
     <meta name="twitter:image" content="${promptData.imageUrl}">
     ${isVideo ? `<meta name="twitter:player" content="${promptData.videoUrl || promptData.mediaUrl}">` : ''}
     
-    <!-- Canonical URL -->
     <link rel="canonical" href="${promptUrl}" />
     
-    <!-- Enhanced Structured Data -->
     <script type="application/ld+json">
     {
       "@context": "https://schema.org",
@@ -6512,55 +6775,16 @@ function generateEnhancedPromptHTML(promptData) {
     }
     </script>
     
-    <script type="application/ld+json">
-    {
-      "@context": "https://schema.org",
-      "@type": "Article",
-      "mainEntityOfPage": {
-        "@type": "WebPage",
-        "@id": "${promptUrl}"
-      },
-      "headline": "${promptData.title.replace(/"/g, '\\"')}",
-      "description": "${promptData.metaDescription.replace(/"/g, '\\"')}",
-      "image": "${promptData.imageUrl}",
-      "author": {
-        "@type": "Person",
-        "name": "${promptData.userName || 'tools prompt User'}"
-      },
-      "publisher": {
-        "@type": "Organization",
-        "name": "tools prompt",
-        "logo": {
-          "@type": "ImageObject",
-          "url": "https://www.toolsprompt.com/logo.png"
-        }
-      },
-      "datePublished": "${promptData.createdAt}",
-      "dateModified": "${promptData.updatedAt || promptData.createdAt}",
-      "keywords": "${(promptData.keywords || ['AI', 'prompt']).join(', ')}",
-      "articleSection": "${isVideo ? 'AI Video Reels' : 'AI Prompts'}"
-    }
-    </script>
-    
-    <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
         body { background: #f5f7fa; line-height: 1.6; color: #2d334a; }
         
-        /* Add all the existing CSS styles here */
-        
-        /* Mini Browser Styles */
         ${miniBrowserCSS}
-        
-        /* Platform Comparison Styles */
         ${platformComparisonCSS}
-        
-        /* Comment System Styles */
         ${commentSystemCSS}
         
-        /* Video Player Styles */
         .shorts-video-container {
             width: 100%;
             height: 500px;
@@ -6602,11 +6826,24 @@ function generateEnhancedPromptHTML(promptData) {
             margin-left: 10px;
         }
         
-        .ai-model-badge i {
-            font-size: 0.7rem;
+        .price-badge {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: linear-gradient(135deg, #ff6b6b 0%, #ff8787 100%);
+            color: white;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: bold;
+            z-index: 15;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
         }
         
-        /* Related Prompts Grid Layout */
+        .price-badge.free {
+            background: linear-gradient(135deg, #20bf6b 0%, #4cd964 100%);
+        }
+        
         .content-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
@@ -6662,15 +6899,6 @@ function generateEnhancedPromptHTML(promptData) {
                 height: 180px;
             }
             
-            .related-prompt-content {
-                padding: 1rem;
-            }
-            
-            .related-prompt-content h4 {
-                font-size: 1rem;
-                min-height: 2.8em;
-            }
-            
             .shorts-video-container {
                 height: 400px;
             }
@@ -6681,16 +6909,11 @@ function generateEnhancedPromptHTML(promptData) {
                 grid-template-columns: 1fr;
             }
             
-            .related-prompt-image {
-                height: 160px;
-            }
-            
             .shorts-video-container {
                 height: 350px;
             }
         }
 
-        /* Header Styles */
         .site-header { 
             background: white; 
             box-shadow: 0 2px 10px rgba(0,0,0,0.1);
@@ -6741,7 +6964,6 @@ function generateEnhancedPromptHTML(promptData) {
             color: #4e54c8;
         }
         
-        /* Main Content */
         .main-container { 
             max-width: 1200px; 
             margin: 1rem auto; 
@@ -6856,7 +7078,6 @@ function generateEnhancedPromptHTML(promptData) {
             transform: translateY(-2px); 
         }
         
-        /* Enhanced Content Styles */
         .platform-intro {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
@@ -6928,25 +7149,6 @@ function generateEnhancedPromptHTML(promptData) {
             font-size: 1.1rem;
         }
         
-        .tools-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 1rem;
-            margin-top: 1rem;
-        }
-        
-        .tool-card {
-            background: #f8f9fa;
-            padding: 1.5rem;
-            border-radius: 8px;
-            border: 1px solid #e9ecef;
-        }
-        
-        .tool-card h4 {
-            color: #4e54c8;
-            margin-bottom: 0.5rem;
-        }
-        
         .tips-list {
             list-style: none;
             padding: 0;
@@ -7011,20 +7213,63 @@ function generateEnhancedPromptHTML(promptData) {
                 min-width: 70px;
             }
             
-            .stat-item-small i {
-                font-size: 1.1rem;
+            .article-title {
+                font-size: 1.5rem;
             }
             
-            .stat-number-small {
-                font-size: 1.1rem;
+            .shorts-video-container {
+                height: 300px;
             }
             
-            .stat-label-small {
-                font-size: 0.7rem;
+            .prompt-image {
+                max-height: 300px;
+            }
+            
+            .instruction-step {
+                flex-direction: column;
+                text-align: center;
+            }
+            
+            .step-number {
+                align-self: center;
             }
         }
         
-        /* Footer */
+        @media (max-width: 480px) {
+            .article-title {
+                font-size: 1.3rem;
+            }
+            
+            .shorts-video-container {
+                height: 250px;
+            }
+            
+            .prompt-image {
+                max-height: 250px;
+            }
+            
+            .prompt-text {
+                padding: 1rem;
+                font-size: 0.9rem;
+            }
+        }
+        
+        .ad-container {
+            margin: 1.5rem 0;
+            text-align: center;
+            background: #f8f9fa;
+            padding: 1rem;
+            border-radius: 8px;
+            border: 1px solid #e9ecef;
+        }
+        .ad-label {
+            font-size: 0.8rem;
+            color: #6c757d;
+            margin-bottom: 0.5rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
         .site-footer {
             background: #2d334a;
             color: white;
@@ -7063,213 +7308,9 @@ function generateEnhancedPromptHTML(promptData) {
             border-top: 1px solid #444;
             color: #888;
         }
-        
-        /* Ad Container */
-        .ad-container {
-            margin: 1.5rem 0;
-            text-align: center;
-            background: #f8f9fa;
-            padding: 1rem;
-            border-radius: 8px;
-            border: 1px solid #e9ecef;
-        }
-        .ad-label {
-            font-size: 0.8rem;
-            color: #6c757d;
-            margin-bottom: 0.5rem;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        }
-        
-        /* Mobile Responsive Styles */
-        @media (max-width: 768px) {
-            .header-container { 
-                padding: 0 0.75rem; 
-                gap: 0.5rem;
-            }
-            
-            .logo { 
-                font-size: 1.1rem; 
-            }
-            .logo img {
-                width: 35px;
-                height: 35px;
-            }
-            
-            .nav-links { 
-                gap: 1rem; 
-                justify-content: center;
-                width: 100%;
-                order: 3;
-                margin-top: 0.5rem;
-                padding: 0.5rem 0;
-                border-top: 1px solid #eee;
-            }
-            .nav-links a {
-                font-size: 0.85rem;
-                padding: 0.25rem 0.5rem;
-            }
-            
-            .main-container { 
-                padding: 0 0.75rem; 
-                margin: 0.5rem auto;
-            }
-            
-            .article-header { 
-                padding: 1rem; 
-            }
-            
-            .article-title { 
-                font-size: 1.5rem; 
-            }
-            
-            .shorts-video-container { 
-                height: 300px; 
-            }
-            
-            .prompt-image { 
-                max-height: 300px; 
-            }
-            
-            .prompt-content { 
-                padding: 1rem; 
-            }
-            
-            .prompt-meta { 
-                flex-direction: column; 
-                gap: 0.75rem; 
-                padding: 1rem;
-                margin: 1rem 0;
-            }
-            
-            .engagement-buttons { 
-                flex-direction: column; 
-                gap: 0.75rem;
-            }
-            .engagement-btn {
-                justify-content: center;
-                padding: 12px 20px;
-            }
-            
-            .content-grid { 
-                grid-template-columns: 1fr; 
-                gap: 0.75rem;
-            }
-            
-            .content-card {
-                padding: 1rem;
-            }
-            
-            .supporting-content {
-                padding: 1rem;
-                margin: 1rem 0;
-            }
-            
-            .footer-container {
-                gap: 1rem;
-            }
-            
-            .site-footer {
-                padding: 1.5rem 0.75rem;
-                margin-top: 2rem;
-            }
-            
-            .instruction-step {
-                flex-direction: column;
-                text-align: center;
-            }
-            
-            .step-number {
-                align-self: center;
-            }
-            
-            .tools-grid {
-                grid-template-columns: 1fr;
-            }
-            
-            .engagement-stats {
-                grid-template-columns: repeat(2, 1fr);
-            }
-            
-            .stat-card {
-                padding: 1rem;
-            }
-            
-            .stat-number {
-                font-size: 1.5rem;
-            }
-
-            .platform-intro {
-                padding: 1.5rem;
-            }
-        }
-        
-        @media (max-width: 480px) {
-            .logo span {
-                font-size: 1rem;
-            }
-            
-            .logo img {
-                width: 30px;
-                height: 30px;
-            }
-            
-            .nav-links {
-                gap: 0.75rem;
-            }
-            
-            .nav-links a {
-                font-size: 0.8rem;
-                padding: 0.2rem 0.4rem;
-            }
-            
-            .article-title {
-                font-size: 1.3rem;
-            }
-            
-            .shorts-video-container {
-                height: 250px;
-            }
-            
-            .prompt-image {
-                max-height: 250px;
-            }
-            
-            .prompt-text {
-                padding: 1rem;
-                font-size: 0.9rem;
-            }
-            
-            .section-title {
-                font-size: 1.1rem;
-            }
-            
-            .content-card h4 {
-                font-size: 1rem;
-            }
-        }
-        
-        @media (max-width: 360px) {
-            .logo span {
-                display: none;
-            }
-            
-            .nav-links {
-                gap: 0.5rem;
-            }
-            
-            .nav-links a {
-                font-size: 0.75rem;
-            }
-            
-            .article-title {
-                font-size: 1.2rem;
-            }
-        }
     </style>
 </head>
 <body>
-    <!-- Site Header -->
     <header class="site-header">
         <div class="header-container">
             <a href="https://www.toolsprompt.com" class="logo">
@@ -7283,6 +7324,7 @@ function generateEnhancedPromptHTML(promptData) {
                     <li><a href="https://www.toolsprompt.com/#promptsContainer">Browse</a></li>
                     <li><a href="https://www.toolsprompt.com/news.html">News</a></li>
                     <li><a href="https://www.toolsprompt.com/ai-detector.html">Tools</a></li>
+                    <li><a href="https://www.toolsprompt.com/dashboard.html">Dashboard</a></li>
                 </ul>
             </nav>
         </div>
@@ -7295,6 +7337,7 @@ function generateEnhancedPromptHTML(promptData) {
                     <i class="fas fa-user-circle"></i>
                     <span>Created by: ${promptData.userName}</span>
                     ${platformBadge}
+                    ${priceBadge}
                     ${promptData.seoScore ? '<span style="background: #20bf6b; color: white; padding: 4px 8px; border-radius: 12px; font-size: 0.8rem; font-weight: 600; margin-left: 10px;">tools prompt: ' + promptData.seoScore + '/100</span>' : ''}
                     ${isVideo && promptData.hasCustomThumbnail ? '<span style="background: #20bf6b; color: white; padding: 4px 8px; border-radius: 12px; font-size: 0.8rem; font-weight: 600; margin-left: 10px;"><i class="fas fa-image"></i> Custom Thumbnail</span>' : ''}
                 </div>
@@ -7316,21 +7359,26 @@ function generateEnhancedPromptHTML(promptData) {
                         <span class="stat-number-small comment-count">${promptData.commentCount || 0}</span>
                         <span class="stat-label-small">Comments</span>
                     </div>
+                    ${promptData.isPaid ? `
+                    <div class="stat-item-small">
+                        <i class="fas fa-shopping-cart"></i>
+                        <span class="stat-number-small">${promptData.salesCount || 0}</span>
+                        <span class="stat-label-small">Sales</span>
+                    </div>
+                    ` : ''}
                 </div>
             </div>
 
-            <!-- Top Ad Placement -->
             ${promptAdHTML}
             
             ${mediaDisplay}
 
             <div class="prompt-content">
-                <!-- Original Prompt Section with Copy Button -->
                 <section class="content-section">
                     <h2 class="section-title"><i class="fas fa-magic"></i> AI Prompt Used</h2>
                     <div class="copy-prompt-container">
-                        <button class="copy-prompt-btn" id="copyPromptBtn" onclick="copyPromptToClipboard()">
-                            <i class="far fa-copy"></i> Copy Prompt
+                        <button class="copy-prompt-btn" id="copyPromptBtn" data-price="${promptData.price}" data-is-paid="${promptData.isPaid}" data-prompt-id="${promptData.id}">
+                            <i class="far fa-copy"></i> ${promptData.isPaid ? `Buy for ₹${promptData.price}` : 'Copy Prompt'}
                         </button>
                         <div class="prompt-text-wrapper" onclick="handlePromptClick(event)">
                             <div class="prompt-text" id="promptText" oncontextmenu="handlePromptContextMenu(event)">
@@ -7343,10 +7391,8 @@ function generateEnhancedPromptHTML(promptData) {
                     </div>
                 </section>
 
-                <!-- Middle Ad Placement -->
                 ${promptAdHTML}
 
-                <!-- AI-Generated About This Prompt Section -->
                 <section class="content-section">
                     <h2 class="section-title"><i class="fas fa-info-circle"></i> About This ${isVideo ? 'AI Video' : 'AI Prompt'}</h2>
                     <div class="platform-intro">
@@ -7354,13 +7400,11 @@ function generateEnhancedPromptHTML(promptData) {
                     </div>
                 </section>
 
-                <!-- Platform Comparison Section -->
                 <section class="content-section">
                     <h2 class="section-title"><i class="fas fa-chart-bar"></i> AI Platform Comparison (${isVideo ? AIModelManager.getVideoModelCount() : AIModelManager.getPhotoModelCount()}+ Models)</h2>
                     ${promptData.platformComparison}
                 </section>
 
-                <!-- Best AI Tools Section -->
                 <section class="content-section">
                     <h2 class="section-title"><i class="fas fa-robot"></i> Top AI ${isVideo ? 'Video Editing' : 'Image Generation'} Tools</h2>
                     <div class="tools-grid-enhanced">
@@ -7368,13 +7412,11 @@ function generateEnhancedPromptHTML(promptData) {
                     </div>
                 </section>
 
-                <!-- Model-Specific Tips Section -->
                 <section class="content-section">
                     <h2 class="section-title"><i class="fas fa-cogs"></i> ${isVideo ? 'Video Editing' : 'Model-Specific'} Optimization Tips</h2>
                     ${promptData.modelSpecificTips}
                 </section>
 
-                <!-- Comprehensive Step-by-Step Guide -->
                 <section class="content-section">
                     <h2 class="section-title"><i class="fas fa-list-ol"></i> How To ${isVideo ? 'Create This Video' : 'Use This Prompt'}</h2>
                     <div class="instruction-steps">
@@ -7382,7 +7424,6 @@ function generateEnhancedPromptHTML(promptData) {
                     </div>
                 </section>
 
-                <!-- AI Expert Tips Section -->
                 <section class="content-section">
                     <h2 class="section-title"><i class="fas fa-graduation-cap"></i> Expert Tips for Best Results</h2>
                     <ul class="tips-list">
@@ -7390,7 +7431,6 @@ function generateEnhancedPromptHTML(promptData) {
                     </ul>
                 </section>
 
-                <!-- Usage Tips Section -->
                 <section class="content-section">
                     <h2 class="section-title"><i class="fas fa-lightbulb"></i> Usage Tips</h2>
                     <ul class="tips-list">
@@ -7398,7 +7438,6 @@ function generateEnhancedPromptHTML(promptData) {
                     </ul>
                 </section>
 
-                <!-- Optimization Tips Section -->
                 <section class="content-section">
                     <h2 class="section-title"><i class="fas fa-search"></i> Optimization Tips</h2>
                     <ul class="tips-list">
@@ -7423,23 +7462,18 @@ function generateEnhancedPromptHTML(promptData) {
                 </div>
             </div>
 
-            <!-- Bottom Ad Placement -->
             ${promptAdHTML}
         </article>
         
-        <!-- Related Prompts Section -->
         <section class="content-section" style="margin-top: 2rem;">
             <h2 class="section-title"><i class="fas fa-images"></i> You Might Like:</h2>
             <div class="content-grid" id="relatedPrompts">
-                <!-- Related prompts will be loaded here -->
             </div>
         </section>
 
-        <!-- Comment Section -->
         <section class="comment-section" id="commentSection">
             <h2><i class="far fa-comments"></i> Comments</h2>
             
-            <!-- Comment Form -->
             <div class="comment-form">
                 <h3>Add a Comment</h3>
                 <form id="commentForm">
@@ -7459,19 +7493,11 @@ function generateEnhancedPromptHTML(promptData) {
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
                         <div class="form-group">
                             <label for="authorName">Name (optional)</label>
-                            <input 
-                                type="text" 
-                                id="authorName" 
-                                name="authorName" 
-                                placeholder="Your name">
+                            <input type="text" id="authorName" name="authorName" placeholder="Your name">
                         </div>
                         <div class="form-group">
                             <label for="authorEmail">Email (optional)</label>
-                            <input 
-                                type="email" 
-                                id="authorEmail" 
-                                name="authorEmail" 
-                                placeholder="your@email.com">
+                            <input type="email" id="authorEmail" name="authorEmail" placeholder="your@email.com">
                         </div>
                     </div>
                     
@@ -7485,16 +7511,13 @@ function generateEnhancedPromptHTML(promptData) {
                 </form>
             </div>
             
-            <!-- Comments List -->
             <div class="comments-list" id="commentsList">
                 <div class="no-comments" id="noComments">
                     <i class="far fa-comment" style="font-size: 3rem; color: #ddd; margin-bottom: 1rem;"></i>
                     <p>No comments yet. Be the first to share your thoughts!</p>
                 </div>
-                <!-- Comments will be loaded here -->
             </div>
             
-            <!-- Load More Button -->
             <div class="load-more-comments" id="loadMoreComments" style="display: none;">
                 <button class="load-more-btn" id="loadMoreBtn">
                     <i class="fas fa-sync-alt"></i> Load More Comments
@@ -7503,12 +7526,11 @@ function generateEnhancedPromptHTML(promptData) {
         </section>
     </main>
 
-    <!-- Site Footer -->
     <footer class="site-footer">
         <div class="footer-container">
             <div class="footer-section">
                 <h3>tools prompt</h3>
-                <p>tools prompt is a platform that offers trending and viral AI prompts for photo editing, video creation, and other creative tasks. It provides users with free, high-quality prompts that can be used with various AI tools, including over 50 AI platforms across image and video generation.</p>
+                <p>Toolsprompt is the leading AI Prompt Marketplace where you can buy and sell viral AI prompts for photo editing, video creation, and other creative tasks. Join thousands of prompt engineers and start earning today!.</p>
             </div>
             <div class="footer-section">
                 <h3>Quick Links</h3>
@@ -7517,6 +7539,7 @@ function generateEnhancedPromptHTML(promptData) {
                     <li><a href="https://www.toolsprompt.com/#promptsContainer">Browse Prompts</a></li>
                     <li><a href="https://www.toolsprompt.com/news.html">AI News</a></li>
                     <li><a href="https://www.toolsprompt.com/ai-detector.html">Prompt Tools</a></li>
+                    <li><a href="https://www.toolsprompt.com/dashboard.html">Dashboard</a></li>
                 </ul>
             </div>
             <div class="footer-section">
@@ -7529,19 +7552,21 @@ function generateEnhancedPromptHTML(promptData) {
             </div>
         </div>
         <div class="copyright">
-            <p>&copy; 2026 tools prompt. All rights reserved. | AI Prompt & Video Generation Platform</p>
+            <p>&copy; 2026 toolsprompt.com All rights reserved. | AI Prompt Marketplace - Buy and Sell AI Prompts</p>
         </div>
     </footer>
 
-    <!-- Mini Browser Components -->
     ${miniBrowserHTML}
 
+
     <script>
-        console.log('Initializing tools prompt page with 50+ AI models');
+        console.log('Initializing tools prompt page with marketplace features');
         
         const isVideo = ${isVideo};
         const promptId = '${promptData.id}';
         const promptText = document.getElementById('promptText')?.textContent || '';
+        const promptPrice = ${promptData.price};
+        const isPaid = ${promptData.isPaid};
         const photoModelCount = ${AIModelManager.getPhotoModelCount()};
         const videoModelCount = ${AIModelManager.getVideoModelCount()};
         const totalModelCount = photoModelCount + videoModelCount;
@@ -7558,7 +7583,6 @@ function generateEnhancedPromptHTML(promptData) {
                 const response = await fetch('/api/prompt/${promptData.id}/engagement');
                 if (response.ok) {
                     const data = await response.json();
-                    // Update stats in UI
                 }
             } catch (error) {
                 console.error('Error updating engagement stats:', error);
@@ -7566,10 +7590,8 @@ function generateEnhancedPromptHTML(promptData) {
         }
 
         document.addEventListener('DOMContentLoaded', function() {
-            // Load related prompts
             loadRelatedPrompts('${promptData.id}', '${(promptData.keywords || ['AI'])[0]}');
             
-            // Video-specific initialization
             if (isVideo) {
                 const video = document.querySelector('video');
                 if (video) {
@@ -7600,13 +7622,18 @@ function generateEnhancedPromptHTML(promptData) {
                         if (prompt && prompt.id && prompt.id !== currentId) {
                             const promptImage = prompt.thumbnailUrl || prompt.imageUrl || 'https://via.placeholder.com/300x200/4e54c8/ffffff?text=Prompt';
                             const isVideoPrompt = prompt.fileType === 'video' || prompt.category === 'video';
+                            const promptPrice = prompt.price || 0;
+                            const isPaidPrompt = promptPrice > 0;
                             
                             html += '<div class="related-prompt-card">' +
                                 '<img src="' + promptImage + '" class="related-prompt-image">' +
+                                '<div class="price-badge ' + (isPaidPrompt ? '' : 'free') + '" style="position: absolute; top: 10px; left: 10px; font-size: 0.7rem; padding: 2px 8px;">' + 
+                                    (isPaidPrompt ? '₹' + promptPrice : 'Free') + 
+                                '</div>' +
                                 (isVideoPrompt ? '<span class="video-badge"><i class="fas fa-video"></i> Reel</span>' : '') +
                                 '<div class="related-prompt-content">' +
                                     '<h4>' + (prompt.title || 'Untitled').substring(0, 50) + '</h4>' +
-                                    '<a href="/prompt/' + prompt.id + '" class="engagement-btn">View ' + (isVideoPrompt ? 'Video' : 'Prompt') + '</a>' +
+                                    '<a href="/prompt/' + prompt.id + '" class="engagement-btn">' + (isVideoPrompt ? 'Watch Reel' : (isPaidPrompt ? 'Buy for ₹' + promptPrice : 'View Prompt')) + '</a>' +
                                 '</div>' +
                             '</div>';
                             count++;
@@ -7626,61 +7653,52 @@ function generateEnhancedPromptHTML(promptData) {
             }
         }
 
-        // Copy Prompt Functionality
         let copyTimeout = null;
         let isCopied = false;
 
-        function copyPromptToClipboard() {
-            const promptElement = document.getElementById('promptText');
+        async function copyPromptToClipboard() {
             const copyBtn = document.getElementById('copyPromptBtn');
-            const promptContent = promptElement.textContent || promptElement.innerText;
             
-            if (!promptContent.trim()) {
-                showCopyNotification('No prompt text found', 'error');
-                return;
-            }
-            
-            if (navigator.clipboard && navigator.clipboard.writeText) {
-                navigator.clipboard.writeText(promptContent)
-                    .then(() => handleCopySuccess(copyBtn))
-                    .catch(() => fallbackCopyTextToClipboard(promptContent, copyBtn));
+            if (isPaid) {
+                const user = await getCurrentUser();
+                const purchased = await checkPurchaseStatus(promptId);
+                
+                if (purchased) {
+                    const promptElement = document.getElementById('promptText');
+                    const promptContent = promptElement.textContent || promptElement.innerText;
+                    await navigator.clipboard.writeText(promptContent);
+                    handleCopySuccess(copyBtn);
+                    trackCopyAction(promptId);
+                } else {
+                    showBuyPromptModal({
+                        id: promptId,
+                        title: '${promptData.title.replace(/'/g, "\\'")}',
+                        promptText: promptText,
+                        imageUrl: '${promptData.imageUrl}',
+                        price: promptPrice,
+                        userName: '${promptData.userName}'
+                    });
+                }
             } else {
-                fallbackCopyTextToClipboard(promptContent, copyBtn);
+                const promptElement = document.getElementById('promptText');
+                const promptContent = promptElement.textContent || promptElement.innerText;
+                await navigator.clipboard.writeText(promptContent);
+                handleCopySuccess(copyBtn);
+                trackCopyAction(promptId);
             }
         }
 
-        function fallbackCopyTextToClipboard(text, copyBtn) {
-            const textArea = document.createElement('textarea');
-            textArea.value = text;
-            textArea.style.position = 'fixed';
-            textArea.style.top = '0';
-            textArea.style.left = '0';
-            textArea.style.width = '2em';
-            textArea.style.height = '2em';
-            textArea.style.padding = '0';
-            textArea.style.border = 'none';
-            textArea.style.outline = 'none';
-            textArea.style.boxShadow = 'none';
-            textArea.style.background = 'transparent';
-            
-            document.body.appendChild(textArea);
-            textArea.focus();
-            textArea.select();
-            
+        async function checkPurchaseStatus(promptId) {
             try {
-                const successful = document.execCommand('copy');
-                if (successful) {
-                    handleCopySuccess(copyBtn);
-                    trackCopyAction();
-                } else {
-                    showCopyNotification('Copy failed. Please try again.', 'error');
-                }
-            } catch (err) {
-                showCopyNotification('Copy not supported in your browser', 'error');
-                console.error('Copy failed:', err);
+                const user = await getCurrentUser();
+                if (!user) return false;
+                const response = await fetch('/api/check-purchase/' + promptId + '?userId=' + user.uid);
+                const data = await response.json();
+                return data.purchased;
+            } catch (error) {
+                console.error('Error checking purchase:', error);
+                return false;
             }
-            
-            document.body.removeChild(textArea);
         }
 
         function handleCopySuccess(copyBtn) {
@@ -7689,11 +7707,11 @@ function generateEnhancedPromptHTML(promptData) {
             copyBtn.disabled = true;
             
             showCopyNotification('Prompt copied!', 'success');
-            trackCopyAction();
+            trackCopyAction(promptId);
             
             if (copyTimeout) clearTimeout(copyTimeout);
             copyTimeout = setTimeout(() => {
-                copyBtn.innerHTML = '<i class="far fa-copy"></i> Copy Prompt';
+                copyBtn.innerHTML = '<i class="far fa-copy"></i> ' + (isPaid ? 'Copy Prompt' : 'Copy Prompt');
                 copyBtn.classList.remove('copied');
                 copyBtn.disabled = false;
                 isCopied = false;
@@ -7708,56 +7726,43 @@ function generateEnhancedPromptHTML(promptData) {
             
             const notification = document.createElement('div');
             notification.className = \`copy-notification \${type}\`;
-            
-            const icon = type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle';
-            const title = type === 'success' ? 'Success!' : 'Error!';
-            
+            notification.style.cssText = \`
+                position: fixed;
+                bottom: 20px;
+                right: 20px;
+                background: \${type === 'success' ? '#20bf6b' : '#ff6b6b'};
+                color: white;
+                padding: 12px 20px;
+                border-radius: 8px;
+                z-index: 10001;
+                animation: slideIn 0.3s ease;
+                box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            \`;
             notification.innerHTML = \`
-                <i class="fas \${icon}"></i>
-                <div class="copy-notification-content">
-                    <span class="copy-notification-title">\${title}</span>
-                    <span class="copy-notification-subtitle">\${message}</span>
-                </div>
+                <i class="fas fa-\${type === 'success' ? 'check-circle' : 'exclamation-circle'}"></i>
+                <span>\${message}</span>
             \`;
             
             document.body.appendChild(notification);
             
-            setTimeout(() => notification.classList.add('show'), 10);
-            
             setTimeout(() => {
-                notification.classList.remove('show');
-                setTimeout(() => notification.remove(), 500);
+                notification.style.animation = 'slideOut 0.3s ease';
+                setTimeout(() => notification.remove(), 300);
             }, 3000);
         }
 
         function handlePromptClick(event) {
             if (event.target.closest('.copy-prompt-btn')) return;
-            
-            const promptElement = event.target.closest('.prompt-text');
-            if (promptElement && !isCopied) {
-                copyPromptToClipboard();
-                promptElement.style.transform = 'scale(0.99)';
-                setTimeout(() => promptElement.style.transform = 'scale(1)', 150);
-            }
+            copyPromptToClipboard();
         }
 
         function handlePromptContextMenu(event) {
             event.preventDefault();
             copyPromptToClipboard();
-            
-            const copyHint = document.getElementById('copyHint');
-            if (copyHint) {
-                copyHint.textContent = 'Copied via right-click!';
-                copyHint.classList.add('show');
-                setTimeout(() => {
-                    copyHint.classList.remove('show');
-                    copyHint.textContent = 'Click or tap to copy';
-                }, 2000);
-            }
             return false;
         }
 
-        function trackCopyAction() {
+        function trackCopyAction(promptId) {
             fetch('/api/prompt/' + promptId + '/copy', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -7833,17 +7838,261 @@ function generateEnhancedPromptHTML(promptData) {
             }
         }
 
-        // Mini Browser JavaScript
-        ${miniBrowserJS}
+        async function getCurrentUser() {
+            return new Promise((resolve) => {
+                if (typeof firebase !== 'undefined' && firebase.auth) {
+                    const unsubscribe = firebase.auth().onAuthStateChanged(user => {
+                        unsubscribe();
+                        resolve(user);
+                    });
+                } else {
+                    resolve(null);
+                }
+            });
+        }
 
-        // Comment System JavaScript
+        function showBuyPromptModal(prompt) {
+            const modalHTML = \`
+                <div class="buy-modal-overlay" id="buyPromptModal">
+                    <div class="buy-modal">
+                        <div class="modal-header">
+                            <h2><i class="fas fa-shopping-cart"></i> Purchase Prompt</h2>
+                            <button class="close-modal" onclick="closeBuyModal()">&times;</button>
+                        </div>
+                        <div class="buy-modal-content">
+                            <div class="prompt-preview">
+                                <img src="\${prompt.imageUrl}" alt="\${prompt.title}" class="buy-prompt-image">
+                                <h3>\${prompt.title}</h3>
+                                <p class="prompt-price-large">₹\${prompt.price}</p>
+                                <p class="prompt-creator">By: \${prompt.userName}</p>
+                            </div>
+                            <div class="payment-form">
+                                <h3>Payment Details</h3>
+                                <div class="payment-info" style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin: 15px 0;">
+                                    <p style="margin: 0; font-size: 0.9rem; color: #666;">
+                                        <i class="fas fa-shield-alt"></i> Secure payment powered by Razorpay
+                                    </p>
+                                    <p style="margin: 5px 0 0; font-size: 0.8rem; color: #888;">
+                                        Supports UPI, Credit/Debit Cards, Net Banking, and Wallets
+                                    </p>
+                                </div>
+                                <button class="buy-now-btn" id="buyNowBtn">
+                                    <i class="fas fa-rupee-sign"></i> Pay ₹\${prompt.price}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            \`;
+            
+            document.body.insertAdjacentHTML('beforeend', modalHTML);
+            document.body.style.overflow = 'hidden';
+            
+            const buyBtn = document.getElementById('buyNowBtn');
+            if (buyBtn) {
+                buyBtn.addEventListener('click', async () => {
+                    await processPaymentWithRazorpay(prompt);
+                });
+            }
+        }
+        
+        function closeBuyModal() {
+            const modal = document.getElementById('buyPromptModal');
+            if (modal) {
+                modal.remove();
+                document.body.style.overflow = '';
+            }
+        }
+        
+        async function processPaymentWithRazorpay(prompt) {
+            const buyBtn = document.getElementById('buyNowBtn');
+            const originalText = buyBtn.innerHTML;
+            buyBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating order...';
+            buyBtn.disabled = true;
+            
+            try {
+                const user = await getCurrentUser();
+                if (!user) {
+                    showCopyNotification('Please login to purchase prompts', 'error');
+                    window.location.href = '/login.html?returnUrl=' + encodeURIComponent(window.location.href);
+                    return;
+                }
+                
+                const response = await fetch('/api/create-order', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        promptId: prompt.id,
+                        price: prompt.price,
+                        userId: user.uid,
+                        userEmail: user.email
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.isDemo) {
+                    buyBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Completing...';
+                    await completePurchase(prompt, user, null);
+                    closeBuyModal();
+                    return;
+                }
+                
+                // Load Razorpay script if needed
+                if (typeof Razorpay === 'undefined') {
+                    await new Promise((resolve) => {
+                        const script = document.createElement('script');
+                        script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+                        script.onload = resolve;
+                        document.head.appendChild(script);
+                    });
+                }
+                
+                const options = {
+                    key: data.keyId,
+                    amount: data.amount,
+                    currency: data.currency,
+                    name: 'tools prompt',
+                    description: 'Purchase: ${prompt.title}',
+                    order_id: data.orderId,
+                    handler: async function(response) {
+                        buyBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Verifying payment...';
+                        
+                        try {
+                            const verifyResponse = await fetch('/api/verify-payment', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    orderId: response.razorpay_order_id,
+                                    paymentId: response.razorpay_payment_id,
+                                    signature: response.razorpay_signature,
+                                    promptId: prompt.id,
+                                    userId: user.uid,
+                                    userEmail: user.email,
+                                    amount: prompt.price
+                                })
+                            });
+                            
+                            const verifyData = await verifyResponse.json();
+                            
+                            if (verifyData.success) {
+                                showCopyNotification('Payment successful! Prompt copied to clipboard.', 'success');
+                                await navigator.clipboard.writeText(prompt.promptText);
+                                closeBuyModal();
+                                
+                                if (window.location.pathname.includes('dashboard.html')) {
+                                    location.reload();
+                                }
+                            } else {
+                                throw new Error(verifyData.error || 'Payment verification failed');
+                            }
+                        } catch (error) {
+                            console.error('Verification error:', error);
+                            showCopyNotification('Payment recorded but verification failed. Contact support.', 'error');
+                        }
+                    },
+                    modal: {
+                        ondismiss: function() {
+                            showCopyNotification('Payment cancelled', 'info');
+                        }
+                    },
+                    theme: {
+                        color: '#4e54c8'
+                    }
+                };
+                
+                const razorpayInstance = new Razorpay(options);
+                razorpayInstance.open();
+                
+            } catch (error) {
+                console.error('Payment error:', error);
+                showCopyNotification(error.message || 'Payment failed. Please try again.', 'error');
+            } finally {
+                buyBtn.innerHTML = originalText;
+                buyBtn.disabled = false;
+            }
+        }
+        
+        async function completePurchase(prompt, user, paymentId) {
+            try {
+                const response = await fetch('/api/complete-purchase', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        promptId: prompt.id,
+                        userId: user.uid,
+                        userEmail: user.email,
+                        amount: prompt.price,
+                        paymentId: paymentId
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    try {
+                        closeBuyModal();
+                    } catch (e) {
+                        const modal = document.getElementById('buyPromptModal');
+                        if (modal) modal.remove();
+                        document.body.style.overflow = '';
+                    }
+
+                    showCopyNotification('Purchase successful! Prompt copied to clipboard.', 'success');
+                    await navigator.clipboard.writeText(prompt.promptText);
+
+                    if (window.location.pathname.includes('dashboard.html')) {
+                        location.reload();
+                    }
+                } else {
+                    throw new Error(data.error || 'Purchase completion failed');
+                }
+            } catch (error) {
+                console.error('Purchase completion error:', error);
+                showCopyNotification('Purchase recorded but prompt copy failed. Check your dashboard.', 'error');
+            }
+        }
+
+        ${miniBrowserJS}
         ${generateCommentSystemJS(promptData)}
     </script>
 </body>
 </html>`;
 }
 
-// Generate News HTML
+function generateCategoryHTML(category, baseUrl) {
+  const categoryNames = {
+    'art': 'AI Art', 'photography': 'AI Photography', 'design': 'AI Design',
+    'writing': 'AI Writing', 'video': 'AI Video Reels', 'other': 'Other AI Creations'
+  };
+  
+  const categoryName = categoryNames[category] || 'AI Prompts';
+  const description = `Explore ${categoryName} prompts and AI-generated content. Discover the best prompt engineering techniques for ${categoryName.toLowerCase()}.`;
+
+  return `<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>${categoryName} Prompts - tools prompt</title>
+    <meta name="description" content="${description}">
+    ${generateAdSenseCode()}
+    <style>
+        body { font-family: Arial, sans-serif; margin: 0; padding: 40px; background: #f5f7fa; text-align: center; }
+        .container { max-width: 800px; margin: 50px auto; background: white; padding: 40px; border-radius: 15px; box-shadow: 0 5px 15px rgba(0,0,0,0.1); }
+        h1 { color: #4e54c8; margin-bottom: 20px; }
+        a { color: #4e54c8; text-decoration: none; padding: 12px 25px; border: 2px solid #4e54c8; border-radius: 30px; display: inline-block; margin-top: 20px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>${categoryName} Prompts</h1>
+        <p>${description}</p>
+        <a href="/">← Back to Prompt Showcase</a>
+    </div>
+</body>
+</html>`;
+}
+
 function generateNewsHTML(newsData) {
   const adsenseCode = generateAdSenseCode();
   const baseUrl = process.env.NODE_ENV === 'production' ? 'https://www.toolsprompt.com' : '';
@@ -7926,150 +8175,25 @@ function generateNewsHTML(newsData) {
 </html>`;
 }
 
-function generateCategoryHTML(category, baseUrl) {
-  const categoryNames = {
-    'art': 'AI Art', 'photography': 'AI Photography', 'design': 'AI Design',
-    'writing': 'AI Writing', 'video': 'AI Video Reels', 'other': 'Other AI Creations'
-  };
-  
-  const categoryName = categoryNames[category] || 'AI Prompts';
-  const description = `Explore ${categoryName} prompts and AI-generated content. Discover the best prompt engineering techniques for ${categoryName.toLowerCase()}.`;
-
-  return `<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <title>${categoryName} Prompts - tools prompt</title>
-    <meta name="description" content="${description}">
-    ${generateAdSenseCode()}
-    <style>
-        body { font-family: Arial, sans-serif; margin: 0; padding: 40px; background: #f5f7fa; text-align: center; }
-        .container { max-width: 800px; margin: 50px auto; background: white; padding: 40px; border-radius: 15px; box-shadow: 0 5px 15px rgba(0,0,0,0.1); }
-        h1 { color: #4e54c8; margin-bottom: 20px; }
-        a { color: #4e54c8; text-decoration: none; padding: 12px 25px; border: 2px solid #4e54c8; border-radius: 30px; display: inline-block; margin-top: 20px; }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1>${categoryName} Prompts</h1>
-        <p>${description}</p>
-        <a href="/">← Back to Prompt Showcase</a>
-    </div>
-</body>
-</html>`;
-}
-
-// Helper function for 404 page
 function sendPromptNotFound(res, promptId) {
-  res.status(404).send(`
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Prompt Not Found - tools prompt</title>
-    <meta charset="UTF-8">
-    <style>
-        body { font-family: Arial, sans-serif; margin: 0; padding: 40px; background: #f5f7fa; text-align: center; }
-        .container { max-width: 600px; margin: 50px auto; background: white; padding: 40px; border-radius: 15px; box-shadow: 0 5px 15px rgba(0,0,0,0.1); }
-        h1 { color: #ff6b6b; margin-bottom: 20px; }
-        a { color: #4e54c8; text-decoration: none; padding: 12px 25px; border: 2px solid #4e54c8; border-radius: 30px; display: inline-block; margin-top: 20px; }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1>Prompt Not Found</h1>
-        <p>The prompt you're looking for doesn't exist or may have been removed.</p>
-        <p><small>Prompt ID: ${promptId}</small></p>
-        <a href="/">← Return to tools prompt</a>
-    </div>
-</body>
-</html>`);
+  res.status(404).send(`<!DOCTYPE html><html><head><title>Prompt Not Found - tools prompt</title></head><body><h1>Prompt Not Found</h1><p>The prompt you're looking for doesn't exist.</p><a href="/">Return Home</a></body></html>`);
 }
 
 function sendNewsNotFound(res, newsId) {
-  res.status(404).send(`
-<!DOCTYPE html>
-<html>
-<head>
-    <title>News Not Found - tools prompt</title>
-    <meta charset="UTF-8">
-    <style>
-        body { font-family: Arial, sans-serif; margin: 0; padding: 40px; background: #f5f7fa; text-align: center; }
-        .container { max-width: 600px; margin: 50px auto; background: white; padding: 40px; border-radius: 15px; box-shadow: 0 5px 15px rgba(0,0,0,0.1); }
-        h1 { color: #ff6b6b; margin-bottom: 20px; }
-        a { color: #4e54c8; text-decoration: none; padding: 12px 25px; border: 2px solid #4e54c8; border-radius: 30px; display: inline-block; margin-top: 20px; }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1>News Article Not Found</h1>
-        <p>The news article you're looking for doesn't exist or may have been removed.</p>
-        <p><small>News ID: ${newsId}</small></p>
-        <a href="/">← Return to tools prompt</a>
-    </div>
-</body>
-</html>`);
+  res.status(404).send(`<!DOCTYPE html><html><head><title>News Not Found - tools prompt</title></head><body><h1>News Not Found</h1><p>The news article you're looking for doesn't exist.</p><a href="/">Return Home</a></body></html>`);
 }
 
 function sendErrorPage(res, error) {
-  res.status(500).send(`
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Error - tools prompt</title>
-    <meta charset="UTF-8">
-    <style>
-        body { font-family: Arial, sans-serif; margin: 0; padding: 40px; background: #f5f7fa; text-align: center; }
-        .container { max-width: 600px; margin: 50px auto; background: white; padding: 40px; border-radius: 15px; box-shadow: 0 5px 15px rgba(0,0,0,0.1); }
-        h1 { color: #ff6b6b; margin-bottom: 20px; }
-        a { color: #4e54c8; text-decoration: none; padding: 12px 25px; border: 2px solid #4e54c8; border-radius: 30px; display: inline-block; margin-top: 20px; }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1>Error Loading Prompt</h1>
-        <p>There was an error loading this prompt. Please try again later.</p>
-        <a href="/">← Return to Home</a>
-    </div>
-</body>
-</html>`);
+  res.status(500).send(`<!DOCTYPE html><html><head><title>Error - tools prompt</title></head><body><h1>Error Loading Page</h1><p>There was an error loading this page. Please try again later.</p><a href="/">Return Home</a></body></html>`);
 }
 
 function sendNewsErrorPage(res, error) {
-  res.status(500).send(`
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Error - tools prompt News</title>
-    <meta charset="UTF-8">
-    <style>
-        body { font-family: Arial, sans-serif; margin: 0; padding: 40px; background: #f5f7fa; text-align: center; }
-        .container { max-width: 600px; margin: 50px auto; background: white; padding: 40px; border-radius: 15px; box-shadow: 0 5px 15px rgba(0,0,0,0.1); }
-        h1 { color: #ff6b6b; margin-bottom: 20px; }
-        a { color: #4e54c8; text-decoration: none; padding: 12px 25px; border: 2px solid #4e54c8; border-radius: 30px; display: inline-block; margin-top: 20px; }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1>Error Loading News</h1>
-        <p>There was an error loading this news article. Please try again later.</p>
-        <a href="/">← Return to Home</a>
-    </div>
-</body>
-</html>`);
+  res.status(500).send(`<!DOCTYPE html><html><head><title>Error - tools prompt News</title></head><body><h1>Error Loading News</h1><p>There was an error loading this news article. Please try again later.</p><a href="/">Return Home</a></body></html>`);
 }
 
 // Simple 404 handler
 app.use((req, res) => {
-  res.status(404).send(`
-    <html>
-      <head><title>Page Not Found</title></head>
-      <body style="font-family: Arial, sans-serif; text-align: center; padding: 50px;">
-        <h1>Page Not Found</h1>
-        <p>The page you're looking for doesn't exist.</p>
-        <a href="/">Return to Home</a>
-      </body>
-    </html>
-  `);
+  res.status(404).send(`<!DOCTYPE html><html><head><title>Page Not Found</title></head><body><h1>Page Not Found</h1><p>The page you're looking for doesn't exist.</p><a href="/">Return to Home</a></body></html>`);
 });
 
 // Start server
@@ -8086,102 +8210,35 @@ app.listen(port, async () => {
   console.log(`📤 News upload: http://localhost:${port}/api/upload-news`);
   console.log(`🗺️  News sitemap: http://localhost:${port}/sitemap-news.xml`);
   console.log(`🔗 Prompt routes: http://localhost:${port}/prompt/:id`);
-  
-  console.log(`📤 VIDEO UPLOAD ENDPOINT (NEW!):`);
-  console.log(`   → URL: http://localhost:${port}/api/upload`);
-  console.log(`   → Field name: "media" (accepts both images and videos)`);
-  console.log(`   → Field name: "thumbnail" (optional custom thumbnail)`);
-  console.log(`   → Max size: 100MB (video), 5MB (thumbnail)`);
-  console.log(`   → Allowed video types: MP4, WebM, MOV, AVI, OGG`);
-  console.log(`   → Allowed thumbnail types: JPEG, PNG, WebP`);
-  console.log(`   → Optimized for: Short reels (3-15 seconds)`);
+  console.log(`📊 Dashboard: http://localhost:${port}/dashboard.html`);
+  console.log(`💰 MARKETPLACE FEATURES:`);
+  console.log(`   → Buy prompts with Razorpay India integration`);
+  console.log(`   → Sell prompts with 80% earnings for sellers`);
+  console.log(`   → Dashboard for tracking sales and purchases`);
+  console.log(`   → Price badges on prompts (Free/Paid)`);
+  console.log(`   → Purchase verification before copying paid prompts`);
+  console.log(`   → Sales and earnings tracking`);
   
   console.log(`🎬 YOUTUBE SHORTS PLAYER:`);
   console.log(`   → Full-screen vertical video player`);
   console.log(`   → Swipe up/down navigation (mobile)`);
   console.log(`   → Arrow key navigation (desktop)`);
   console.log(`   → Like, comment, share, copy prompt functionality`);
-  console.log(`   → Progress bar`);
-  console.log(`   → Auto-play support`);
   
   console.log(`💬 Comment System Endpoints:`);
   console.log(`   → Get comments: http://localhost:${port}/api/prompt/:id/comments`);
   console.log(`   → Post comment: http://localhost:${port}/api/prompt/:id/comments (POST)`);
   console.log(`   → Like comment: http://localhost:${port}/api/comment/:commentId/like (POST)`);
   
-  console.log(`📋 Copy tracking: http://localhost:${port}/api/prompt/:id/copy (Optimized: 30% write rate)`);
-  console.log(`❤️  Engagement endpoints:`);
-  console.log(`   → Views: http://localhost:${port}/api/prompt/:id/view (Optimized: 10% write rate)`);
-  console.log(`   → Likes: http://localhost:${port}/api/prompt/:id/like`);
-  console.log(`   → Uses: http://localhost:${port}/api/prompt/:id/use`);
-  console.log(`   → Copies: http://localhost:${port}/api/prompt/:id/copy`);
-  console.log(`   → Analytics: http://localhost:${port}/api/prompt/:id/engagement`);
   console.log(`🔍 Search: http://localhost:${port}/api/search (Limited to 500 results)`);
   console.log(`🗺️  Sitemap: http://localhost:${port}/sitemap.xml`);
-  console.log(`   → Posts sitemap: http://localhost:${port}/sitemap-posts.xml (500 prompts)`);
-  console.log(`   → News sitemap: http://localhost:${port}/sitemap-news.xml (500 news)`);
-  console.log(`   → Pages sitemap: http://localhost:${port}/sitemap-pages.xml`);
   console.log(`🤖 Robots.txt: http://localhost:${port}/robots.txt`);
   console.log(`❤️  Health check: http://localhost:${port}/health`);
   console.log(`💰 AdSense Client ID: ${process.env.ADSENSE_CLIENT_ID || 'ca-pub-5992381116749724'}`);
-  console.log(`🔄 AdSense Migration: http://localhost:${port}/admin/migrate-adsense`);
-  console.log(`📊 Caching: Enabled with 5-minute TTL`);
   
   console.log(`🤖 AI MODELS ENHANCED: ${totalCount} TOTAL AI PLATFORMS SUPPORTED!`);
-  console.log(`   📸 PHOTO MODELS (${photoCount}):`);
-  console.log(`      → Google: Imagen 3, Gemini Image`);
-  console.log(`      → OpenAI: DALL-E 3, DALL-E 2`);
-  console.log(`      → Midjourney: V6, Niji`);
-  console.log(`      → Stability: SD3, SDXL, SDXL Turbo`);
-  console.log(`      → Adobe: Firefly Image, Photoshop Generative Fill`);
-  console.log(`      → Canva: Canva AI, Magic Media`);
-  console.log(`      → Leonardo: Creative, Phoenix`);
-  console.log(`      → Others: Ideogram, Playground, ClipDrop, Runway, NightCafe, Wombo, StarryAI, DeepAI, Craiyon, Bing, Getty, Shutterstock, Picsart, Fotor, BlueWillow, TensorArt, SeaArt`);
-  
-  console.log(`   🎬 VIDEO MODELS (${videoCount}):`);
-  console.log(`      → Google: Veo 2, Flow, Gemini Video, VideoPoet`);
-  console.log(`      → OpenAI: Sora, ChatGPT-4o Video, DALL-E Video`);
-  console.log(`      → Meta: Movie Gen, Make-A-Video, Emu Video`);
-  console.log(`      → Runway: Gen-3, Gen-2, Frame Interpolation`);
-  console.log(`      → Pika: 2.0, Effects, 1.0`);
-  console.log(`      → Stability: SVD, SVD-XT, Frame Interpolation`);
-  console.log(`      → Adobe: Firefly Video, Premiere Pro AI, After Effects AI`);
-  console.log(`      → CapCut: Pro AI, Text-to-Video, Auto-Cut`);
-  console.log(`      → InVideo: AI, Studio`);
-  console.log(`      → Synthesia: 2.0, Avatars`);
-  console.log(`      → HeyGen: 2.0, Interactive`);
-  console.log(`      → ElevenLabs: Video`);
-  console.log(`      → Kling: 1.6, 1.5`);
-  console.log(`      → Luma: Dream Machine, Ray`);
-  console.log(`      → Haiper: 2.0, 1.0`);
-  console.log(`      → Minimax: Video, Hailuo`);
-  console.log(`      → Kaiber: 2.0, Motion`);
-  console.log(`      → CogVideoX: X, 5B`);
-  console.log(`      → AnimateDiff: V2, Original`);
-  console.log(`      → Others: Moonvalley, Deforum, Morph Studio, Pixverse, VideoCom, LTX Studio`);
-  
-  console.log(`📊 Platform Comparison: Interactive comparison tables for all platforms`);
-  console.log(`⭐ Star Ratings: Tool ratings with visual indicators`);
-  console.log(`🔧 Model-Specific Tips: Optimization tips for each AI platform`);
-  console.log(`📋 Copy Prompt Button: Enhanced UX with touch/click support`);
-  console.log(`📈 Copy Tracking: Analytics for CTR improvement`);
-  console.log(`💬 Comment System: Public comments with like functionality`);
-  console.log(`🎬 VIDEO REELS: Full support for AI-generated video content with custom thumbnails`);
-  console.log(`💰 COST SAVINGS IMPLEMENTED:`);
-  console.log(`   ✅ Database query limits increased to 500 for better SEO coverage`);
-  console.log(`   ✅ Caching layer implemented`);
-  console.log(`   ✅ View counts batched (10% write rate)`);
-  console.log(`   ✅ Copy tracking batched (30% write rate)`);
-  console.log(`   ✅ Search limited to 500 results`);
-  console.log(`   ✅ Sitemaps increased to 500 items for better SEO`);
-  
-  if (!db || !db.collection) {
-    console.log(`🎭 Running in DEVELOPMENT mode with mock data`);
-    console.log(`🎬 Demo video prompt with custom thumbnail available at: http://localhost:${port}/prompt/demo-video-1`);
-    console.log(`📰 Sample news articles:`);
-    global.mockNews.slice(0, 3).forEach(news => {
-      console.log(`   → http://localhost:${port}/news/${news.id}`);
-    });
-    console.log(`💬 Sample comments available on all prompt pages`);
-  }
+  console.log(`   📸 PHOTO MODELS (${photoCount})`);
+  console.log(`   🎬 VIDEO MODELS (${videoCount})`);
+  console.log(`💰 MARKETPLACE ACTIVE: Buy and sell prompts!`);
+  console.log(`💳 PAYMENT GATEWAY: Razorpay (India)`);
 });
