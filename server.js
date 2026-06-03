@@ -190,6 +190,237 @@ function safeDateToString(dateValue) {
   }
 }
 
+// ==================== ADSTERRA AD HELPER FUNCTIONS ====================
+
+/**
+ * Generates Adsterra Native Banner Ad code
+ */
+function generateAdsterraNativeAd() {
+    return `
+        <!-- Adsterra Native Banner Ad -->
+        <div class="ad-container">
+            <div class="ad-label">Advertisement</div>
+            <div id="container-aca55beb03e2d8b514ae3f122920bdf0"></div>
+            <script async="async" data-cfasync="false" src="https://pl29189858.profitablecpmratenetwork.com/aca55beb03e2d8b514ae3f122920bdf0/invoke.js"></script>
+        </div>
+    `;
+}
+
+/**
+ * Generates Adsterra Banner Ad for Desktop (300x250)
+ */
+function generateAdsterraDesktopBanner() {
+    return `
+        <!-- Adsterra Banner Ad - Desktop 300x250 -->
+        <div class="ad-container ad-banner-desktop">
+            <div class="ad-label">Advertisement</div>
+            <script>
+              atOptions = {
+                'key' : '8719e4636a7c41462203d84e956177c4',
+                'format' : 'iframe',
+                'height' : 250,
+                'width' : 300,
+                'params' : {}
+              };
+            </script>
+            <script src="https://www.highperformanceformat.com/8719e4636a7c41462203d84e956177c4/invoke.js"></script>
+        </div>
+    `;
+}
+
+/**
+ * Generates Adsterra Banner Ad for Mobile (320x50)
+ */
+function generateAdsterraMobileBanner() {
+    return `
+        <!-- Adsterra Banner Ad - Mobile 320x50 -->
+        <div class="ad-container ad-banner-mobile">
+            <div class="ad-label">Advertisement</div>
+            <script>
+              atOptions = {
+                'key' : '37e3a123e9b664f6f0b0efed6c7ee71f',
+                'format' : 'iframe',
+                'height' : 50,
+                'width' : 320,
+                'params' : {}
+              };
+            </script>
+            <script src="https://www.highperformanceformat.com/37e3a123e9b664f6f0b0efed6c7ee71f/invoke.js"></script>
+        </div>
+    `;
+}
+
+/**
+ * Generates all Adsterra ads combined (Native + Desktop + Mobile)
+ * Desktop and Mobile are shown/hidden via CSS media queries
+ */
+function generateAllAdsterraAds() {
+    return `
+        ${generateAdsterraNativeAd()}
+        ${generateAdsterraDesktopBanner()}
+        ${generateAdsterraMobileBanner()}
+    `;
+}
+
+// ==================== DOWNLOAD APP BUTTON FUNCTIONS ====================
+
+// Floating Download App Button CSS
+const downloadAppCSS = `
+/* Floating Download App Button */
+.floating-download-btn {
+    position: fixed;
+    bottom: 30px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: linear-gradient(135deg, #4e54c8 0%, #8f94fb 100%);
+    color: white;
+    border: none;
+    border-radius: 50px;
+    padding: 14px 28px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    cursor: pointer;
+    z-index: 10000;
+    font-size: 1rem;
+    font-weight: bold;
+    box-shadow: 0 8px 25px rgba(78, 84, 200, 0.4);
+    transition: all 0.3s ease;
+    backdrop-filter: blur(10px);
+    background: rgba(78, 84, 200, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    font-family: 'Segoe UI', sans-serif;
+}
+
+.floating-download-btn:hover {
+    transform: translateX(-50%) scale(1.05);
+    box-shadow: 0 12px 35px rgba(78, 84, 200, 0.6);
+    background: linear-gradient(135deg, #3b41b5 0%, #7c82f0 100%);
+}
+
+.floating-download-btn:active {
+    transform: translateX(-50%) scale(0.98);
+}
+
+.floating-download-btn i {
+    font-size: 1.2rem;
+    animation: bounce 2s infinite;
+}
+
+.floating-download-btn .btn-text {
+    letter-spacing: 0.5px;
+}
+
+.floating-download-btn .btn-badge {
+    background: #ff6b6b;
+    color: white;
+    border-radius: 20px;
+    padding: 2px 8px;
+    font-size: 0.7rem;
+    margin-left: 8px;
+    font-weight: normal;
+}
+
+@keyframes bounce {
+    0%, 100% {
+        transform: translateY(0);
+    }
+    50% {
+        transform: translateY(-3px);
+    }
+}
+
+/* Slide up animation for button */
+@keyframes slideUpFade {
+    from {
+        opacity: 0;
+        transform: translateX(-50%) translateY(30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
+    }
+}
+
+.floating-download-btn {
+    animation: slideUpFade 0.5s ease-out;
+}
+
+@media (max-width: 768px) {
+    .floating-download-btn {
+        padding: 12px 20px;
+        font-size: 0.85rem;
+        gap: 8px;
+        bottom: 20px;
+    }
+    
+    .floating-download-btn i {
+        font-size: 1rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .floating-download-btn {
+        padding: 10px 16px;
+        font-size: 0.75rem;
+        gap: 6px;
+        bottom: 15px;
+    }
+    
+    .floating-download-btn i {
+        font-size: 0.9rem;
+    }
+}
+
+/* Hide on certain pages if needed */
+.floating-download-btn.hidden {
+    display: none;
+}
+
+@keyframes pulse {
+    0% { transform: translateX(-50%) scale(1); box-shadow: 0 8px 25px rgba(78, 84, 200, 0.4); }
+    50% { transform: translateX(-50%) scale(1.08); box-shadow: 0 12px 35px rgba(78, 84, 200, 0.7); }
+    100% { transform: translateX(-50%) scale(1); box-shadow: 0 8px 25px rgba(78, 84, 200, 0.4); }
+}
+`;
+
+// Floating Download App Button HTML
+const downloadAppButtonHTML = `
+<!-- Floating Download App Button -->
+<button class="floating-download-btn" id="downloadAppBtn" onclick="downloadApp()">
+    <i class="fas fa-download"></i>
+    <span class="btn-text">Download App</span>
+    <span class="btn-badge">FREE</span>
+</button>
+`;
+
+// Track app download clicks endpoint
+app.post('/api/track-download', async (req, res) => {
+    try {
+        const { promptId, promptTitle, userAgent } = req.body;
+        
+        console.log(`📱 App download tracked - Prompt: ${promptTitle} (${promptId})`);
+        console.log(`   User Agent: ${userAgent}`);
+        console.log(`   Time: ${new Date().toISOString()}`);
+        
+        // Optional: Store in database if needed
+        if (db && db.collection) {
+            await db.collection('downloads').add({
+                promptId: promptId || null,
+                promptTitle: promptTitle || null,
+                userAgent: userAgent || null,
+                timestamp: new Date().toISOString(),
+                source: 'prompt_page'
+            });
+        }
+        
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Download tracking error:', error);
+        res.json({ success: false });
+    }
+});
+
 // ==================== RAZORPAY ENDPOINTS ====================
 
 // Get Razorpay key
@@ -228,7 +459,6 @@ app.post('/api/create-order', async (req, res) => {
         const options = {
             amount: amount,
             currency: 'INR',
-            // receipt: undefined, // No receipt - Razorpay will generate one
             notes: {
                 promptId: promptId,
                 userId: userId
@@ -3467,6 +3697,12 @@ app.get('/health', (req, res) => {
       enabled: true,
       clientId: process.env.ADSENSE_CLIENT_ID || 'ca-pub-5992381116749724'
     },
+    adsterra: {
+      enabled: true,
+      nativeAd: 'aca55beb03e2d8b514ae3f122920bdf0',
+      desktopBanner: '8719e4636a7c41462203d84e956177c4',
+      mobileBanner: '37e3a123e9b664f6f0b0efed6c7ee71f'
+    },
     features: {
       comments: true,
       news: true,
@@ -3475,7 +3711,8 @@ app.get('/health', (req, res) => {
       videoUploads: true,
       youtubeShorts: true,
       customThumbnails: true,
-      marketplace: true
+      marketplace: true,
+      downloadAppButton: true
     },
     uploadLimits: {
       maxFileSize: '100MB',
@@ -6549,17 +6786,13 @@ document.addEventListener('DOMContentLoaded', function() {
 }
 
 function generateEnhancedPromptHTML(promptData) {
-  // Add this line
   const prompt = promptData;
-  
-  const promptAdHTML = generatePromptAdPlacement();
   const baseUrl = 'https://www.toolsprompt.com';
   const promptUrl = baseUrl + '/prompt/' + promptData.id;
   const gaId = process.env.GOOGLE_ANALYTICS_ID || 'G-K4KXR4FZCP';
   const isVideo = promptData.fileType === 'video' || promptData.videoUrl || promptData.category === 'video';
   
   const platformInfo = promptData.platformInfo || { name: 'AI Platform', strengths: [] };
-  const detectedPlatform = promptData.detectedPlatform || 'general';
   
   const googleAnalyticsCode = `
     <script async src="https://www.googletagmanager.com/gtag/js?id=${gaId}"></script>
@@ -6570,6 +6803,9 @@ function generateEnhancedPromptHTML(promptData) {
       gtag('config', '${gaId}');
     </script>
   `;
+
+  // Generate Adsterra ads for prompt pages
+  const adsterraAds = generateAllAdsterraAds();
 
   const mediaDisplay = isVideo ? `
     <div class="shorts-video-container">
@@ -6717,6 +6953,114 @@ function generateEnhancedPromptHTML(promptData) {
     <li>${tip}</li>
   `).join('');
 
+  // Add download app button HTML at the end of body
+  const downloadAppButtonHTMLWithStyle = `
+    <!-- Floating Download App Button -->
+    <style>${downloadAppCSS}</style>
+    <button class="floating-download-btn" id="downloadAppBtn" onclick="downloadApp()">
+        <i class="fas fa-download"></i>
+        <span class="btn-text">Download App</span>
+        <span class="btn-badge">FREE</span>
+    </button>
+  `;
+
+  // Download App JavaScript function to be added
+  const downloadAppJS = `
+    // ==================== DOWNLOAD APP FUNCTION ====================
+    
+    function downloadApp() {
+        const appUrl = 'https://apk.e-droid.net/apk/app4057785-93607p.apk?v=2';
+        
+        // Track download click for analytics
+        try {
+            fetch('/api/track-download', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    promptId: '${promptData.id}',
+                    promptTitle: '${promptData.title.replace(/'/g, "\\'")}',
+                    timestamp: new Date().toISOString(),
+                    userAgent: navigator.userAgent
+                })
+            }).catch(err => console.log('Download tracking error:', err));
+        } catch(e) {}
+        
+        // Show download started notification
+        showDownloadNotification();
+        
+        // Open download URL
+        window.open(appUrl, '_blank');
+    }
+
+    function showDownloadNotification() {
+        const notification = document.createElement('div');
+        notification.className = 'download-notification';
+        notification.innerHTML = \`
+            <i class="fas fa-check-circle"></i>
+            <span>Download started! Check your browser.</span>
+        \`;
+        notification.style.cssText = \`
+            position: fixed;
+            bottom: 100px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #20bf6b;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 50px;
+            z-index: 10001;
+            font-size: 0.9rem;
+            font-weight: 500;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            animation: slideUpFade 0.3s ease;
+            white-space: nowrap;
+        \`;
+        document.body.appendChild(notification);
+        
+        setTimeout(() => {
+            notification.style.opacity = '0';
+            notification.style.transform = 'translateX(-50%) translateY(-10px)';
+            setTimeout(() => notification.remove(), 300);
+        }, 3000);
+    }
+
+    // Optional: Hide button when user scrolls down (or keep sticky - your choice)
+    let lastScrollY = window.scrollY;
+    let hideTimeout;
+
+    function handleDownloadButtonVisibility() {
+        const downloadBtn = document.getElementById('downloadAppBtn');
+        if (!downloadBtn) return;
+        
+        // Button stays sticky (doesn't move) - just ensure it's visible
+        // This keeps it always visible at bottom center
+        
+        // Optional: Add scroll-based animation
+        const currentScrollY = window.scrollY;
+        if (Math.abs(currentScrollY - lastScrollY) > 10) {
+            downloadBtn.style.opacity = '0.7';
+            clearTimeout(hideTimeout);
+            hideTimeout = setTimeout(() => {
+                downloadBtn.style.opacity = '1';
+            }, 300);
+        }
+        lastScrollY = currentScrollY;
+    }
+
+    window.addEventListener('scroll', handleDownloadButtonVisibility);
+
+    // Add pulse effect on page load
+    setTimeout(() => {
+        const btn = document.getElementById('downloadAppBtn');
+        if (btn) {
+            btn.style.animation = 'none';
+            setTimeout(() => {
+                btn.style.animation = 'slideUpFade 0.5s ease-out, pulse 0.5s ease-in-out 2';
+            }, 10);
+        }
+    }, 500);
+  `;
+
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -6784,6 +7128,33 @@ function generateEnhancedPromptHTML(promptData) {
         ${miniBrowserCSS}
         ${platformComparisonCSS}
         ${commentSystemCSS}
+        ${downloadAppCSS}
+        
+        /* Ad Container Styles */
+        .ad-container {
+            margin: 20px 0;
+            text-align: center;
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 12px;
+            border: 1px solid #e9ecef;
+        }
+        
+        .ad-label {
+            font-size: 0.75rem;
+            color: #6c757d;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .ad-banner-desktop {
+            display: block;
+        }
+        
+        .ad-banner-mobile {
+            display: none;
+        }
         
         .shorts-video-container {
             width: 100%;
@@ -6844,6 +7215,211 @@ function generateEnhancedPromptHTML(promptData) {
             background: linear-gradient(135deg, #20bf6b 0%, #4cd964 100%);
         }
         
+        /* Buy Modal Styles */
+        .buy-modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.7);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10002;
+            animation: fadeIn 0.3s ease;
+        }
+        
+        .buy-modal {
+            background: white;
+            border-radius: 15px;
+            width: 90%;
+            max-width: 800px;
+            max-height: 90vh;
+            overflow-y: auto;
+            animation: slideUp 0.3s ease;
+        }
+        
+        .buy-modal-content {
+            padding: 20px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+        }
+        
+        .prompt-preview {
+            text-align: center;
+        }
+        
+        .buy-prompt-image {
+            width: 100%;
+            max-height: 200px;
+            object-fit: cover;
+            border-radius: 8px;
+            margin-bottom: 15px;
+        }
+        
+        .prompt-price-large {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #ff6b6b;
+            margin: 10px 0;
+        }
+        
+        .prompt-creator {
+            color: #666;
+            font-size: 0.9rem;
+        }
+        
+        .payment-form {
+            padding: 0 15px;
+        }
+        
+        .payment-form h3 {
+            margin-bottom: 15px;
+            color: #2d334a;
+            font-size: 1.1rem;
+        }
+        
+        .payment-form .form-group {
+            margin-bottom: 15px;
+        }
+        
+        .payment-form .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+            color: #2d334a;
+            font-size: 0.9rem;
+        }
+        
+        .payment-form .form-group input,
+        .payment-form .form-group select {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            transition: all 0.3s ease;
+        }
+        
+        .payment-form .form-group input:focus,
+        .payment-form .form-group select:focus {
+            outline: none;
+            border-color: #4e54c8;
+            box-shadow: 0 0 0 3px rgba(78, 84, 200, 0.1);
+        }
+        
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+        
+        .buy-now-btn {
+            width: 100%;
+            background: linear-gradient(135deg, #4e54c8 0%, #8f94fb 100%);
+            color: white;
+            border: none;
+            padding: 12px;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: bold;
+            cursor: pointer;
+            margin-top: 15px;
+            transition: all 0.3s ease;
+        }
+        
+        .buy-now-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(78,84,200,0.3);
+        }
+        
+        .buy-now-btn:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .secure-payment {
+            text-align: center;
+            margin-top: 15px;
+            font-size: 0.8rem;
+            color: #666;
+        }
+        
+        .secure-payment i {
+            color: #20bf6b;
+            margin-right: 5px;
+        }
+        
+        .payment-info {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+            text-align: center;
+        }
+        
+        .modal-header {
+            padding: 20px;
+            border-bottom: 1px solid #e9ecef;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            background: white;
+            z-index: 1;
+        }
+        
+        .modal-header h2 {
+            color: #4e54c8;
+            font-size: 1.3rem;
+        }
+        
+        .close-modal {
+            background: none;
+            border: none;
+            font-size: 1.8rem;
+            cursor: pointer;
+            color: #666;
+            transition: color 0.3s ease;
+        }
+        
+        .close-modal:hover {
+            color: #ff6b6b;
+        }
+        
+        @media (max-width: 768px) {
+            .buy-modal-content {
+                grid-template-columns: 1fr;
+                gap: 20px;
+            }
+            
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+            
+            .shorts-video-container {
+                height: 400px;
+            }
+            
+            .ad-banner-desktop {
+                display: none;
+            }
+            
+            .ad-banner-mobile {
+                display: block;
+            }
+        }
+        
+        @media (max-width: 480px) {
+            .shorts-video-container {
+                height: 350px;
+            }
+        }
+        
         .content-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
@@ -6898,19 +7474,11 @@ function generateEnhancedPromptHTML(promptData) {
             .related-prompt-image {
                 height: 180px;
             }
-            
-            .shorts-video-container {
-                height: 400px;
-            }
         }
 
         @media (max-width: 480px) {
             .content-grid {
                 grid-template-columns: 1fr;
-            }
-            
-            .shorts-video-container {
-                height: 350px;
             }
         }
 
@@ -7029,6 +7597,30 @@ function generateEnhancedPromptHTML(promptData) {
             font-size: 1rem; 
             line-height: 1.5;
             overflow-x: auto;
+            cursor: pointer;
+            user-select: text;
+        }
+        
+        .prompt-text-wrapper {
+            position: relative;
+        }
+        
+        .copy-hint {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(78, 84, 200, 0.8);
+            color: white;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            pointer-events: none;
+        }
+        
+        .prompt-text-wrapper:hover .copy-hint {
+            opacity: 1;
         }
         
         .prompt-meta { 
@@ -7172,6 +7764,7 @@ function generateEnhancedPromptHTML(promptData) {
             gap: 1.5rem;
             margin: 1rem 0;
             justify-content: center;
+            flex-wrap: wrap;
         }
 
         .stat-item-small {
@@ -7201,6 +7794,66 @@ function generateEnhancedPromptHTML(promptData) {
             color: #666;
             text-transform: uppercase;
             letter-spacing: 0.5px;
+        }
+
+        .copy-prompt-container {
+            position: relative;
+            margin: 1rem 0;
+        }
+
+        .copy-prompt-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: linear-gradient(135deg, #4e54c8 0%, #8f94fb 100%);
+            color: white;
+            border: none;
+            border-radius: 20px;
+            padding: 8px 16px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            box-shadow: 0 4px 15px rgba(78, 84, 200, 0.4);
+            transition: all 0.3s ease;
+            z-index: 10;
+        }
+
+        .copy-prompt-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(78, 84, 200, 0.6);
+            background: linear-gradient(135deg, #3b41b5 0%, #7c82f0 100%);
+        }
+
+        .copy-prompt-btn:active {
+            transform: translateY(0);
+            box-shadow: 0 2px 10px rgba(78, 84, 200, 0.4);
+        }
+
+        .copy-prompt-btn.copied {
+            background: linear-gradient(135deg, #20bf6b 0%, #4cd964 100%);
+        }
+
+        .copy-prompt-btn.copied i {
+            animation: checkmark 0.5s ease;
+        }
+
+        @keyframes checkmark {
+            0% { transform: scale(0); }
+            50% { transform: scale(1.5); }
+            100% { transform: scale(1); }
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        @keyframes slideUp {
+            from { transform: translateY(50px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
         }
 
         @media (max-width: 768px) {
@@ -7233,6 +7886,15 @@ function generateEnhancedPromptHTML(promptData) {
             .step-number {
                 align-self: center;
             }
+            
+            .copy-prompt-btn {
+                padding: 6px 12px;
+                font-size: 0.8rem;
+                position: static;
+                width: 100%;
+                justify-content: center;
+                margin-top: 10px;
+            }
         }
         
         @media (max-width: 480px) {
@@ -7252,22 +7914,6 @@ function generateEnhancedPromptHTML(promptData) {
                 padding: 1rem;
                 font-size: 0.9rem;
             }
-        }
-        
-        .ad-container {
-            margin: 1.5rem 0;
-            text-align: center;
-            background: #f8f9fa;
-            padding: 1rem;
-            border-radius: 8px;
-            border: 1px solid #e9ecef;
-        }
-        .ad-label {
-            font-size: 0.8rem;
-            color: #6c757d;
-            margin-bottom: 0.5rem;
-            text-transform: uppercase;
-            letter-spacing: 1px;
         }
         
         .site-footer {
@@ -7308,6 +7954,58 @@ function generateEnhancedPromptHTML(promptData) {
             border-top: 1px solid #444;
             color: #888;
         }
+        
+        .copy-notification {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            padding: 12px 20px;
+            border-radius: 8px;
+            z-index: 10001;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            animation: slideInRight 0.3s ease;
+            font-size: 0.9rem;
+        }
+        
+        @keyframes slideInRight {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        
+        @keyframes slideOutRight {
+            from { transform: translateX(0); opacity: 1; }
+            to { transform: translateX(100%); opacity: 0; }
+        }
+        
+        @keyframes slideUpFade {
+            from { opacity: 0; transform: translateX(-50%) translateY(30px); }
+            to { opacity: 1; transform: translateX(-50%) translateY(0); }
+        }
+        
+        @keyframes pulse {
+            0% { transform: translateX(-50%) scale(1); box-shadow: 0 8px 25px rgba(78, 84, 200, 0.4); }
+            50% { transform: translateX(-50%) scale(1.08); box-shadow: 0 12px 35px rgba(78, 84, 200, 0.7); }
+            100% { transform: translateX(-50%) scale(1); box-shadow: 0 8px 25px rgba(78, 84, 200, 0.4); }
+        }
+        
+        .download-notification {
+            position: fixed;
+            bottom: 100px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #20bf6b;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 50px;
+            z-index: 10001;
+            font-size: 0.9rem;
+            font-weight: 500;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            white-space: nowrap;
+        }
     </style>
 </head>
 <body>
@@ -7315,7 +8013,7 @@ function generateEnhancedPromptHTML(promptData) {
         <div class="header-container">
             <a href="https://www.toolsprompt.com" class="logo">
                 <img src="https://www.toolsprompt.com/logo.png" alt="tools prompt Logo">
-                <span>tools prompt</span>
+                <span>Tools prompt</span>
             </a>
             
             <nav>
@@ -7327,6 +8025,10 @@ function generateEnhancedPromptHTML(promptData) {
                     <li><a href="https://www.toolsprompt.com/dashboard.html">Dashboard</a></li>
                 </ul>
             </nav>
+            
+            <div class="auth-section" id="authSection">
+                <a href="https://www.toolsprompt.com/login.html" class="login-btn-header">Login / Register</a>
+            </div>
         </div>
     </header>
 
@@ -7369,7 +8071,8 @@ function generateEnhancedPromptHTML(promptData) {
                 </div>
             </div>
 
-            ${promptAdHTML}
+            <!-- Adsterra Ads - Top of content (high visibility) -->
+            ${adsterraAds}
             
             ${mediaDisplay}
 
@@ -7391,7 +8094,8 @@ function generateEnhancedPromptHTML(promptData) {
                     </div>
                 </section>
 
-                ${promptAdHTML}
+                <!-- Adsterra Ads - Middle of content -->
+                ${adsterraAds}
 
                 <section class="content-section">
                     <h2 class="section-title"><i class="fas fa-info-circle"></i> About This ${isVideo ? 'AI Video' : 'AI Prompt'}</h2>
@@ -7462,7 +8166,8 @@ function generateEnhancedPromptHTML(promptData) {
                 </div>
             </div>
 
-            ${promptAdHTML}
+            <!-- Adsterra Ads - Bottom of content -->
+            ${adsterraAds}
         </article>
         
         <section class="content-section" style="margin-top: 2rem;">
@@ -7557,505 +8262,713 @@ function generateEnhancedPromptHTML(promptData) {
     </footer>
 
     ${miniBrowserHTML}
+    ${downloadAppButtonHTMLWithStyle}
 
-
-    <script>
-        console.log('Initializing tools prompt page with marketplace features');
+<script>
+// ==================== FIREBASE INITIALIZATION ====================
+    
+    // Firebase configuration
+    var firebaseConfig = {
+        apiKey: "AIzaSyCgc0xRtijpyPhOovfwg-MzyahsUFh-hiQ",
+        authDomain: "toolsprompt-5b07e.firebaseapp.com",
+        projectId: "toolsprompt-5b07e",
+        storageBucket: "toolsprompt-5b07e.firebasestorage.app",
+        messagingSenderId: "402263780942",
+        appId: "1:402263780942:web:1013a347dbb72db6b31d1f",
+        measurementId: "G-K4KXR4FZCP"
+    };
+    
+    // Initialize Firebase
+    if (typeof firebase !== 'undefined' && !firebase.apps.length) {
+        firebase.initializeApp(firebaseConfig);
+        console.log('Firebase initialized on prompt page');
+    }
+    
+    // Auth state listener
+    var currentUser = null;
+    var authReady = false;
+    
+    if (typeof firebase !== 'undefined' && firebase.auth) {
+        firebase.auth().onAuthStateChanged(function(user) {
+            currentUser = user;
+            authReady = true;
+            console.log('Auth state changed:', user ? 'Logged in as ' + user.email : 'Not logged in');
+            
+            // Update navigation/header if needed
+            updateUserUI(user);
+            
+            // Check for pending purchase after login
+            checkPendingPurchase(user);
+        });
+    }
+    
+    function updateUserUI(user) {
+        var authSection = document.getElementById('authSection');
+        if (!authSection) return;
         
-        const isVideo = ${isVideo};
-        const promptId = '${promptData.id}';
-        const promptText = document.getElementById('promptText')?.textContent || '';
-        const promptPrice = ${promptData.price};
-        const isPaid = ${promptData.isPaid};
-        const photoModelCount = ${AIModelManager.getPhotoModelCount()};
-        const videoModelCount = ${AIModelManager.getVideoModelCount()};
-        const totalModelCount = photoModelCount + videoModelCount;
-
-        if (!document.querySelector('link[href*="font-awesome"]')) {
-            const faLink = document.createElement('link');
-            faLink.rel = 'stylesheet';
-            faLink.href = 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css';
-            document.head.appendChild(faLink);
-        }
-
-        async function updateEngagementStats() {
-            try {
-                const response = await fetch('/api/prompt/${promptData.id}/engagement');
-                if (response.ok) {
-                    const data = await response.json();
+        if (user) {
+            var displayName = user.displayName || user.email.split('@')[0] || 'User';
+            var avatarUrl = user.photoURL || '';
+            var initial = displayName.charAt(0).toUpperCase();
+            
+            authSection.innerHTML = 
+                '<div class="user-profile-mini">' +
+                    (avatarUrl ? 
+                        '<img src="' + avatarUrl + '" class="user-avatar-mini" alt="' + displayName + '">' :
+                        '<div class="user-avatar-mini">' + initial + '</div>'
+                    ) +
+                    '<span class="user-name-mini">' + displayName + '</span>' +
+                    '<button class="logout-btn-mini" title="Logout" id="logoutBtn"><i class="fas fa-sign-out-alt"></i></button>' +
+                '</div>';
+            
+            // Add logout handler
+            setTimeout(function() {
+                var logoutBtn = document.getElementById('logoutBtn');
+                if (logoutBtn) {
+                    logoutBtn.addEventListener('click', function() {
+                        firebase.auth().signOut().then(function() {
+                            window.location.reload();
+                        }).catch(function(error) {
+                            console.error('Logout error:', error);
+                            window.location.reload();
+                        });
+                    });
                 }
-            } catch (error) {
-                console.error('Error updating engagement stats:', error);
+            }, 100);
+            
+        } else {
+            authSection.innerHTML = '<a href="https://www.toolsprompt.com/login.html?returnUrl=' + encodeURIComponent(window.location.href) + '" class="login-btn-header">Login / Register</a>';
+        }
+    }
+    
+    function checkPendingPurchase(user) {
+        if (!user) return;
+        
+        var pendingPurchase = localStorage.getItem('pendingPurchase');
+        if (pendingPurchase) {
+            try {
+                var purchaseData = JSON.parse(pendingPurchase);
+                console.log('Found pending purchase:', purchaseData);
+                localStorage.removeItem('pendingPurchase');
+                
+                // If we're on the same prompt page, trigger the buy modal
+                if (purchaseData.promptId === promptId) {
+                    setTimeout(function() {
+                        showCopyNotification('Login successful! You can now complete your purchase.', 'success');
+                    }, 500);
+                }
+            } catch (e) {
+                console.error('Error parsing pending purchase:', e);
+                localStorage.removeItem('pendingPurchase');
             }
         }
+    }
+    
+    function getCurrentUser() {
+        return new Promise(function(resolve) {
+            if (authReady) {
+                resolve(currentUser);
+            } else if (typeof firebase !== 'undefined' && firebase.auth) {
+                var unsubscribe = firebase.auth().onAuthStateChanged(function(user) {
+                    unsubscribe();
+                    currentUser = user;
+                    authReady = true;
+                    resolve(user);
+                });
+            } else {
+                resolve(null);
+            }
+        });
+    }
 
-        document.addEventListener('DOMContentLoaded', function() {
-            loadRelatedPrompts('${promptData.id}', '${(promptData.keywords || ['AI'])[0]}');
+    console.log('Initializing prompt page with marketplace');
+    
+    var isVideo = ${isVideo};
+    var promptId = '${promptData.id}';
+    var isPaid = ${promptData.isPaid};
+    var promptPrice = ${promptData.price};
+    
+    // Store prompt data safely
+    var currentPromptData = {
+        id: '${promptData.id}',
+        title: document.querySelector('.article-title') ? document.querySelector('.article-title').textContent : '${promptData.title.replace(/'/g, "\\'")}',
+        promptText: document.getElementById('promptText') ? document.getElementById('promptText').textContent : '',
+        imageUrl: '${promptData.imageUrl}',
+        price: ${promptData.price},
+        userName: '${promptData.userName.replace(/'/g, "\\'")}'
+    };
+
+    document.addEventListener('DOMContentLoaded', function() {
+        // Set current prompt text from the DOM
+        var promptTextEl = document.getElementById('promptText');
+        if (promptTextEl) {
+            currentPromptData.promptText = promptTextEl.textContent || promptTextEl.innerText;
+        }
+        
+        loadRelatedPrompts(promptId, '${(promptData.keywords || ['AI'])[0]}');
+        
+        // Setup copy/buy button
+        var copyBtn = document.getElementById('copyPromptBtn');
+        if (copyBtn) {
+            copyBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                handleCopyOrBuy();
+            });
             
-            if (isVideo) {
-                const video = document.querySelector('video');
-                if (video) {
-                    video.addEventListener('loadedmetadata', function() {
-                        console.log('Video loaded, duration:', video.duration);
-                    });
+            copyBtn.addEventListener('touchend', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                handleCopyOrBuy();
+            });
+        }
+    });
+
+    function handleCopyOrBuy() {
+        console.log('handleCopyOrBuy called, isPaid:', isPaid);
+        
+        if (isPaid) {
+            // Show buy modal
+            showBuyPromptModal(currentPromptData);
+        } else {
+            // Free prompt - copy directly
+            copyPromptToClipboard();
+        }
+    }
+
+    function copyPromptToClipboard() {
+        var text = currentPromptData.promptText;
+        if (!text) {
+            var el = document.getElementById('promptText');
+            if (el) text = el.textContent || el.innerText;
+        }
+        
+        navigator.clipboard.writeText(text).then(function() {
+            var btn = document.getElementById('copyPromptBtn');
+            if (btn) {
+                btn.innerHTML = '<i class="fas fa-check"></i> Copied!';
+                btn.classList.add('copied');
+                btn.disabled = true;
+                setTimeout(function() {
+                    btn.innerHTML = '<i class="far fa-copy"></i> ' + (isPaid ? 'Buy for ₹' + promptPrice : 'Copy Prompt');
+                    btn.classList.remove('copied');
+                    btn.disabled = false;
+                }, 3000);
+            }
+            showNotification('Prompt copied!', 'success');
+            trackCopyAction(promptId);
+        }).catch(function() {
+            showNotification('Failed to copy', 'error');
+        });
+    }
+
+    function showNotification(message, type) {
+        type = type || 'success';
+        var notifs = document.querySelectorAll('.copy-notification');
+        notifs.forEach(function(n) { n.remove(); });
+        
+        var bg = type === 'success' ? '#20bf6b' : (type === 'error' ? '#ff6b6b' : '#4e54c8');
+        var icon = type === 'success' ? 'check-circle' : (type === 'error' ? 'exclamation-circle' : 'info-circle');
+        
+        var div = document.createElement('div');
+        div.className = 'copy-notification';
+        div.style.cssText = 'position:fixed;bottom:20px;right:20px;background:' + bg + ';color:white;padding:12px 20px;border-radius:8px;z-index:10001;box-shadow:0 2px 10px rgba(0,0,0,0.2);display:flex;align-items:center;gap:10px;font-size:0.9rem;';
+        div.innerHTML = '<i class="fas fa-' + icon + '"></i><span>' + message + '</span>';
+        document.body.appendChild(div);
+        setTimeout(function() { if (div.parentNode) div.parentNode.removeChild(div); }, 3000);
+    }
+
+    function trackCopyAction(pid) {
+        fetch('/api/prompt/' + pid + '/copy', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ promptId: pid, timestamp: new Date().toISOString() })
+        }).catch(function() {});
+    }
+
+    function handlePromptClick(event) {
+        if (event.target.closest('.copy-prompt-btn')) return;
+        handleCopyOrBuy();
+    }
+
+    function handlePromptContextMenu(event) {
+        event.preventDefault();
+        handleCopyOrBuy();
+        return false;
+    }
+
+    // ==================== BUY MODAL WITH ALL FIELDS ====================
+
+    function showBuyPromptModal(prompt) {
+        console.log('Showing buy modal for:', prompt);
+        
+        // Remove existing modal
+        var existing = document.getElementById('buyPromptModal');
+        if (existing) existing.remove();
+        
+        var html = '';
+        html += '<div class="buy-modal-overlay" id="buyPromptModal">';
+        html += '<div class="buy-modal">';
+        html += '<div class="modal-header">';
+        html += '<h2><i class="fas fa-shopping-cart"></i> Purchase Prompt</h2>';
+        html += '<button class="close-modal" id="closeBuyModalBtn">&times;</button>';
+        html += '</div>';
+        html += '<div class="buy-modal-content">';
+        
+        // Preview section
+        html += '<div class="prompt-preview">';
+        html += '<img src="' + (prompt.imageUrl || '') + '" alt="" class="buy-prompt-image">';
+        html += '<h3>' + (prompt.title || 'Untitled') + '</h3>';
+        html += '<p class="prompt-price-large"><i class="fas fa-rupee-sign"></i> ' + (prompt.price || 0) + '</p>';
+        html += '<p class="prompt-creator">By: ' + (prompt.userName || 'Anonymous') + '</p>';
+        html += '</div>';
+        
+        // Payment form with ALL fields
+        html += '<div class="payment-form">';
+        html += '<h3>Customer Information</h3>';
+        
+        html += '<div class="form-group">';
+        html += '<label for="buyerName">Full Name *</label>';
+        html += '<input type="text" id="buyerName" required placeholder="As per your ID">';
+        html += '</div>';
+        
+        html += '<div class="form-group">';
+        html += '<label for="buyerEmail">Email *</label>';
+        html += '<input type="email" id="buyerEmail" required placeholder="your@email.com">';
+        html += '</div>';
+        
+        html += '<div class="form-group">';
+        html += '<label for="buyerPhone">Phone (Optional)</label>';
+        html += '<input type="tel" id="buyerPhone" placeholder="Mobile number">';
+        html += '</div>';
+        
+        html += '<h3>Billing Address</h3>';
+        
+        html += '<div class="form-group">';
+        html += '<label for="buyerAddress1">Address Line 1 *</label>';
+        html += '<input type="text" id="buyerAddress1" required placeholder="Street address">';
+        html += '</div>';
+        
+        html += '<div class="form-group">';
+        html += '<label for="buyerAddress2">Address Line 2 (Optional)</label>';
+        html += '<input type="text" id="buyerAddress2" placeholder="Apartment, suite, etc.">';
+        html += '</div>';
+        
+        html += '<div class="form-row">';
+        html += '<div class="form-group">';
+        html += '<label for="buyerCity">City *</label>';
+        html += '<input type="text" id="buyerCity" required>';
+        html += '</div>';
+        html += '<div class="form-group">';
+        html += '<label for="buyerState">State/Province</label>';
+        html += '<input type="text" id="buyerState" placeholder="Optional">';
+        html += '</div>';
+        html += '</div>';
+        
+        html += '<div class="form-row">';
+        html += '<div class="form-group">';
+        html += '<label for="buyerPostal">Postal Code *</label>';
+        html += '<input type="text" id="buyerPostal" required>';
+        html += '</div>';
+        html += '<div class="form-group">';
+        html += '<label for="buyerCountry">Country *</label>';
+        html += '<select id="buyerCountry" required>';
+        html += '<option value="IN">India</option>';
+        html += '<option value="US">United States</option>';
+        html += '<option value="GB">United Kingdom</option>';
+        html += '<option value="CA">Canada</option>';
+        html += '<option value="AU">Australia</option>';
+        html += '</select>';
+        html += '</div>';
+        html += '</div>';
+        
+        html += '<div class="payment-info">';
+        html += '<p style="margin:0;font-size:0.9rem;color:#666;"><i class="fas fa-shield-alt"></i> Secure payment powered by Razorpay</p>';
+        html += '<p style="margin:5px 0 0;font-size:0.8rem;color:#888;">Supports UPI, Credit/Debit Cards, Net Banking</p>';
+        html += '</div>';
+        
+        html += '<button class="buy-now-btn" id="buyNowBtn"><i class="fas fa-rupee-sign"></i> Pay ₹' + (prompt.price || 0) + '</button>';
+        html += '<p class="secure-payment"><i class="fas fa-lock"></i> Secure payment powered by Razorpay</p>';
+        html += '</div>';
+        
+        html += '</div>';
+        html += '</div>';
+        html += '</div>';
+        
+        document.body.insertAdjacentHTML('beforeend', html);
+        document.body.style.overflow = 'hidden';
+        
+        // Setup close button
+        document.getElementById('closeBuyModalBtn').addEventListener('click', closeBuyModal);
+        
+        // Close on overlay click
+        document.getElementById('buyPromptModal').addEventListener('click', function(e) {
+            if (e.target === this) closeBuyModal();
+        });
+        
+        // Setup buy button
+        document.getElementById('buyNowBtn').addEventListener('click', function() {
+            processPurchase(prompt);
+        });
+        
+        // Escape key
+        document.addEventListener('keydown', function escHandler(e) {
+            if (e.key === 'Escape') {
+                closeBuyModal();
+                document.removeEventListener('keydown', escHandler);
+            }
+        });
+    }
+
+    function closeBuyModal() {
+        var modal = document.getElementById('buyPromptModal');
+        if (modal) {
+            modal.remove();
+            document.body.style.overflow = '';
+        }
+    }
+
+    function processPurchase(prompt) {
+        // Get form values
+        var name = document.getElementById('buyerName')?.value?.trim() || '';
+        var email = document.getElementById('buyerEmail')?.value?.trim() || '';
+        var phone = document.getElementById('buyerPhone')?.value?.trim() || '';
+        var address1 = document.getElementById('buyerAddress1')?.value?.trim() || '';
+        var address2 = document.getElementById('buyerAddress2')?.value?.trim() || '';
+        var city = document.getElementById('buyerCity')?.value?.trim() || '';
+        var state = document.getElementById('buyerState')?.value?.trim() || '';
+        var postal = document.getElementById('buyerPostal')?.value?.trim() || '';
+        var country = document.getElementById('buyerCountry')?.value || 'IN';
+        
+        // Validate required fields
+        if (!name) { showNotification('Please enter your full name', 'error'); return; }
+        if (!email) { showNotification('Please enter your email', 'error'); return; }
+        if (!address1) { showNotification('Please enter your address', 'error'); return; }
+        if (!city) { showNotification('Please enter your city', 'error'); return; }
+        if (!postal) { showNotification('Please enter postal code', 'error'); return; }
+        
+        var customerInfo = {
+            name: name,
+            email: email,
+            phone: phone,
+            address: {
+                line1: address1,
+                line2: address2,
+                city: city,
+                state: state,
+                postal_code: postal,
+                country: country
+            }
+        };
+        
+        console.log('Processing purchase with customer info:', customerInfo);
+        
+        // Start payment
+        initiatePayment(prompt, customerInfo);
+    }
+
+    async function initiatePayment(prompt, customerInfo) {
+        var buyBtn = document.getElementById('buyNowBtn');
+        var originalText = buyBtn.innerHTML;
+        buyBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating order...';
+        buyBtn.disabled = true;
+        
+        try {
+            // Wait for auth to be ready
+            var user = await getCurrentUser();
+            
+            if (!user) {
+                showNotification('Please login to complete your purchase', 'info');
+                
+                // Store purchase data for after login
+                localStorage.setItem('pendingPurchase', JSON.stringify({
+                    promptId: prompt.id,
+                    price: prompt.price,
+                    title: prompt.title,
+                    returnUrl: window.location.href,
+                    timestamp: Date.now()
+                }));
+                
+                // Also store customer info temporarily
+                localStorage.setItem('pendingCustomerInfo', JSON.stringify(customerInfo));
+                
+                buyBtn.innerHTML = originalText;
+                buyBtn.disabled = false;
+                
+                // Redirect to login
+                setTimeout(function() {
+                    window.location.href = '/login.html?returnUrl=' + encodeURIComponent(window.location.href);
+                }, 1000);
+                return;
+            }
+            
+            // User is logged in, restore customer info if available
+            var pendingInfo = localStorage.getItem('pendingCustomerInfo');
+            if (pendingInfo) {
+                try {
+                    customerInfo = JSON.parse(pendingInfo);
+                    localStorage.removeItem('pendingCustomerInfo');
+                } catch(e) {}
+            }
+            
+            // Create order
+            var response = await fetch('/api/create-order', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    promptId: prompt.id,
+                    price: prompt.price,
+                    userId: user.uid,
+                    userEmail: user.email || customerInfo.email,
+                    customerName: customerInfo.name,
+                    customerPhone: customerInfo.phone
+                })
+            });
+            
+            if (!response.ok) throw new Error('Server error: ' + response.status);
+            
+            var data = await response.json();
+            console.log('Order created:', data);
+            
+            if (data.isDemo) {
+                buyBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Completing...';
+                await completePurchase(prompt, user, 'demo_' + Date.now());
+                closeBuyModal();
+                return;
+            }
+            
+            // Load Razorpay
+            if (typeof Razorpay === 'undefined') {
+                await new Promise(function(resolve, reject) {
+                    var script = document.createElement('script');
+                    script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+                    script.onload = resolve;
+                    script.onerror = reject;
+                    document.head.appendChild(script);
+                });
+            }
+            
+            // Open Razorpay checkout
+            var options = {
+                key: data.keyId,
+                amount: data.amount,
+                currency: data.currency || 'INR',
+                name: 'Tools Prompt',
+                description: 'Purchase: ' + (prompt.title || 'Prompt'),
+                order_id: data.orderId,
+                handler: async function(response) {
+                    buyBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Verifying...';
+                    
+                    try {
+                        var verifyRes = await fetch('/api/verify-payment', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                orderId: response.razorpay_order_id,
+                                paymentId: response.razorpay_payment_id,
+                                signature: response.razorpay_signature,
+                                promptId: prompt.id,
+                                userId: user.uid,
+                                userEmail: user.email || customerInfo.email,
+                                amount: prompt.price
+                            })
+                        });
+                        
+                        var verifyData = await verifyRes.json();
+                        
+                        if (verifyData.success) {
+                            showNotification('Payment successful! Prompt copied.', 'success');
+                            await navigator.clipboard.writeText(prompt.promptText || currentPromptData.promptText);
+                            closeBuyModal();
+                        } else {
+                            showNotification('Verification failed: ' + (verifyData.error || 'Unknown error'), 'error');
+                        }
+                    } catch (e) {
+                        console.error('Verification error:', e);
+                        showNotification('Payment recorded. Check your dashboard.', 'info');
+                        closeBuyModal();
+                    }
+                    
+                    buyBtn.innerHTML = originalText;
+                    buyBtn.disabled = false;
+                },
+                modal: {
+                    ondismiss: function() {
+                        showNotification('Payment cancelled', 'info');
+                        buyBtn.innerHTML = originalText;
+                        buyBtn.disabled = false;
+                    }
+                },
+                theme: { color: '#4e54c8' },
+                prefill: {
+                    name: customerInfo.name,
+                    email: user.email || customerInfo.email,
+                    contact: customerInfo.phone
+                },
+                notes: {
+                    promptId: prompt.id,
+                    userId: user.uid,
+                    promptTitle: prompt.title
+                }
+            };
+            
+            var rzp = new Razorpay(options);
+            
+            rzp.on('payment.failed', function(response) {
+                console.error('Payment failed:', response.error);
+                showNotification('Payment failed: ' + (response.error?.description || 'Try again'), 'error');
+                buyBtn.innerHTML = originalText;
+                buyBtn.disabled = false;
+            });
+            
+            rzp.open();
+            
+        } catch (error) {
+            console.error('Payment error:', error);
+            showNotification(error.message || 'Payment failed', 'error');
+            buyBtn.innerHTML = originalText;
+            buyBtn.disabled = false;
+        }
+    }
+
+    async function completePurchase(prompt, user, paymentId) {
+        try {
+            var response = await fetch('/api/complete-purchase', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    promptId: prompt.id,
+                    userId: user.uid,
+                    userEmail: user.email,
+                    amount: prompt.price,
+                    paymentId: paymentId
+                })
+            });
+            
+            var data = await response.json();
+            
+            if (data.success) {
+                showNotification('Purchase successful! Prompt copied.', 'success');
+                await navigator.clipboard.writeText(prompt.promptText || currentPromptData.promptText);
+            } else {
+                showNotification(data.error || 'Purchase failed', 'error');
+            }
+        } catch (error) {
+            console.error('Complete purchase error:', error);
+            showNotification('Purchase error', 'error');
+        }
+    }
+
+    function getCurrentUser() {
+        return new Promise(function(resolve) {
+            if (typeof firebase !== 'undefined' && firebase.auth) {
+                var unsubscribe = firebase.auth().onAuthStateChanged(function(user) {
+                    unsubscribe();
+                    resolve(user);
+                });
+            } else {
+                resolve(null);
+            }
+        });
+    }
+
+    // Like, Use, Share handlers
+    function handleLike(pid) {
+        var btn = document.querySelector('.like-btn');
+        if (!btn) return;
+        var liked = btn.classList.contains('liked');
+        fetch('/api/prompt/' + pid + '/like', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId: 'anonymous', action: liked ? 'unlike' : 'like' })
+        }).then(function(r) {
+            if (r.ok) {
+                if (liked) {
+                    btn.innerHTML = '<i class="far fa-heart"></i> Like Prompt';
+                    btn.classList.remove('liked');
+                } else {
+                    btn.innerHTML = '<i class="fas fa-heart"></i> Liked';
+                    btn.classList.add('liked');
                 }
             }
         });
-
-        async function loadRelatedPrompts(currentId, keyword) {
-            try {
-                const response = await fetch('/api/search?q=' + encodeURIComponent(keyword) + '&limit=6');
-                
-                if (!response.ok) throw new Error('API error');
-                
-                const data = await response.json();
-                const relatedContainer = document.getElementById('relatedPrompts');
-                
-                if (!relatedContainer) return;
-                
-                if (data.prompts && data.prompts.length > 0) {
-                    let html = '';
-                    let count = 0;
-                    
-                    for (let i = 0; i < data.prompts.length && count < 3; i++) {
-                        const prompt = data.prompts[i];
-                        if (prompt && prompt.id && prompt.id !== currentId) {
-                            const promptImage = prompt.thumbnailUrl || prompt.imageUrl || 'https://via.placeholder.com/300x200/4e54c8/ffffff?text=Prompt';
-                            const isVideoPrompt = prompt.fileType === 'video' || prompt.category === 'video';
-                            const promptPrice = prompt.price || 0;
-                            const isPaidPrompt = promptPrice > 0;
-                            
-                            html += '<div class="related-prompt-card">' +
-                                '<img src="' + promptImage + '" class="related-prompt-image">' +
-                                '<div class="price-badge ' + (isPaidPrompt ? '' : 'free') + '" style="position: absolute; top: 10px; left: 10px; font-size: 0.7rem; padding: 2px 8px;">' + 
-                                    (isPaidPrompt ? '₹' + promptPrice : 'Free') + 
-                                '</div>' +
-                                (isVideoPrompt ? '<span class="video-badge"><i class="fas fa-video"></i> Reel</span>' : '') +
-                                '<div class="related-prompt-content">' +
-                                    '<h4>' + (prompt.title || 'Untitled').substring(0, 50) + '</h4>' +
-                                    '<a href="/prompt/' + prompt.id + '" class="engagement-btn">' + (isVideoPrompt ? 'Watch Reel' : (isPaidPrompt ? 'Buy for ₹' + promptPrice : 'View Prompt')) + '</a>' +
-                                '</div>' +
-                            '</div>';
-                            count++;
-                        }
-                    }
-                    
-                    relatedContainer.innerHTML = html || '<div style="grid-column: 1 / -1; text-align: center; padding: 2rem; color: #666;">No related prompts found</div>';
-                } else {
-                    relatedContainer.innerHTML = '<div style="grid-column: 1 / -1; text-align: center; padding: 2rem; color: #666;">No prompts available</div>';
-                }
-            } catch (error) {
-                console.error('Error:', error);
-                const container = document.getElementById('relatedPrompts');
-                if (container) {
-                    container.innerHTML = '<div style="grid-column: 1 / -1; text-align: center; padding: 2rem; color: #666;">Error loading related prompts</div>';
-                }
+    }
+    
+    function handleUse(pid) {
+        var btn = document.querySelector('.use-btn');
+        if (!btn) return;
+        fetch('/api/prompt/' + pid + '/use', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId: 'anonymous' })
+        }).then(function(r) {
+            if (r.ok) {
+                btn.innerHTML = '<i class="fas fa-check"></i> Used!';
+                btn.classList.add('used');
+                setTimeout(function() {
+                    btn.innerHTML = '<i class="fas fa-download"></i> Mark as Used';
+                    btn.classList.remove('used');
+                }, 3000);
             }
+        });
+    }
+    
+    function handleShare(pid) {
+        var url = window.location.href;
+        if (navigator.share) {
+            navigator.share({ title: document.title, text: 'Check this out!', url: url }).catch(function() {
+                copyText(url);
+            });
+        } else {
+            copyText(url);
+            showNotification('Link copied!', 'success');
         }
+    }
 
-        let copyTimeout = null;
-        let isCopied = false;
-
-        async function copyPromptToClipboard() {
-            const copyBtn = document.getElementById('copyPromptBtn');
-            
-            if (isPaid) {
-                const user = await getCurrentUser();
-                const purchased = await checkPurchaseStatus(promptId);
-                
-                if (purchased) {
-                    const promptElement = document.getElementById('promptText');
-                    const promptContent = promptElement.textContent || promptElement.innerText;
-                    await navigator.clipboard.writeText(promptContent);
-                    handleCopySuccess(copyBtn);
-                    trackCopyAction(promptId);
-                } else {
-                    showBuyPromptModal({
-                        id: promptId,
-                        title: '${promptData.title.replace(/'/g, "\\'")}',
-                        promptText: promptText,
-                        imageUrl: '${promptData.imageUrl}',
-                        price: promptPrice,
-                        userName: '${promptData.userName}'
-                    });
-                }
-            } else {
-                const promptElement = document.getElementById('promptText');
-                const promptContent = promptElement.textContent || promptElement.innerText;
-                await navigator.clipboard.writeText(promptContent);
-                handleCopySuccess(copyBtn);
-                trackCopyAction(promptId);
-            }
-        }
-
-        async function checkPurchaseStatus(promptId) {
-            try {
-                const user = await getCurrentUser();
-                if (!user) return false;
-                const response = await fetch('/api/check-purchase/' + promptId + '?userId=' + user.uid);
-                const data = await response.json();
-                return data.purchased;
-            } catch (error) {
-                console.error('Error checking purchase:', error);
-                return false;
-            }
-        }
-
-        function handleCopySuccess(copyBtn) {
-            copyBtn.innerHTML = '<i class="fas fa-check"></i> Copied!';
-            copyBtn.classList.add('copied');
-            copyBtn.disabled = true;
-            
-            showCopyNotification('Prompt copied!', 'success');
-            trackCopyAction(promptId);
-            
-            if (copyTimeout) clearTimeout(copyTimeout);
-            copyTimeout = setTimeout(() => {
-                copyBtn.innerHTML = '<i class="far fa-copy"></i> ' + (isPaid ? 'Copy Prompt' : 'Copy Prompt');
-                copyBtn.classList.remove('copied');
-                copyBtn.disabled = false;
-                isCopied = false;
-            }, 3000);
-            
-            isCopied = true;
-        }
-
-        function showCopyNotification(message, type = 'success') {
-            const existingNotifications = document.querySelectorAll('.copy-notification');
-            existingNotifications.forEach(notification => notification.remove());
-            
-            const notification = document.createElement('div');
-            notification.className = \`copy-notification \${type}\`;
-            notification.style.cssText = \`
-                position: fixed;
-                bottom: 20px;
-                right: 20px;
-                background: \${type === 'success' ? '#20bf6b' : '#ff6b6b'};
-                color: white;
-                padding: 12px 20px;
-                border-radius: 8px;
-                z-index: 10001;
-                animation: slideIn 0.3s ease;
-                box-shadow: 0 2px 10px rgba(0,0,0,0.2);
-            \`;
-            notification.innerHTML = \`
-                <i class="fas fa-\${type === 'success' ? 'check-circle' : 'exclamation-circle'}"></i>
-                <span>\${message}</span>
-            \`;
-            
-            document.body.appendChild(notification);
-            
-            setTimeout(() => {
-                notification.style.animation = 'slideOut 0.3s ease';
-                setTimeout(() => notification.remove(), 300);
-            }, 3000);
-        }
-
-        function handlePromptClick(event) {
-            if (event.target.closest('.copy-prompt-btn')) return;
-            copyPromptToClipboard();
-        }
-
-        function handlePromptContextMenu(event) {
-            event.preventDefault();
-            copyPromptToClipboard();
-            return false;
-        }
-
-        function trackCopyAction(promptId) {
-            fetch('/api/prompt/' + promptId + '/copy', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ promptId, action: 'copy', timestamp: new Date().toISOString() })
-            }).catch(err => console.log('Analytics error:', err));
-        }
-
-        async function handleLike(promptId) {
-            try {
-                const likeBtn = document.querySelector('.like-btn');
-                const isLiked = likeBtn.classList.contains('liked');
-                const action = isLiked ? 'unlike' : 'like';
-                
-                const response = await fetch('/api/prompt/' + promptId + '/like', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ userId: 'anonymous', action })
-                });
-                
-                if (response.ok) {
-                    if (action === 'like') {
-                        likeBtn.innerHTML = '<i class="fas fa-heart"></i> Liked';
-                        likeBtn.classList.add('liked');
-                    } else {
-                        likeBtn.innerHTML = '<i class="far fa-heart"></i> Like Prompt';
-                        likeBtn.classList.remove('liked');
-                    }
-                }
-            } catch (error) {
-                console.error('Like error:', error);
-            }
-        }
-        
-        async function handleUse(promptId) {
-            try {
-                const useBtn = document.querySelector('.use-btn');
-                const response = await fetch('/api/prompt/' + promptId + '/use', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ userId: 'anonymous' })
-                });
-                
-                if (response.ok) {
-                    useBtn.innerHTML = '<i class="fas fa-check"></i> Used!';
-                    useBtn.classList.add('used');
-                    setTimeout(() => {
-                        useBtn.innerHTML = '<i class="fas fa-download"></i> Mark as Used';
-                        useBtn.classList.remove('used');
-                    }, 3000);
-                }
-            } catch (error) {
-                console.error('Use error:', error);
-            }
-        }
-        
-        function handleShare(promptId) {
-            const promptUrl = window.location.href;
-            
-            if (navigator.share) {
-                navigator.share({
-                    title: document.title,
-                    text: 'Check out this AI ' + (isVideo ? 'video' : 'prompt') + ' on tools prompt',
-                    url: promptUrl
-                }).catch(() => {
-                    navigator.clipboard.writeText(promptUrl).then(() => {
-                        alert('Link copied to clipboard!');
-                    });
-                });
-            } else {
-                navigator.clipboard.writeText(promptUrl).then(() => {
-                    alert('Link copied to clipboard!');
-                });
-            }
-        }
-
-        async function getCurrentUser() {
-            return new Promise((resolve) => {
-                if (typeof firebase !== 'undefined' && firebase.auth) {
-                    const unsubscribe = firebase.auth().onAuthStateChanged(user => {
-                        unsubscribe();
-                        resolve(user);
-                    });
-                } else {
-                    resolve(null);
-                }
+    function copyText(text) {
+        if (navigator.clipboard) {
+            navigator.clipboard.writeText(text).catch(function() {
+                var ta = document.createElement('textarea');
+                ta.value = text;
+                ta.style.position = 'fixed';
+                ta.style.opacity = '0';
+                document.body.appendChild(ta);
+                ta.select();
+                document.execCommand('copy');
+                document.body.removeChild(ta);
             });
         }
+    }
 
-        function showBuyPromptModal(prompt) {
-            const modalHTML = \`
-                <div class="buy-modal-overlay" id="buyPromptModal">
-                    <div class="buy-modal">
-                        <div class="modal-header">
-                            <h2><i class="fas fa-shopping-cart"></i> Purchase Prompt</h2>
-                            <button class="close-modal" onclick="closeBuyModal()">&times;</button>
-                        </div>
-                        <div class="buy-modal-content">
-                            <div class="prompt-preview">
-                                <img src="\${prompt.imageUrl}" alt="\${prompt.title}" class="buy-prompt-image">
-                                <h3>\${prompt.title}</h3>
-                                <p class="prompt-price-large">₹\${prompt.price}</p>
-                                <p class="prompt-creator">By: \${prompt.userName}</p>
-                            </div>
-                            <div class="payment-form">
-                                <h3>Payment Details</h3>
-                                <div class="payment-info" style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin: 15px 0;">
-                                    <p style="margin: 0; font-size: 0.9rem; color: #666;">
-                                        <i class="fas fa-shield-alt"></i> Secure payment powered by Razorpay
-                                    </p>
-                                    <p style="margin: 5px 0 0; font-size: 0.8rem; color: #888;">
-                                        Supports UPI, Credit/Debit Cards, Net Banking, and Wallets
-                                    </p>
-                                </div>
-                                <button class="buy-now-btn" id="buyNowBtn">
-                                    <i class="fas fa-rupee-sign"></i> Pay ₹\${prompt.price}
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            \`;
-            
-            document.body.insertAdjacentHTML('beforeend', modalHTML);
-            document.body.style.overflow = 'hidden';
-            
-            const buyBtn = document.getElementById('buyNowBtn');
-            if (buyBtn) {
-                buyBtn.addEventListener('click', async () => {
-                    await processPaymentWithRazorpay(prompt);
-                });
-            }
-        }
-        
-        function closeBuyModal() {
-            const modal = document.getElementById('buyPromptModal');
-            if (modal) {
-                modal.remove();
-                document.body.style.overflow = '';
-            }
-        }
-        
-        async function processPaymentWithRazorpay(prompt) {
-            const buyBtn = document.getElementById('buyNowBtn');
-            const originalText = buyBtn.innerHTML;
-            buyBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating order...';
-            buyBtn.disabled = true;
-            
-            try {
-                const user = await getCurrentUser();
-                if (!user) {
-                    showCopyNotification('Please login to purchase prompts', 'error');
-                    window.location.href = '/login.html?returnUrl=' + encodeURIComponent(window.location.href);
-                    return;
-                }
-                
-                const response = await fetch('/api/create-order', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        promptId: prompt.id,
-                        price: prompt.price,
-                        userId: user.uid,
-                        userEmail: user.email
-                    })
-                });
-                
-                const data = await response.json();
-                
-                if (data.isDemo) {
-                    buyBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Completing...';
-                    await completePurchase(prompt, user, null);
-                    closeBuyModal();
-                    return;
-                }
-                
-                // Load Razorpay script if needed
-                if (typeof Razorpay === 'undefined') {
-                    await new Promise((resolve) => {
-                        const script = document.createElement('script');
-                        script.src = 'https://checkout.razorpay.com/v1/checkout.js';
-                        script.onload = resolve;
-                        document.head.appendChild(script);
-                    });
-                }
-                
-                const options = {
-                    key: data.keyId,
-                    amount: data.amount,
-                    currency: data.currency,
-                    name: 'tools prompt',
-                    description: 'Purchase: ${prompt.title}',
-                    order_id: data.orderId,
-                    handler: async function(response) {
-                        buyBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Verifying payment...';
-                        
-                        try {
-                            const verifyResponse = await fetch('/api/verify-payment', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({
-                                    orderId: response.razorpay_order_id,
-                                    paymentId: response.razorpay_payment_id,
-                                    signature: response.razorpay_signature,
-                                    promptId: prompt.id,
-                                    userId: user.uid,
-                                    userEmail: user.email,
-                                    amount: prompt.price
-                                })
-                            });
-                            
-                            const verifyData = await verifyResponse.json();
-                            
-                            if (verifyData.success) {
-                                showCopyNotification('Payment successful! Prompt copied to clipboard.', 'success');
-                                await navigator.clipboard.writeText(prompt.promptText);
-                                closeBuyModal();
-                                
-                                if (window.location.pathname.includes('dashboard.html')) {
-                                    location.reload();
-                                }
-                            } else {
-                                throw new Error(verifyData.error || 'Payment verification failed');
-                            }
-                        } catch (error) {
-                            console.error('Verification error:', error);
-                            showCopyNotification('Payment recorded but verification failed. Contact support.', 'error');
-                        }
-                    },
-                    modal: {
-                        ondismiss: function() {
-                            showCopyNotification('Payment cancelled', 'info');
-                        }
-                    },
-                    theme: {
-                        color: '#4e54c8'
+    function loadRelatedPrompts(currentId, keyword) {
+        fetch('/api/search?q=' + encodeURIComponent(keyword) + '&limit=6')
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                var container = document.getElementById('relatedPrompts');
+                if (!container || !data.prompts) return;
+                var html = '', count = 0;
+                for (var i = 0; i < data.prompts.length && count < 3; i++) {
+                    var p = data.prompts[i];
+                    if (p && p.id && p.id !== currentId) {
+                        var img = p.thumbnailUrl || p.imageUrl || 'https://via.placeholder.com/300x200/4e54c8/white?text=Prompt';
+                        html += '<div class="related-prompt-card"><img src="' + img + '" class="related-prompt-image">' +
+                            '<div class="related-prompt-content"><h4>' + (p.title || '').substring(0, 50) + '</h4>' +
+                            '<a href="/prompt/' + p.id + '" class="engagement-btn">View</a></div></div>';
+                        count++;
                     }
-                };
-                
-                const razorpayInstance = new Razorpay(options);
-                razorpayInstance.open();
-                
-            } catch (error) {
-                console.error('Payment error:', error);
-                showCopyNotification(error.message || 'Payment failed. Please try again.', 'error');
-            } finally {
-                buyBtn.innerHTML = originalText;
-                buyBtn.disabled = false;
-            }
-        }
-        
-        async function completePurchase(prompt, user, paymentId) {
-            try {
-                const response = await fetch('/api/complete-purchase', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        promptId: prompt.id,
-                        userId: user.uid,
-                        userEmail: user.email,
-                        amount: prompt.price,
-                        paymentId: paymentId
-                    })
-                });
-
-                const data = await response.json();
-
-                if (data.success) {
-                    try {
-                        closeBuyModal();
-                    } catch (e) {
-                        const modal = document.getElementById('buyPromptModal');
-                        if (modal) modal.remove();
-                        document.body.style.overflow = '';
-                    }
-
-                    showCopyNotification('Purchase successful! Prompt copied to clipboard.', 'success');
-                    await navigator.clipboard.writeText(prompt.promptText);
-
-                    if (window.location.pathname.includes('dashboard.html')) {
-                        location.reload();
-                    }
-                } else {
-                    throw new Error(data.error || 'Purchase completion failed');
                 }
-            } catch (error) {
-                console.error('Purchase completion error:', error);
-                showCopyNotification('Purchase recorded but prompt copy failed. Check your dashboard.', 'error');
-            }
-        }
+                container.innerHTML = html || '<div style="text-align:center;padding:2rem;">No related prompts</div>';
+            })
+            .catch(function() {
+                var c = document.getElementById('relatedPrompts');
+                if (c) c.innerHTML = '<div style="text-align:center;padding:2rem;">Error loading</div>';
+            });
+    }
 
-        ${miniBrowserJS}
-        ${generateCommentSystemJS(promptData)}
-    </script>
+    ${miniBrowserJS}
+    ${downloadAppJS}
+    ${generateCommentSystemJS(promptData)}
+</script>
 </body>
 </html>`;
 }
@@ -8235,6 +9148,17 @@ app.listen(port, async () => {
   console.log(`🤖 Robots.txt: http://localhost:${port}/robots.txt`);
   console.log(`❤️  Health check: http://localhost:${port}/health`);
   console.log(`💰 AdSense Client ID: ${process.env.ADSENSE_CLIENT_ID || 'ca-pub-5992381116749724'}`);
+  console.log(`📢 Adsterra Ads Integrated:`);
+  console.log(`   → Native Banner: aca55beb03e2d8b514ae3f122920bdf0`);
+  console.log(`   → Desktop Banner (300x250): 8719e4636a7c41462203d84e956177c4`);
+  console.log(`   → Mobile Banner (320x50): 37e3a123e9b664f6f0b0efed6c7ee71f`);
+  
+  console.log(`📱 APP DOWNLOAD BUTTON:`);
+  console.log(`   → Floating button at bottom center of prompt pages`);
+  console.log(`   → Download URL: https://www.appcreator24.com/app4057785-93607p`);
+  console.log(`   → Auto-tracks download clicks`);
+  console.log(`   → Sticky while scrolling`);
+  console.log(`   → Animated with bounce effect`);
   
   console.log(`🤖 AI MODELS ENHANCED: ${totalCount} TOTAL AI PLATFORMS SUPPORTED!`);
   console.log(`   📸 PHOTO MODELS (${photoCount})`);

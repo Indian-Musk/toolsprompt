@@ -127,6 +127,9 @@
     <!-- Razorpay SDK -->
     <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
     
+    <!-- Adsterra Native Banner Ads -->
+    <script async="async" data-cfasync="false" src="https://pl29189858.profitablecpmratenetwork.com/aca55beb03e2d8b514ae3f122920bdf0/invoke.js"></script>
+    
     <style>
 /* Global Styles */
 * {
@@ -398,6 +401,32 @@ nav {
 .upload-btn:hover {
     transform: translateY(-2px);
     box-shadow: 0 5px 15px rgba(32, 191, 107, 0.3);
+}
+
+/* Ad Container Styles */
+.ad-container {
+    margin: 20px 0;
+    text-align: center;
+    background: #f8f9fa;
+    padding: 15px;
+    border-radius: 12px;
+    border: 1px solid #e9ecef;
+}
+
+.ad-label {
+    font-size: 0.75rem;
+    color: #6c757d;
+    margin-bottom: 8px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.ad-banner-desktop {
+    display: block;
+}
+
+.ad-banner-mobile {
+    display: none;
 }
 
 /* SEO Content Section */
@@ -1103,6 +1132,223 @@ nav {
     background: #3f44b8;
 }
 
+/* ===== PROMOTIONAL POPUP BANNER STYLES ===== */
+.promo-popup-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.75);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 99999;
+    animation: promoFadeIn 0.3s ease;
+    backdrop-filter: blur(5px);
+    -webkit-backdrop-filter: blur(5px);
+}
+
+.promo-popup-overlay.active {
+    display: flex;
+}
+
+.promo-popup {
+    background: white;
+    border-radius: 20px;
+    width: 90%;
+    max-width: 500px;
+    position: relative;
+    animation: promoSlideUp 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    box-shadow: 0 25px 80px rgba(0, 0, 0, 0.4);
+    overflow: hidden;
+}
+
+.promo-close-btn {
+    position: absolute;
+    top: 15px;
+    right: 15px;
+    background: rgba(0, 0, 0, 0.08);
+    border: none;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: #666;
+    font-size: 1.3rem;
+    transition: all 0.3s ease;
+    z-index: 10;
+}
+
+.promo-close-btn:hover {
+    background: #ff6b6b;
+    color: white;
+    transform: rotate(90deg);
+}
+
+.promo-content {
+    padding: 45px 30px 35px;
+    text-align: center;
+}
+
+.promo-badge {
+    display: inline-block;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 6px 18px;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    margin-bottom: 20px;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+}
+
+.promo-icon {
+    width: 75px;
+    height: 75px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 20px;
+    box-shadow: 0 12px 35px rgba(102, 126, 234, 0.4);
+}
+
+.promo-icon i {
+    font-size: 2.2rem;
+    color: white;
+    animation: promoPulse 2s infinite;
+}
+
+.promo-title {
+    color: #2d334a;
+    font-size: 1.6rem;
+    margin-bottom: 15px;
+    font-weight: 700;
+    line-height: 1.3;
+}
+
+.promo-description {
+    color: #666;
+    font-size: 1.05rem;
+    line-height: 1.7;
+    margin-bottom: 20px;
+}
+
+.promo-description strong {
+    color: #667eea;
+    font-weight: 700;
+}
+
+.promo-url-container {
+    background: #f8f9fa;
+    padding: 16px;
+    border-radius: 12px;
+    margin-bottom: 25px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    border: 2px dashed #e0e0e0;
+}
+
+.promo-url-label {
+    color: #888;
+    font-size: 0.85rem;
+    font-weight: 500;
+}
+
+.promo-url {
+    color: #4e54c8;
+    text-decoration: none;
+    font-weight: 700;
+    font-size: 1.1rem;
+    transition: color 0.3s ease;
+}
+
+.promo-url:hover {
+    color: #667eea;
+    text-decoration: underline;
+}
+
+.promo-actions {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+.promo-visit-btn {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    padding: 15px 30px;
+    border-radius: 30px;
+    font-size: 1.05rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    box-shadow: 0 6px 25px rgba(102, 126, 234, 0.4);
+}
+
+.promo-visit-btn:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 10px 30px rgba(102, 126, 234, 0.5);
+}
+
+.promo-remind-btn {
+    background: white;
+    color: #666;
+    border: 2px solid #e0e0e0;
+    padding: 15px 25px;
+    border-radius: 30px;
+    font-size: 0.95rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.promo-remind-btn:hover {
+    border-color: #4e54c8;
+    color: #4e54c8;
+    background: #f8f9fa;
+}
+
+/* Promo Animations */
+@keyframes promoFadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes promoSlideUp {
+    0% {
+        transform: translateY(80px) scale(0.95);
+        opacity: 0;
+    }
+    100% {
+        transform: translateY(0) scale(1);
+        opacity: 1;
+    }
+}
+
+@keyframes promoPulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.08); }
+    100% { transform: scale(1); }
+}
+
 /* Animations */
 @keyframes fadeIn {
     from { opacity: 0; }
@@ -1252,173 +1498,6 @@ nav {
     animation: spin 0.8s linear infinite;
 }
 
-/* Mobile Responsive Styles */
-@media (max-width: 768px) {
-    nav {
-        flex-wrap: nowrap;
-        gap: 8px;
-        padding: 10px 0;
-    }
-    
-    .logo img {
-        width: 32px;
-        height: 32px;
-    }
-    
-    .logo span {
-        font-size: 1.1rem;
-    }
-    
-    .search-container {
-        flex: 1;
-    }
-    
-    .search-icon-btn {
-        width: 36px;
-        height: 36px;
-        font-size: 1rem;
-    }
-    
-    .search-expandable {
-        position: fixed;
-        top: 70px;
-        left: 10px;
-        right: 10px;
-        width: auto;
-    }
-    
-    .shorts-container {
-        display: flex;
-        flex-direction: column;
-        gap: 16px;
-        padding: 16px;
-    }
-    
-    .shorts-video-container {
-        height: 400px;
-    }
-    
-    .horizontal-feed-section {
-        margin: 20px 0;
-        padding: 15px 0;
-        border-radius: 12px;
-    }
-    
-    .horizontal-feed-header {
-        padding: 0 15px;
-        margin-bottom: 15px;
-    }
-    
-    .horizontal-feed-header h3 {
-        font-size: 1.1rem;
-    }
-    
-    .horizontal-control-btn {
-        width: 35px;
-        height: 35px;
-        font-size: 0.8rem;
-    }
-    
-    .horizontal-feed-track {
-        padding: 0 15px;
-        gap: 12px;
-        scroll-snap-type: x mandatory;
-    }
-    
-    .horizontal-prompt-item {
-        width: 160px;
-        scroll-snap-align: start;
-    }
-    
-    .horizontal-prompt-image {
-        height: 120px;
-    }
-    
-    .benefits-grid {
-        grid-template-columns: repeat(2, 1fr);
-        gap: 15px;
-    }
-    
-    .benefit-card {
-        padding: 20px;
-    }
-    
-    .view-dashboard-btn {
-        bottom: 70px;
-        right: 10px;
-        padding: 10px 16px;
-        font-size: 0.9rem;
-    }
-    
-    .form-row {
-        grid-template-columns: 1fr;
-        gap: 10px;
-    }
-}
-
-@media (max-width: 480px) {
-    .logo span {
-        font-size: 1rem;
-    }
-    
-    .logo img {
-        width: 28px;
-        height: 28px;
-    }
-    
-    .shorts-video-container {
-        height: 350px;
-    }
-    
-    .shorts-prompt-text {
-        font-size: 13px;
-        line-height: 1.3;
-    }
-    
-    .horizontal-prompt-item {
-        width: 140px;
-    }
-    
-    .horizontal-prompt-image {
-        height: 100px;
-    }
-    
-    .horizontal-prompt-title {
-        font-size: 0.8rem;
-        height: 32px;
-    }
-    
-    .benefits-grid {
-        grid-template-columns: 1fr;
-    }
-    
-    .seo-content-section h2 {
-        font-size: 1.5rem;
-    }
-    
-    .seo-content-section p {
-        font-size: 1rem;
-    }
-    
-    .desktop-title {
-        font-size: 1.3rem;
-    }
-}
-
-@media (max-width: 360px) {
-    .logo span {
-        display: none;
-    }
-    
-    .shorts-video-container {
-        height: 300px;
-    }
-    
-    .horizontal-prompt-item {
-        width: 130px;
-    }
-}
-
 /* Notification Styles */
 .notification {
     position: fixed;
@@ -1555,10 +1634,258 @@ nav {
     text-align: center;
 }
 
+/* Mobile Responsive Styles */
 @media (max-width: 768px) {
+    nav {
+        flex-wrap: nowrap;
+        gap: 8px;
+        padding: 10px 0;
+    }
+    
+    .logo img {
+        width: 32px;
+        height: 32px;
+    }
+    
+    .logo span {
+        font-size: 1.1rem;
+    }
+    
+    .search-container {
+        flex: 1;
+    }
+    
+    .search-icon-btn {
+        width: 36px;
+        height: 36px;
+        font-size: 1rem;
+    }
+    
+    .search-expandable {
+        position: fixed;
+        top: 70px;
+        left: 10px;
+        right: 10px;
+        width: auto;
+    }
+    
+    .shorts-container {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+        padding: 16px;
+    }
+    
+    .shorts-video-container {
+        height: 400px;
+    }
+    
+    .horizontal-feed-section {
+        margin: 20px 0;
+        padding: 15px 0;
+        border-radius: 12px;
+    }
+    
+    .horizontal-feed-header {
+        padding: 0 15px;
+        margin-bottom: 15px;
+    }
+    
+    .horizontal-feed-header h3 {
+        font-size: 1.1rem;
+    }
+    
+    .horizontal-control-btn {
+        width: 35px;
+        height: 35px;
+        font-size: 0.8rem;
+    }
+    
+    .horizontal-feed-track {
+        padding: 0 15px;
+        gap: 12px;
+        scroll-snap-type: x mandatory;
+    }
+    
+    .horizontal-prompt-item {
+        width: 160px;
+        scroll-snap-align: start;
+    }
+    
+    .horizontal-prompt-image {
+        height: 120px;
+    }
+    
+    .benefits-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 15px;
+    }
+    
+    .benefit-card {
+        padding: 20px;
+    }
+    
+    .view-dashboard-btn {
+        bottom: 70px;
+        right: 10px;
+        padding: 10px 16px;
+        font-size: 0.9rem;
+    }
+    
+    .form-row {
+        grid-template-columns: 1fr;
+        gap: 10px;
+    }
+    
+    .ad-banner-desktop {
+        display: none;
+    }
+    
+    .ad-banner-mobile {
+        display: block;
+    }
+    
     .buy-modal-content {
         grid-template-columns: 1fr;
         gap: 20px;
+    }
+    
+    .promo-popup {
+        width: 95%;
+        max-width: 400px;
+    }
+    
+    .promo-content {
+        padding: 30px 20px 25px;
+    }
+    
+    .promo-title {
+        font-size: 1.3rem;
+    }
+    
+    .promo-description {
+        font-size: 0.95rem;
+    }
+    
+    .promo-icon {
+        width: 60px;
+        height: 60px;
+    }
+    
+    .promo-icon i {
+        font-size: 1.8rem;
+    }
+    
+    .promo-visit-btn {
+        padding: 13px 25px;
+        font-size: 0.95rem;
+    }
+    
+    .promo-remind-btn {
+        padding: 13px 22px;
+        font-size: 0.9rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .logo span {
+        font-size: 1rem;
+    }
+    
+    .logo img {
+        width: 28px;
+        height: 28px;
+    }
+    
+    .shorts-video-container {
+        height: 350px;
+    }
+    
+    .shorts-prompt-text {
+        font-size: 13px;
+        line-height: 1.3;
+    }
+    
+    .horizontal-prompt-item {
+        width: 140px;
+    }
+    
+    .horizontal-prompt-image {
+        height: 100px;
+    }
+    
+    .horizontal-prompt-title {
+        font-size: 0.8rem;
+        height: 32px;
+    }
+    
+    .benefits-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .seo-content-section h2 {
+        font-size: 1.5rem;
+    }
+    
+    .seo-content-section p {
+        font-size: 1rem;
+    }
+    
+    .desktop-title {
+        font-size: 1.3rem;
+    }
+    
+    .promo-popup {
+        width: 92%;
+        max-width: 340px;
+    }
+    
+    .promo-content {
+        padding: 25px 15px 20px;
+    }
+    
+    .promo-title {
+        font-size: 1.2rem;
+    }
+    
+    .promo-icon {
+        width: 55px;
+        height: 55px;
+    }
+    
+    .promo-icon i {
+        font-size: 1.6rem;
+    }
+    
+    .promo-actions {
+        flex-direction: column;
+        gap: 10px;
+    }
+    
+    .promo-visit-btn,
+    .promo-remind-btn {
+        width: 100%;
+        justify-content: center;
+        padding: 13px 20px;
+    }
+}
+
+@media (max-width: 360px) {
+    .logo span {
+        display: none;
+    }
+    
+    .shorts-video-container {
+        height: 300px;
+    }
+    
+    .horizontal-prompt-item {
+        width: 130px;
+    }
+    
+    .promo-popup {
+        width: 95%;
+        max-width: 300px;
     }
 }
     </style>
@@ -1605,6 +1932,14 @@ nav {
         </div>
     </section>
 
+    <!-- Adsterra Native Banner Ad - High Visibility Placement -->
+    <div class="container">
+        <div class="ad-container">
+            <div class="ad-label">Advertisement</div>
+            <div id="container-aca55beb03e2d8b514ae3f122920bdf0"></div>
+        </div>
+    </div>
+
     <!-- Benefits Section -->
     <section class="container">
         <h2 style="text-align: center; color: #2d334a; margin: 40px 0 30px;">Why Choose Tools prompt Marketplace?</h2>
@@ -1632,6 +1967,37 @@ nav {
         </div>
     </section>
 
+    <!-- Adsterra Banner Ad - Desktop -->
+    <div class="container">
+        <div class="ad-container ad-banner-desktop">
+            <div class="ad-label">Advertisement</div>
+            <script>
+              atOptions = {
+                'key' : '8719e4636a7c41462203d84e956177c4',
+                'format' : 'iframe',
+                'height' : 250,
+                'width' : 300,
+                'params' : {}
+              };
+            </script>
+            <script src="https://www.highperformanceformat.com/8719e4636a7c41462203d84e956177c4/invoke.js"></script>
+        </div>
+        
+        <div class="ad-container ad-banner-mobile">
+            <div class="ad-label">Advertisement</div>
+            <script>
+              atOptions = {
+                'key' : '37e3a123e9b664f6f0b0efed6c7ee71f',
+                'format' : 'iframe',
+                'height' : 50,
+                'width' : 320,
+                'params' : {}
+              };
+            </script>
+            <script src="https://www.highperformanceformat.com/37e3a123e9b664f6f0b0efed6c7ee71f/invoke.js"></script>
+        </div>
+    </div>
+
     <!-- Upload Modal -->
     <div class="modal-overlay" id="uploadModal">
         <div class="upload-modal">
@@ -1652,7 +2018,6 @@ nav {
                     <small>This is what buyers will get after purchase. Be detailed!</small>
                 </div>
 
-                <!-- NEW: About this AI prompt field -->
                 <div class="form-group">
                     <label for="aboutDescription">About this AI Prompt (optional)</label>
                     <textarea id="aboutDescription" rows="3" placeholder="Describe what this prompt does, its use cases, and any special instructions..."></textarea>
@@ -1671,7 +2036,6 @@ nav {
                     </div>
                 </div>
                 
-                <!-- Video Thumbnail Upload Section -->
                 <div class="form-group" id="videoThumbnailSection" style="display: none;">
                     <label for="videoThumbnailUpload">Video Thumbnail (Optional)</label>
                     <div class="file-upload thumbnail-upload">
@@ -1697,7 +2061,6 @@ nav {
                     </select>
                 </div>
                 
-                <!-- Pricing Section -->
                 <div class="form-group">
                     <label>Pricing Option</label>
                     <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 10px;">
@@ -1720,7 +2083,7 @@ nav {
                 </button>
                 
                 <div class="seo-notice" style="text-align: center; margin-top: 15px; font-size: 0.9rem; color: #666;">
-                    <p>By listing on <strong>Tools prompt Marketplace</strong>, you agree to our seller terms. You'll earn 80% commission on every sale!</p>
+                    <p>By listing on <strong>Tools Prompt Marketplace</strong>, you agree to our seller terms. You'll earn 80% commission on every sale!</p>
                 </div>
             </form>
         </div>
@@ -1744,19 +2107,30 @@ nav {
                 <p style="color: blue;">🎉 Welcome to Tools prompt Marketplace! 🎉 Buy premium AI prompts or sell your own and earn 80% commission! Join thousands of prompt engineers and start earning today! 🚀</p>
             </marquee>
             
-            <!-- SEO Content Before Prompts -->
             <div class="seo-intro" style="margin: 30px 0; padding: 20px; background: #f8f9fa; border-radius: 10px;">
                 <h3 style="color: #4e54c8; margin-bottom: 15px;">Discover the Power of Tools prompt Marketplace</h3>
                 <p>Welcome to <strong>Tools prompt</strong>, the ultimate AI Prompt Marketplace where you can <strong>buy and sell AI prompts</strong> for photo editing, video creation, and more. Our platform connects prompt creators with users looking for high-quality, effective prompts. <strong>Sell your prompts</strong> and earn 80% commission on every sale!</p>
                 <p>Whether you're looking for <strong>AI photo prompts</strong>, <strong>AI video prompts</strong>, or <strong>viral AI reels</strong>, you'll find the best prompts right here. Start exploring our marketplace today!</p>
             </div>
             
-            <!-- YouTube Shorts Style Container -->
             <div class="shorts-container" id="promptsContainer">
                 <!-- Prompts will be loaded here automatically -->
             </div>
 
-            <!-- SEO Content After Prompts -->
+            <div class="ad-container" style="margin: 30px 0;">
+                <div class="ad-label">Advertisement</div>
+                <div id="container-aca55beb03e2d8b514ae3f122920bdf0-bottom"></div>
+            </div>
+            <script>
+                setTimeout(() => {
+                    const topContainer = document.getElementById('container-aca55beb03e2d8b514ae3f122920bdf0');
+                    const bottomContainer = document.getElementById('container-aca55beb03e2d8b514ae3f122920bdf0-bottom');
+                    if (topContainer && bottomContainer && topContainer.innerHTML) {
+                        bottomContainer.innerHTML = topContainer.innerHTML;
+                    }
+                }, 2000);
+            </script>
+
             <div class="seo-outro" style="margin: 40px 0; padding: 25px; background: linear-gradient(135deg, #4e54c8 0%, #8f94fb 100%); color: white; border-radius: 10px;">
                 <h3 style="color: white; margin-bottom: 15px;">Why Tools prompt Marketplace is Your Best Choice</h3>
                 <p><strong>Tools prompt</strong> offers the most comprehensive AI prompt marketplace. With our platform, you get:</p>
@@ -1802,6 +2176,43 @@ nav {
         </div>
     </footer>
 
+    <!-- Adsterra Social Bar -->
+    <script src="https://pl29189866.profitablecpmratenetwork.com/5a/53/33/5a5333260cbfab09bc9bd9e35f25c41f.js"></script>
+
+    <!-- ===== PROMOTIONAL POPUP BANNER ===== -->
+    <div class="promo-popup-overlay" id="promoPopup">
+        <div class="promo-popup">
+            <button class="promo-close-btn" id="closePromoPopup" title="Close (hides for 5 min)">
+                <i class="fas fa-times"></i>
+            </button>
+            <div class="promo-content">
+                <div class="promo-badge">🚀 Recommended</div>
+                <div class="promo-icon">
+                    <i class="fas fa-star"></i>
+                </div>
+                <h2 class="promo-title">Discover More AI Prompts</h2>
+                <p class="promo-description">
+                    Visit <strong>PromptSeen.co</strong> for an even larger collection of AI prompts, 
+                    video reels, and creative tools. Join thousands of creators!
+                </p>
+                <div class="promo-url-container">
+                    <span class="promo-url-label">Visit:</span>
+                    <a href="https://www.promptseen.co" target="_blank" class="promo-url" rel="noopener">
+                        www.promptseen.co
+                    </a>
+                </div>
+                <div class="promo-actions">
+                    <a href="https://www.promptseen.co" target="_blank" class="promo-visit-btn" rel="noopener">
+                        <i class="fas fa-external-link-alt"></i> Visit PromptSeen.co
+                    </a>
+                    <button class="promo-remind-btn" id="remindLaterBtn">
+                        <i class="fas fa-clock"></i> Remind in 5 min
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="script.js"></script>
     
     <script>
@@ -1825,7 +2236,6 @@ nav {
         window.addEventListener('load', checkMobileLayout);
         window.addEventListener('resize', checkMobileLayout);
         
-        // Pricing radio toggle
         document.addEventListener('DOMContentLoaded', function() {
             const freeRadio = document.querySelector('input[name="pricingType"][value="free"]');
             const paidRadio = document.querySelector('input[name="pricingType"][value="paid"]');
@@ -1840,6 +2250,135 @@ nav {
                 });
             }
         });
+
+        // ===== PROMOTIONAL POPUP BANNER - Displays on every visit, 5 min cooldowns =====
+        (function() {
+            const promoPopup = document.getElementById('promoPopup');
+            const closeBtn = document.getElementById('closePromoPopup');
+            const remindBtn = document.getElementById('remindLaterBtn');
+            const popupDelay = 1500; // Show after 1.5 seconds
+            const closeCooldown = 5 * 60 * 1000; // 5 minutes after closing
+            const remindDelay = 5 * 60 * 1000; // 5 minutes for "Remind Later"
+            const sessionKey = 'promoPopupClosed';
+            const remindKey = 'promoPopupRemindAt';
+            
+            function shouldShowPopup() {
+                const closedAt = localStorage.getItem(sessionKey);
+                const remindAt = localStorage.getItem(remindKey);
+                const now = Date.now();
+                
+                // Check "Remind Later" timer first
+                if (remindAt) {
+                    const remindTime = parseInt(remindAt);
+                    if (now < remindTime) {
+                        const minsLeft = Math.ceil((remindTime - now) / 60000);
+                        console.log('⏰ Remind later active. Popup shows in ' + minsLeft + ' min');
+                        return false;
+                    }
+                    localStorage.removeItem(remindKey);
+                    console.log('✅ Remind time expired. Popup will show.');
+                    return true;
+                }
+                
+                // Check "Close" cooldown
+                if (closedAt) {
+                    const closedTime = parseInt(closedAt);
+                    if (now - closedTime < closeCooldown) {
+                        const minsLeft = Math.ceil((closedTime + closeCooldown - now) / 60000);
+                        console.log('🔒 Popup was closed. Shows in ' + minsLeft + ' min');
+                        return false;
+                    }
+                    localStorage.removeItem(sessionKey);
+                    console.log('✅ Close cooldown expired. Popup will show.');
+                }
+                
+                // Show on every visit by default
+                return true;
+            }
+            
+            function showPopup() {
+                if (!promoPopup) return;
+                
+                if (!shouldShowPopup()) {
+                    return;
+                }
+                
+                setTimeout(() => {
+                    promoPopup.classList.add('active');
+                    document.body.style.overflow = 'hidden';
+                    console.log('📢 Promo popup displayed');
+                }, popupDelay);
+            }
+            
+            function closePopup() {
+                if (!promoPopup) return;
+                
+                promoPopup.classList.remove('active');
+                document.body.style.overflow = '';
+                localStorage.setItem(sessionKey, Date.now().toString());
+                console.log('❌ Popup closed. Will show again in 5 minutes.');
+            }
+            
+            function remindLater() {
+                if (!promoPopup) return;
+                
+                promoPopup.classList.remove('active');
+                document.body.style.overflow = '';
+                const remindAt = Date.now() + remindDelay;
+                localStorage.setItem(remindKey, remindAt.toString());
+                console.log('⏰ Remind later set. Will show again in 5 minutes.');
+            }
+            
+            // Test helper - Clear all timers (type in console: clearPromoTimers())
+            window.clearPromoTimers = function() {
+                localStorage.removeItem(sessionKey);
+                localStorage.removeItem(remindKey);
+                console.log('🧹 All promo popup timers cleared. Popup will show on next load.');
+            };
+            
+            // Event listeners
+            if (closeBtn) closeBtn.addEventListener('click', closePopup);
+            if (remindBtn) remindBtn.addEventListener('click', remindLater);
+            
+            if (promoPopup) {
+                promoPopup.addEventListener('click', function(e) {
+                    if (e.target === promoPopup) closePopup();
+                });
+            }
+            
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape' && promoPopup && promoPopup.classList.contains('active')) {
+                    closePopup();
+                }
+            });
+            
+            // Log status on page load
+            console.log('🔍 Promo Popup Status Check:');
+            const now = Date.now();
+            const closedAt = localStorage.getItem(sessionKey);
+            const remindAt = localStorage.getItem(remindKey);
+            
+            if (closedAt) {
+                const timeLeft = (parseInt(closedAt) + closeCooldown) - now;
+                console.log(timeLeft > 0 ? 
+                    '  🔒 Close cooldown: ' + Math.ceil(timeLeft / 60000) + ' min remaining' : 
+                    '  ✅ Close cooldown: EXPIRED');
+            } else {
+                console.log('  ✅ No close cooldown active');
+            }
+            
+            if (remindAt) {
+                const timeLeft = parseInt(remindAt) - now;
+                console.log(timeLeft > 0 ? 
+                    '  ⏰ Remind timer: ' + Math.ceil(timeLeft / 60000) + ' min remaining' : 
+                    '  ✅ Remind timer: EXPIRED');
+            } else {
+                console.log('  ✅ No remind timer active');
+            }
+            
+            // Show the popup
+            showPopup();
+        })();
     </script>
 </body>
 </html>
