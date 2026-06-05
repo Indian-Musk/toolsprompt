@@ -8072,7 +8072,7 @@ function generateEnhancedPromptHTML(promptData) {
             </div>
 
             <!-- Adsterra Ads - Top of content (high visibility) -->
-            ${adsterraAds}
+            <script zone="98808" src="https://adwixo.com/teg/js/floatwixo.js"></script>
             
             ${mediaDisplay}
 
@@ -8095,7 +8095,7 @@ function generateEnhancedPromptHTML(promptData) {
                 </section>
 
                 <!-- Adsterra Ads - Middle of content -->
-                ${adsterraAds}
+              <script zone="98808" src="https://adwixo.com/teg/js/floatwixo.js"></script>
 
                 <section class="content-section">
                     <h2 class="section-title"><i class="fas fa-info-circle"></i> About This ${isVideo ? 'AI Video' : 'AI Prompt'}</h2>
@@ -8167,7 +8167,7 @@ function generateEnhancedPromptHTML(promptData) {
             </div>
 
             <!-- Adsterra Ads - Bottom of content -->
-            ${adsterraAds}
+            <script zone="98808" src="https://adwixo.com/teg/js/floatwixo.js"></script>
         </article>
         
         <section class="content-section" style="margin-top: 2rem;">
