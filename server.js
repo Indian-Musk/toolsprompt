@@ -10,6 +10,33 @@ const mime = require('mime-types');
 const Razorpay = require('razorpay');
 require('dotenv').config();
 
+// ========== NEW: S3 Client for Cloudflare R2 (zero egress) ==========
+const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
+
+const s3Client = new S3Client({
+  region: 'auto',
+  endpoint: `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+  credentials: {
+    accessKeyId: process.env.R2_ACCESS_KEY,
+    secretAccessKey: process.env.R2_SECRET_KEY,
+  },
+});
+
+const R2_BUCKET = process.env.R2_BUCKET_NAME;
+const R2_PUBLIC_URL = process.env.R2_PUBLIC_URL; // e.g., https://pub-xxxx.r2.dev
+
+// ========== Helper: upload file to R2 ==========
+async function uploadToR2(buffer, key, contentType) {
+  const command = new PutObjectCommand({
+    Bucket: R2_BUCKET,
+    Key: key,
+    Body: buffer,
+    ContentType: contentType,
+  });
+  await s3Client.send(command);
+  return `${R2_PUBLIC_URL}/${key}`;
+}
+
 // Add this helper function at the top of server.js
 function sanitizeFirestoreData(data) {
     const sanitized = {};
@@ -54,7 +81,7 @@ try {
   razorpayKeyId = 'rzp_live_SXMEZ6fYLjDmzD';
 }
 
-// Initialize Firebase Admin
+// Initialize Firebase Admin (Auth + Firestore ONLY, NO Storage)
 let adminInitialized = false;
 try {
   const serviceAccount = process.env.FIREBASE_ADMIN_PRIVATE_KEY ? {
@@ -66,10 +93,10 @@ try {
   if (serviceAccount && serviceAccount.privateKey) {
     admin.initializeApp({
       credential: admin.credential.cert(serviceAccount),
-      storageBucket: process.env.FIREBASE_ADMIN_STORAGE_BUCKET
+      // storageBucket is REMOVED – we use R2 instead
     });
     adminInitialized = true;
-    console.log('✅ Firebase Admin initialized successfully');
+    console.log('✅ Firebase Admin initialized (Auth + Firestore)');
   } else {
     console.log('⚠️ Firebase Admin not configured - running in demo mode');
   }
@@ -77,11 +104,11 @@ try {
   console.error('❌ Firebase Admin initialization failed:', error);
 }
 
-// Create mock admin object for development if not initialized
+// Create mock admin object for development if not initialized (storage mock removed)
 let adminMock = null;
 if (!adminInitialized) {
   adminMock = {
-    firestore: () => ({ 
+    firestore: () => ({
       collection: () => ({
         doc: () => ({
           get: () => Promise.resolve({ exists: false, data: () => null }),
@@ -101,35 +128,23 @@ if (!adminInitialized) {
         }),
         add: () => Promise.resolve({ id: 'mock-id' }),
         get: () => Promise.resolve({ docs: [], forEach: () => {} }),
-        where: () => ({ 
-          orderBy: () => ({ 
-            limit: () => ({ 
-              get: () => Promise.resolve({ docs: [] }) 
-            }) 
-          }) 
+        where: () => ({
+          orderBy: () => ({
+            limit: () => ({
+              get: () => Promise.resolve({ docs: [] })
+            })
+          })
         }),
-        orderBy: () => ({ 
-          startAfter: () => ({ 
-            limit: () => ({ 
-              get: () => Promise.resolve({ docs: [] }) 
-            }) 
-          }) 
+        orderBy: () => ({
+          startAfter: () => ({
+            limit: () => ({
+              get: () => Promise.resolve({ docs: [] })
+            })
+          })
         }),
         limit: () => ({ get: () => Promise.resolve({ docs: [] }) }),
         count: () => ({ get: () => Promise.resolve({ data: () => ({ count: 0 }) }) })
       })
-    }),
-    storage: () => ({ 
-      bucket: () => ({
-        file: () => ({
-          save: (buffer, options) => {
-            console.log('Mock saving file with size:', buffer.length);
-            return Promise.resolve();
-          },
-          makePublic: () => Promise.resolve(),
-          createReadStream: () => require('stream').Readable.from([])
-        })
-      }) 
     }),
     auth: () => ({ verifyIdToken: () => Promise.resolve({}) })
   };
@@ -142,7 +157,7 @@ const port = process.env.PORT || 3000;
 const cache = new NodeCache({ stdTTL: 300, checkperiod: 60 });
 
 const db = adminInitialized ? admin.firestore() : (adminMock ? adminMock.firestore() : null);
-const bucket = adminInitialized ? admin.storage().bucket() : (adminMock ? adminMock.storage().bucket() : null);
+// No bucket variable – we use s3Client directly
 
 // CORS middleware for development
 app.use((req, res, next) => {
@@ -164,8 +179,15 @@ app.use(express.urlencoded({ extended: true, limit: '100mb' }));
 // Raw body for Razorpay webhook
 app.use('/api/razorpay-webhook', express.json());
 
+// ==================== ADS.TXT REDIRECT ====================
+app.get('/ads.txt', (req, res) => {
+    const adsTxtUrl = 'https://srv.adstxtmanager.com/19390/toolsprompt.com';
+    console.log(`🔄 Redirecting /ads.txt to ${adsTxtUrl}`);
+    res.redirect(301, adsTxtUrl);
+});
 // Serve static files from current directory
 app.use(express.static(__dirname));
+
 
 // Helper function for safe date conversion
 function safeDateToString(dateValue) {
@@ -403,7 +425,7 @@ app.post('/api/track-download', async (req, res) => {
         console.log(`   User Agent: ${userAgent}`);
         console.log(`   Time: ${new Date().toISOString()}`);
         
-        // Optional: Store in database if needed
+        // Optional: Store in database if needed (keep this as it's a separate feature)
         if (db && db.collection) {
             await db.collection('downloads').add({
                 promptId: promptId || null,
@@ -2543,61 +2565,19 @@ class AIDescriptionGenerator {
   }
 }
 
-// Enhanced Engagement Analytics Class
+// Enhanced Engagement Analytics Class - Mock only, no Firestore
 class EngagementAnalytics {
   static async getPromptEngagement(promptId, db) {
-    try {
-      if (db && db.collection) {
-        const doc = await db.collection('uploads').doc(promptId).get();
-        if (doc.exists) {
-          const data = doc.data();
-          return {
-            likes: data.likes || 0,
-            views: data.views || 0,
-            uses: data.uses || 0,
-            copies: data.copies || 0,
-            comments: data.commentCount || 0,
-            engagementRate: this.calculateEngagementRate(data),
-            popularityScore: this.calculatePopularityScore(data)
-          };
-        }
-      }
-      
-      return {
-        likes: Math.floor(Math.random() * 100),
-        views: Math.floor(Math.random() * 500),
-        uses: Math.floor(Math.random() * 50),
-        copies: Math.floor(Math.random() * 25),
-        comments: Math.floor(Math.random() * 15),
-        engagementRate: Math.random() * 0.5 + 0.3,
-        popularityScore: Math.floor(Math.random() * 100)
-      };
-    } catch (error) {
-      console.error('Engagement analytics error:', error);
-      return { likes: 0, views: 0, uses: 0, copies: 0, comments: 0, engagementRate: 0, popularityScore: 0 };
-    }
-  }
-
-  static calculateEngagementRate(data) {
-    const likes = data.likes || 0;
-    const views = data.views || 1;
-    const uses = data.uses || 0;
-    const copies = data.copies || 0;
-    const comments = data.commentCount || 0;
-    
-    return ((likes + uses + copies + comments) / views) || 0;
-  }
-
-  static calculatePopularityScore(data) {
-    const likes = data.likes || 0;
-    const views = data.views || 0;
-    const uses = data.uses || 0;
-    const copies = data.copies || 0;
-    const comments = data.commentCount || 0;
-    const recency = data.createdAt ? (Date.now() - new Date(data.createdAt).getTime()) : 0;
-    
-    const timeWeight = Math.max(0, 1 - (recency / (30 * 24 * 60 * 60 * 1000)));
-    return Math.round(((likes * 2 + uses * 3 + copies * 2 + comments * 2 + views * 0.1) * timeWeight) / 10);
+    // Return mock data without any Firestore operations
+    return {
+      likes: Math.floor(Math.random() * 100),
+      views: Math.floor(Math.random() * 500),
+      uses: Math.floor(Math.random() * 50),
+      copies: Math.floor(Math.random() * 25),
+      comments: Math.floor(Math.random() * 15),
+      engagementRate: Math.random() * 0.5 + 0.3,
+      popularityScore: Math.floor(Math.random() * 100)
+    };
   }
 }
 
@@ -3692,6 +3672,7 @@ app.get('/health', (req, res) => {
     timestamp: new Date().toISOString(),
     service: 'tools prompt API',
     mode: db ? 'production' : 'development',
+    storage: 'Cloudflare R2 (zero egress)',
     cacheStats: cache.getStats(),
     adsense: {
       enabled: true,
@@ -3730,73 +3711,40 @@ app.get('/health', (req, res) => {
   });
 });
 
-// Video streaming endpoint
+// Video streaming endpoint - NOW REDIRECTS TO R2
 app.get('/api/video/:videoId', async (req, res) => {
   try {
     const videoId = req.params.videoId;
-    const range = req.headers.range;
     
-    const cacheKey = `video-${videoId}`;
-    const cached = cache.get(cacheKey);
-    
-    if (cached && !range) {
-      return res.redirect(cached);
-    }
-    
+    let promptData;
     if (db && db.collection) {
       const doc = await db.collection('uploads').doc(videoId).get();
       if (doc.exists) {
-        const data = doc.data();
-        const videoUrl = data.videoUrl || data.mediaUrl;
-        
-        if (videoUrl && videoUrl.startsWith('https://storage.googleapis.com/')) {
-          if (bucket) {
-            const fileName = videoUrl.split('/').pop();
-            const file = bucket.file(`videos/${fileName}`);
-            
-            if (range) {
-              const [metadata] = await file.getMetadata();
-              const fileSize = metadata.size;
-              
-              const CHUNK_SIZE = 10 ** 6;
-              const start = Number(range.replace(/\D/g, ''));
-              const end = Math.min(start + CHUNK_SIZE, fileSize - 1);
-              
-              const contentLength = end - start + 1;
-              
-              res.writeHead(206, {
-                'Content-Range': `bytes ${start}-${end}/${fileSize}`,
-                'Accept-Ranges': 'bytes',
-                'Content-Length': contentLength,
-                'Content-Type': 'video/mp4',
-                'Cache-Control': 'public, max-age=3600'
-              });
-              
-              const stream = file.createReadStream({ start, end });
-              stream.pipe(res);
-            } else {
-              res.redirect(videoUrl);
-            }
-          } else {
-            res.redirect(videoUrl);
-          }
-        } else {
-          res.status(404).send('Video not found');
-        }
-      } else {
-        res.status(404).send('Video not found');
+        promptData = doc.data();
       }
     } else {
-      const mockVideoUrl = 'https://storage.googleapis.com/your-bucket/sample-video.mp4';
-      res.redirect(mockVideoUrl);
+      promptData = mockPrompts.find(p => p.id === videoId);
     }
+    
+    if (!promptData) return res.status(404).send('Video not found');
+
+    const videoUrl = promptData.videoUrl || promptData.mediaUrl;
+    // If it's an R2 URL, redirect to it (no server streaming)
+    if (videoUrl && videoUrl.includes('r2.dev')) {
+      return res.redirect(videoUrl);
+    }
+
+    // Fallback: if the URL is still Firebase, we can’t stream it via R2,
+    // so we return a 404 (or you can keep the old streaming logic for migration)
+    // But since we are migrating, we will serve a placeholder.
+    res.status(404).send('Video not available on R2. Please re-upload.');
   } catch (error) {
     console.error('Video streaming error:', error);
     res.status(500).send('Error streaming video');
   }
 });
 
-// Thumbnail endpoint
+// Thumbnail endpoint - REDIRECT TO R2
 app.get('/api/thumbnail/:promptId', async (req, res) => {
   try {
     const promptId = req.params.promptId;
@@ -3806,13 +3754,11 @@ app.get('/api/thumbnail/:promptId', async (req, res) => {
       if (doc.exists) {
         const data = doc.data();
         const thumbnailUrl = data.thumbnailUrl || data.imageUrl;
-        
-        if (thumbnailUrl) {
+        if (thumbnailUrl && thumbnailUrl.includes('r2.dev')) {
           return res.redirect(thumbnailUrl);
         }
       }
     }
-    
     res.redirect('https://via.placeholder.com/300x400/ff6b6b/ffffff?text=Video+Reel');
   } catch (error) {
     console.error('Thumbnail error:', error);
@@ -4015,7 +3961,7 @@ app.get('/sitemap-news.xml', async (req, res) => {
   }
 });
 
-// ==================== UPLOAD ENDPOINT ====================
+// ==================== UPLOAD ENDPOINT (REWRITTEN FOR R2) ====================
 app.post('/api/upload', async (req, res) => {
   console.log('📤 Upload request received');
   const busboy = Busboy({ headers: req.headers, limits: { fileSize: 100 * 1024 * 1024 } });
@@ -4072,54 +4018,28 @@ app.post('/api/upload', async (req, res) => {
       const isImage = mediaFileType.startsWith('image/');
       if (!isVideo && !isImage) return res.status(400).json({ error: 'File must be an image or video' });
 
-      let mediaUrl, thumbnailUrl = null;
-      if (bucket) {
-        const timestamp = Date.now();
-        const uniqueId = uuidv4();
-        const mediaExtension = uploadedMediaFileName.split('.').pop();
-        const mediaFolder = isVideo ? 'videos' : 'prompts';
-        const storageMediaFileName = `${mediaFolder}/${timestamp}-${uniqueId}.${mediaExtension}`;
-        const mediaFile = bucket.file(storageMediaFileName);
-        await mediaFile.save(mediaBuffer, {
-          metadata: {
-            contentType: mediaFileType,
-            metadata: {
-              uploadedBy: fields.userName || 'anonymous',
-              uploadedAt: new Date().toISOString(),
-              fileType: isVideo ? 'video' : 'image',
-              originalName: uploadedMediaFileName,
-              hasThumbnail: !!thumbnailBuffer
-            }
-          }
-        });
-        await mediaFile.makePublic();
-        mediaUrl = `https://storage.googleapis.com/${bucket.name}/${storageMediaFileName}`;
-        if (thumbnailBuffer) {
-          const thumbExtension = uploadedThumbnailFileName.split('.').pop();
-          const thumbFileName = `thumbnails/${timestamp}-${uniqueId}.${thumbExtension}`;
-          const thumbFile = bucket.file(thumbFileName);
-          await thumbFile.save(thumbnailBuffer, {
-            metadata: {
-              contentType: thumbnailFileType,
-              metadata: {
-                uploadedBy: fields.userName || 'anonymous',
-                uploadedAt: new Date().toISOString(),
-                originalVideoId: uniqueId
-              }
-            }
-          });
-          await thumbFile.makePublic();
-          thumbnailUrl = `https://storage.googleapis.com/${bucket.name}/${thumbFileName}`;
-        }
-      } else {
-        if (isVideo) {
-          mediaUrl = `https://storage.googleapis.com/mock-bucket/videos/sample-${Date.now()}.mp4`;
-          thumbnailUrl = thumbnailBuffer ? `https://storage.googleapis.com/mock-bucket/thumbnails/sample-${Date.now()}.jpg` : 'https://via.placeholder.com/300x400/ff6b6b/ffffff?text=Video+Reel';
-        } else {
-          mediaUrl = 'https://via.placeholder.com/800x400/4e54c8/ffffff?text=Uploaded+Image';
-        }
+      // ===== UPLOAD TO R2 =====
+      const timestamp = Date.now();
+      const uniqueId = uuidv4();
+      const mediaExtension = uploadedMediaFileName.split('.').pop();
+      const mediaFolder = isVideo ? 'videos' : 'prompts';
+      const mediaKey = `${mediaFolder}/${timestamp}-${uniqueId}.${mediaExtension}`;
+
+      const mediaUrl = await uploadToR2(mediaBuffer, mediaKey, mediaFileType);
+
+      let thumbnailUrl = null;
+      if (thumbnailBuffer) {
+        const thumbExtension = uploadedThumbnailFileName.split('.').pop();
+        const thumbKey = `thumbnails/${timestamp}-${uniqueId}.${thumbExtension}`;
+        thumbnailUrl = await uploadToR2(thumbnailBuffer, thumbKey, thumbnailFileType);
       }
 
+      // ===== If no thumbnail, use a placeholder for videos =====
+      if (isVideo && !thumbnailUrl) {
+        thumbnailUrl = 'https://via.placeholder.com/300x400/ff6b6b/ffffff?text=Video+Reel';
+      }
+
+      // ===== Save to Firestore (same as before) =====
       let category = fields.category || 'general';
       if (!fields.category) category = isVideo ? 'video' : 'general';
 
@@ -4296,7 +4216,7 @@ app.get('/api/news', async (req, res) => {
       hasMore: endIndex < news.length
     };
 
-    cache.set(cacheKey, result, 300);
+    cache.set(cacheKey, result, 1200);
     
     res.json(result);
 
@@ -4343,7 +4263,7 @@ app.get('/news/:id', async (req, res) => {
 
     const html = generateNewsHTML(newsData);
     
-    cache.set(cacheKey, html, 600);
+    cache.set(cacheKey, html, 1200);
     
     res.set('Content-Type', 'text/html');
     res.send(html);
@@ -4354,71 +4274,31 @@ app.get('/news/:id', async (req, res) => {
   }
 });
 
-// COMMENT SYSTEM API ENDPOINTS
+// COMMENT SYSTEM API ENDPOINTS - MOCK ONLY, NO FIRESTORE
 
-// Get comments for a prompt
+// Get comments for a prompt (mock)
 app.get('/api/prompt/:id/comments', async (req, res) => {
   try {
-    const promptId = req.params.id;
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
     
-    const cacheKey = `comments-${promptId}-${page}-${limit}`;
-    const cached = cache.get(cacheKey);
-    if (cached) {
-      return res.json(cached);
-    }
-    
-    let comments = [];
-    let totalCount = 0;
-    
-    if (db && db.collection) {
-      const countSnapshot = await db.collection('uploads').doc(promptId)
-        .collection('comments')
-        .count()
-        .get();
-      
-      totalCount = countSnapshot.data().count || 0;
-      
-      const startIndex = (page - 1) * limit;
-      const snapshot = await db.collection('uploads').doc(promptId)
-        .collection('comments')
-        .orderBy('createdAt', 'desc')
-        .limit(limit)
-        .get();
-      
-      comments = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-        createdAt: safeDateToString(doc.data().createdAt)
-      }));
-    } else {
-      comments = generateMockComments(limit);
-      totalCount = 25;
-    }
-    
-    const result = {
-      comments,
+    // Return mock empty comments - no Firestore
+    res.json({
+      comments: [],
       currentPage: page,
-      totalPages: Math.ceil(totalCount / limit),
-      totalCount,
-      hasMore: page * limit < totalCount
-    };
-    
-    cache.set(cacheKey, result, 300);
-    
-    res.json(result);
-    
+      totalPages: 0,
+      totalCount: 0,
+      hasMore: false
+    });
   } catch (error) {
     console.error('Error fetching comments:', error);
     res.status(500).json({ error: 'Failed to fetch comments' });
   }
 });
 
-// Post a new comment
+// Post a new comment (mock only)
 app.post('/api/prompt/:id/comments', async (req, res) => {
   try {
-    const promptId = req.params.id;
     const { content, authorName, authorEmail } = req.body;
     
     if (!content || !content.trim()) {
@@ -4429,273 +4309,68 @@ app.post('/api/prompt/:id/comments', async (req, res) => {
       return res.status(400).json({ error: 'Comment is too long (max 1000 characters)' });
     }
     
-    const commentData = {
-      content: content.trim(),
-      authorName: authorName?.trim() || 'Anonymous',
-      authorEmail: authorEmail?.trim() || null,
-      promptId: promptId,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      likes: 0,
-      isApproved: true
-    };
-    
-    let commentRef;
-    
-    if (db && db.collection) {
-      commentRef = await db.collection('uploads').doc(promptId)
-        .collection('comments')
-        .add(commentData);
-      
-      const promptRef = db.collection('uploads').doc(promptId);
-      const promptDoc = await promptRef.get();
-      
-      if (promptDoc.exists) {
-        const currentComments = promptDoc.data().commentCount || 0;
-        await promptRef.update({
-          commentCount: currentComments + 1,
-          updatedAt: new Date().toISOString()
-        });
-      }
-    } else {
-      commentRef = { id: 'comment-' + Date.now() };
-      console.log('Mock comment added:', commentData);
-    }
-    
-    cache.keys().forEach(key => {
-      if (key.startsWith(`comments-${promptId}-`)) {
-        cache.del(key);
-      }
-    });
-    
-    cache.del(`prompt-${promptId}`);
-    
-    const responseData = {
-      id: commentRef.id,
-      ...commentData,
-      message: 'Comment posted successfully!'
-    };
-    
+    // Mock response - no database
     res.json({
       success: true,
-      comment: responseData
+      comment: {
+        id: 'mock-comment-' + Date.now(),
+        content: content.trim(),
+        authorName: authorName?.trim() || 'Anonymous',
+        authorEmail: authorEmail?.trim() || null,
+        createdAt: new Date().toISOString(),
+        likes: 0
+      },
+      message: 'Comment posted successfully (mock)'
     });
-    
   } catch (error) {
     console.error('Error posting comment:', error);
     res.status(500).json({ error: 'Failed to post comment' });
   }
 });
 
-// Like a comment
+// Like a comment (mock only)
 app.post('/api/comment/:commentId/like', async (req, res) => {
   try {
-    const { commentId } = req.params;
-    const { promptId } = req.body;
-    
-    if (!promptId) {
-      return res.status(400).json({ error: 'Prompt ID is required' });
-    }
-    
-    if (db && db.collection) {
-      const commentRef = db.collection('uploads').doc(promptId)
-        .collection('comments')
-        .doc(commentId);
-      
-      const commentDoc = await commentRef.get();
-      
-      if (commentDoc.exists) {
-        const currentLikes = commentDoc.data().likes || 0;
-        await commentRef.update({
-          likes: currentLikes + 1,
-          updatedAt: new Date().toISOString()
-        });
-      }
-    }
-    
-    cache.keys().forEach(key => {
-      if (key.startsWith(`comments-${promptId}-`)) {
-        cache.del(key);
-      }
-    });
-    
-    res.json({ success: true, message: 'Comment liked' });
-    
+    // Mock response - no database
+    res.json({ success: true, message: 'Comment liked (mock)' });
   } catch (error) {
     console.error('Error liking comment:', error);
     res.status(500).json({ error: 'Failed to like comment' });
   }
 });
 
-// Engagement API Endpoints
+// Engagement API Endpoints - MOCK ONLY, NO FIRESTORE
 
-// Track view count
+// Track view count (mock)
 app.post('/api/prompt/:id/view', async (req, res) => {
-  try {
-    const promptId = req.params.id;
-    
-    const shouldUpdate = Math.random() < 0.1;
-    
-    if (shouldUpdate && db && db.collection) {
-      const promptRef = db.collection('uploads').doc(promptId);
-      const promptDoc = await promptRef.get();
-      
-      if (promptDoc.exists) {
-        const currentViews = promptDoc.data().views || 0;
-        await promptRef.update({
-          views: currentViews + 10
-        });
-      }
-    }
-    
-    res.json({ success: true, message: 'View counted' });
-  } catch (error) {
-    console.error('Error counting view:', error);
-    res.status(500).json({ error: 'Failed to count view' });
-  }
+  res.json({ success: true, message: 'View counted (mock)' });
 });
 
-// Like/Unlike prompt
+// Like/Unlike prompt (mock)
 app.post('/api/prompt/:id/like', async (req, res) => {
-  try {
-    const promptId = req.params.id;
-    const { userId, action } = req.body;
-    
-    if (db && db.collection) {
-      const promptRef = db.collection('uploads').doc(promptId);
-      const promptDoc = await promptRef.get();
-      
-      if (promptDoc.exists) {
-        const currentLikes = promptDoc.data().likes || 0;
-        
-        if (action === 'like') {
-          await promptRef.update({
-            likes: currentLikes + 1,
-            updatedAt: new Date().toISOString()
-          });
-        } else {
-          await promptRef.update({
-            likes: Math.max(0, currentLikes - 1),
-            updatedAt: new Date().toISOString()
-          });
-        }
-      }
-    } else {
-      const prompt = mockPrompts.find(p => p.id === promptId);
-      if (prompt) {
-        if (action === 'like') {
-          prompt.likes = (prompt.likes || 0) + 1;
-        } else {
-          prompt.likes = Math.max(0, (prompt.likes || 1) - 1);
-        }
-        prompt.updatedAt = new Date().toISOString();
-      }
-    }
-    
-    cache.del(`prompt-${promptId}`);
-    
-    res.json({ success: true, action });
-  } catch (error) {
-    console.error('Error updating like:', error);
-    res.status(500).json({ error: 'Failed to update like' });
-  }
+  const { action } = req.body;
+  res.json({ success: true, action });
 });
 
-// Track prompt use
+// Track prompt use (mock)
 app.post('/api/prompt/:id/use', async (req, res) => {
-  try {
-    const promptId = req.params.id;
-    const { userId } = req.body;
-    
-    if (db && db.collection) {
-      const promptRef = db.collection('uploads').doc(promptId);
-      const promptDoc = await promptRef.get();
-      
-      if (promptDoc.exists) {
-        const currentUses = promptDoc.data().uses || 0;
-        await promptRef.update({
-          uses: currentUses + 1,
-          updatedAt: new Date().toISOString()
-        });
-      }
-    } else {
-      const prompt = mockPrompts.find(p => p.id === promptId);
-      if (prompt) {
-        prompt.uses = (prompt.uses || 0) + 1;
-        prompt.updatedAt = new Date().toISOString();
-      }
-    }
-    
-    cache.del(`prompt-${promptId}`);
-    
-    res.json({ success: true, message: 'Use counted' });
-  } catch (error) {
-    console.error('Error counting use:', error);
-    res.status(500).json({ error: 'Failed to count use' });
-  }
+  res.json({ success: true, message: 'Use counted (mock)' });
 });
 
-// Track prompt copy actions
+// Track prompt copy actions (mock)
 app.post('/api/prompt/:id/copy', async (req, res) => {
-  try {
-    const promptId = req.params.id;
-    
-    const shouldUpdate = Math.random() < 0.3;
-    
-    if (shouldUpdate && db && db.collection) {
-      const promptRef = db.collection('uploads').doc(promptId);
-      const promptDoc = await promptRef.get();
-      
-      if (promptDoc.exists) {
-        const currentCopies = promptDoc.data().copies || 0;
-        await promptRef.update({
-          copies: currentCopies + 1,
-          lastCopiedAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
-        });
-      }
-    }
-    
-    res.json({ 
-      success: true, 
-      message: 'Copy tracked',
-      timestamp: new Date().toISOString()
-    });
-  } catch (error) {
-    console.error('Error tracking copy:', error);
-    res.json({ success: false, error: 'Failed to track copy' });
-  }
+  res.json({ success: true, message: 'Copy tracked (mock)' });
 });
 
-// Get user engagement status
+// Get user engagement status (mock)
 app.get('/api/prompt/:id/user-engagement', async (req, res) => {
-  try {
-    res.json({ userLiked: false, userUsed: false, userCopied: false });
-  } catch (error) {
-    res.json({ userLiked: false, userUsed: false, userCopied: false });
-  }
+  res.json({ userLiked: false, userUsed: false, userCopied: false });
 });
 
-// Engagement Analytics API Endpoint
+// Engagement Analytics API Endpoint (mock)
 app.get('/api/prompt/:id/engagement', async (req, res) => {
-  try {
-    const promptId = req.params.id;
-    
-    const cacheKey = `engagement-${promptId}`;
-    const cached = cache.get(cacheKey);
-    if (cached) {
-      return res.json(cached);
-    }
-    
-    const engagement = await EngagementAnalytics.getPromptEngagement(promptId, db);
-    
-    cache.set(cacheKey, engagement, 120);
-    
-    res.json(engagement);
-  } catch (error) {
-    console.error('Engagement API error:', error);
-    res.status(500).json({ error: 'Failed to fetch engagement data' });
-  }
+  const engagement = await EngagementAnalytics.getPromptEngagement(req.params.id, db);
+  res.json(engagement);
 });
 
 // Search API endpoint
@@ -4785,7 +4460,7 @@ app.get('/api/search', async (req, res) => {
       }
     };
     
-    cache.set(cacheKey, result, 180);
+    cache.set(cacheKey, result, 1200);
     
     res.json(result);
     
@@ -4916,7 +4591,7 @@ app.get('/api/uploads', async (req, res) => {
       }
     };
 
-    cache.set(cacheKey, result, 120);
+    cache.set(cacheKey, result, 1200);
     
     res.json(result);
   } catch (error) {
@@ -5064,13 +4739,7 @@ app.get('/prompt/:id', async (req, res) => {
         hasPurchased = !purchaseQuery.empty;
       }
       promptData = createPromptData(prompt, doc.id, hasPurchased);
-      const shouldUpdateView = Math.random() < 0.2;
-      if (shouldUpdateView) {
-        await db.collection('uploads').doc(promptId).update({
-          views: (prompt.views || 0) + 5,
-          updatedAt: new Date().toISOString()
-        });
-      }
+      // No view update in Firestore - removed
     } else {
       const mockPrompt = mockPrompts.find(p => p.id === promptId) || mockPrompts[0];
       hasPurchased = false;
@@ -5078,7 +4747,7 @@ app.get('/prompt/:id', async (req, res) => {
     }
 
     const html = generateEnhancedPromptHTML(promptData);
-    cache.set(cacheKey, html, 300);
+    cache.set(cacheKey, html, 1200);
     res.set('Content-Type', 'text/html');
     res.send(html);
   } catch (error) {
@@ -5101,7 +4770,7 @@ app.get('/category/:category', async (req, res) => {
     
     const html = generateCategoryHTML(category, baseUrl);
     
-    cache.set(cacheKey, html, 600);
+    cache.set(cacheKey, html, 1200);
     
     res.set('Content-Type', 'text/html');
     res.send(html);
@@ -8072,7 +7741,12 @@ function generateEnhancedPromptHTML(promptData) {
             </div>
 
             <!-- Adsterra Ads - Top of content (high visibility) -->
-            <script zone="98808" src="https://adwixo.com/teg/js/floatwixo.js"></script>
+     <div id="ezoic-pub-ad-placeholder-118"></div>
+<script>
+    ezstandalone.cmd.push(function () {
+        ezstandalone.showAds(118);
+    });
+</script>
             
             ${mediaDisplay}
 
@@ -8095,7 +7769,12 @@ function generateEnhancedPromptHTML(promptData) {
                 </section>
 
                 <!-- Adsterra Ads - Middle of content -->
-              <script zone="98808" src="https://adwixo.com/teg/js/floatwixo.js"></script>
+               <div id="ezoic-pub-ad-placeholder-119"></div>
+          <script>
+         ezstandalone.cmd.push(function () {
+        ezstandalone.showAds(119);
+               });
+          </script>
 
                 <section class="content-section">
                     <h2 class="section-title"><i class="fas fa-info-circle"></i> About This ${isVideo ? 'AI Video' : 'AI Prompt'}</h2>
@@ -8167,7 +7846,12 @@ function generateEnhancedPromptHTML(promptData) {
             </div>
 
             <!-- Adsterra Ads - Bottom of content -->
-            <script zone="98808" src="https://adwixo.com/teg/js/floatwixo.js"></script>
+            <div id="ezoic-pub-ad-placeholder-120"></div>
+<script>
+    ezstandalone.cmd.push(function () {
+        ezstandalone.showAds(120);
+    });
+</script>
         </article>
         
         <section class="content-section" style="margin-top: 2rem;">
@@ -9116,6 +8800,7 @@ app.listen(port, async () => {
   const totalCount = photoCount + videoCount;
   
   console.log(`🚀 Server running on port ${port}`);
+  console.log(`📦 Storage: Cloudflare R2 (ZERO egress fees)`);
   console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`🌐 Base URL: http://localhost:${port}`);
   console.log(`📰 News routes: http://localhost:${port}/news/:id`);
@@ -9165,4 +8850,5 @@ app.listen(port, async () => {
   console.log(`   🎬 VIDEO MODELS (${videoCount})`);
   console.log(`💰 MARKETPLACE ACTIVE: Buy and sell prompts!`);
   console.log(`💳 PAYMENT GATEWAY: Razorpay (India)`);
+  console.log(`💰 NON-FIREBASE SERVICE CHARGES: ELIMINATED (R2 has zero egress fees)`);
 });
