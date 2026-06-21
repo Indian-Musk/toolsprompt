@@ -3479,6 +3479,86 @@ app.get('/api/check-admin', async (req, res) => {
     }
 });
 
+// ==================== AFFILIATE PROGRAM ====================
+
+// Get all affiliates (public)
+app.get('/api/affiliates', async (req, res) => {
+  try {
+    let affiliates = [];
+    if (db && db.collection) {
+      const snapshot = await db.collection('affiliates').orderBy('addedAt', 'desc').get();
+      affiliates = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    } else {
+      affiliates = global.affiliates || [];
+    }
+    res.json({ success: true, affiliates });
+  } catch (error) {
+    console.error('Error fetching affiliates:', error);
+    res.status(500).json({ error: 'Failed to fetch affiliates' });
+  }
+});
+
+// Add affiliate (admin only)
+app.post('/api/affiliates', isAdmin, async (req, res) => {
+  try {
+    const { url, title, image, description } = req.body;
+    if (!url || !title) {
+      return res.status(400).json({ error: 'URL and title are required' });
+    }
+    const affiliateData = {
+      url,
+      title,
+      image: image || '',
+      description: description || '',
+      addedAt: new Date().toISOString()
+    };
+    let id;
+    if (db && db.collection) {
+      const docRef = await db.collection('affiliates').add(affiliateData);
+      id = docRef.id;
+    } else {
+      if (!global.affiliates) global.affiliates = [];
+      const newAffiliate = { id: 'aff-' + Date.now(), ...affiliateData };
+      global.affiliates.push(newAffiliate);
+      id = newAffiliate.id;
+    }
+    res.json({ success: true, id });
+  } catch (error) {
+    console.error('Error adding affiliate:', error);
+    res.status(500).json({ error: 'Failed to add affiliate' });
+  }
+});
+
+// Delete affiliate (admin only)
+app.delete('/api/affiliates/:id', isAdmin, async (req, res) => {
+  try {
+    const id = req.params.id;
+    if (db && db.collection) {
+      await db.collection('affiliates').doc(id).delete();
+    } else {
+      global.affiliates = (global.affiliates || []).filter(a => a.id !== id);
+    }
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting affiliate:', error);
+    res.status(500).json({ error: 'Failed to delete affiliate' });
+  }
+});
+
+// Helper to get random affiliates
+async function getRandomAffiliates(count = 3) {
+  let affiliates = [];
+  if (db && db.collection) {
+    const snapshot = await db.collection('affiliates').get();
+    affiliates = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  } else {
+    affiliates = global.affiliates || [];
+  }
+  // Shuffle and pick
+  const shuffled = affiliates.sort(() => 0.5 - Math.random());
+  return shuffled.slice(0, count);
+}
+
 // ==================== SELLER INFO & PAYOUT ENDPOINTS ====================
 
 // Save seller information
@@ -3693,7 +3773,8 @@ app.get('/health', (req, res) => {
       youtubeShorts: true,
       customThumbnails: true,
       marketplace: true,
-      downloadAppButton: true
+      downloadAppButton: true,
+      affiliateProgram: true
     },
     uploadLimits: {
       maxFileSize: '100MB',
@@ -4739,14 +4820,16 @@ app.get('/prompt/:id', async (req, res) => {
         hasPurchased = !purchaseQuery.empty;
       }
       promptData = createPromptData(prompt, doc.id, hasPurchased);
-      // No view update in Firestore - removed
     } else {
       const mockPrompt = mockPrompts.find(p => p.id === promptId) || mockPrompts[0];
       hasPurchased = false;
       promptData = createPromptData(mockPrompt, promptId, hasPurchased);
     }
 
-    const html = generateEnhancedPromptHTML(promptData);
+    // ===== GET 3 RANDOM AFFILIATES =====
+    const affiliates = await getRandomAffiliates(3);
+
+    const html = generateEnhancedPromptHTML(promptData, affiliates);
     cache.set(cacheKey, html, 1200);
     res.set('Content-Type', 'text/html');
     res.send(html);
@@ -4947,6 +5030,8 @@ function createPromptData(prompt, id, hasPurchased = false) {
 
   return promptData;
 }
+
+// ==================== CSS AND HTML FOR PROMPT PAGE ====================
 
 // Mini Browser CSS
 const miniBrowserCSS = `
@@ -5522,193 +5607,6 @@ const platformComparisonCSS = `
     border-radius: 15px;
     font-size: 0.75rem;
     font-weight: 500;
-}
-
-.copy-prompt-container {
-    position: relative;
-    margin: 1rem 0;
-}
-
-.copy-prompt-btn {
-    position: absolute;
-    top: 10px;
-    right: 10px;
-    background: linear-gradient(135deg, #4e54c8 0%, #8f94fb 100%);
-    color: white;
-    border: none;
-    border-radius: 20px;
-    padding: 8px 16px;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 0.9rem;
-    font-weight: 600;
-    box-shadow: 0 4px 15px rgba(78, 84, 200, 0.4);
-    transition: all 0.3s ease;
-    z-index: 10;
-}
-
-.copy-prompt-btn:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 20px rgba(78, 84, 200, 0.6);
-    background: linear-gradient(135deg, #3b41b5 0%, #7c82f0 100%);
-}
-
-.copy-prompt-btn:active {
-    transform: translateY(0);
-    box-shadow: 0 2px 10px rgba(78, 84, 200, 0.4);
-}
-
-.copy-prompt-btn.copied {
-    background: linear-gradient(135deg, #20bf6b 0%, #4cd964 100%);
-}
-
-.copy-prompt-btn.copied i {
-    animation: checkmark 0.5s ease;
-}
-
-.video-container {
-    position: relative;
-    width: 100%;
-    background: #000;
-    border-radius: 12px;
-    overflow: hidden;
-    margin: 1rem 0;
-    box-shadow: 0 5px 15px rgba(0,0,0,0.2);
-}
-
-.video-player {
-    width: 100%;
-    max-height: 600px;
-    display: block;
-    background: #000;
-    aspect-ratio: 16/9;
-    object-fit: contain;
-}
-
-.video-info {
-    display: flex;
-    gap: 1rem;
-    margin-top: 0.5rem;
-    padding: 0.75rem;
-    background: rgba(78, 84, 200, 0.1);
-    border-radius: 8px;
-    flex-wrap: wrap;
-    align-items: center;
-}
-
-.video-info-item {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    color: #4e54c8;
-    font-size: 0.9rem;
-}
-
-.video-info-item i {
-    font-size: 1rem;
-}
-
-.video-badge {
-    position: absolute;
-    top: 10px;
-    right: 10px;
-    background: #ff6b6b;
-    color: white;
-    padding: 4px 8px;
-    border-radius: 12px;
-    font-size: 0.7rem;
-    font-weight: 600;
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    z-index: 5;
-}
-
-.ai-model-badge {
-    background: #4e54c8;
-    color: white;
-    padding: 4px 10px;
-    border-radius: 20px;
-    font-size: 0.75rem;
-    font-weight: 600;
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    margin-left: 10px;
-}
-
-.price-badge {
-    position: absolute;
-    top: 10px;
-    left: 10px;
-    background: linear-gradient(135deg, #ff6b6b 0%, #ff8787 100%);
-    color: white;
-    padding: 4px 12px;
-    border-radius: 20px;
-    font-size: 0.8rem;
-    font-weight: bold;
-    z-index: 15;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-}
-
-.price-badge.free {
-    background: linear-gradient(135deg, #20bf6b 0%, #4cd964 100%);
-}
-
-@media (max-width: 768px) {
-    .platform-comparison {
-        padding: 1.5rem;
-    }
-    
-    .comparison-table-container {
-        padding: 0.75rem;
-    }
-    
-    .platform-comparison-table th,
-    .platform-comparison-table td {
-        padding: 0.75rem;
-    }
-    
-    .model-tips-grid {
-        grid-template-columns: 1fr;
-    }
-    
-    .tools-grid-enhanced {
-        grid-template-columns: 1fr;
-    }
-    
-    .copy-prompt-btn {
-        padding: 6px 12px;
-        font-size: 0.8rem;
-    }
-}
-
-@media (max-width: 480px) {
-    .platform-comparison {
-        padding: 1rem;
-    }
-    
-    .platform-comparison-table {
-        font-size: 0.9rem;
-    }
-    
-    .platform-comparison-table th,
-    .platform-comparison-table td {
-        padding: 0.5rem;
-    }
-    
-    .price-tag,
-    .category-badge {
-        font-size: 0.7rem;
-        padding: 2px 8px;
-    }
-    
-    .price-badge {
-        font-size: 0.7rem;
-        padding: 3px 8px;
-    }
 }
 `;
 
@@ -6454,7 +6352,25 @@ document.addEventListener('DOMContentLoaded', function() {
 `;
 }
 
-function generateEnhancedPromptHTML(promptData) {
+// Helper to generate affiliate HTML
+function generateAffiliateHTML(affiliate) {
+  if (!affiliate) return '';
+  return `
+    <div class="affiliate-container">
+      <div class="ad-label">🌟 Sponsored</div>
+      <a href="${affiliate.url}" target="_blank" rel="noopener sponsored" class="affiliate-link">
+        ${affiliate.image ? `<img src="${affiliate.image}" alt="${affiliate.title}" class="affiliate-image" onerror="this.style.display='none'">` : ''}
+        <div class="affiliate-info">
+          <h4>${affiliate.title}</h4>
+          ${affiliate.description ? `<p>${affiliate.description}</p>` : ''}
+          <span class="affiliate-cta">View Product →</span>
+        </div>
+      </a>
+    </div>
+  `;
+}
+
+function generateEnhancedPromptHTML(promptData, affiliates) {
   const prompt = promptData;
   const baseUrl = 'https://www.toolsprompt.com';
   const promptUrl = baseUrl + '/prompt/' + promptData.id;
@@ -6729,6 +6645,11 @@ function generateEnhancedPromptHTML(promptData) {
         }
     }, 500);
   `;
+
+  // ---- AFFILIATE PLACEMENT ----
+  const affiliateTop = affiliates[0] ? generateAffiliateHTML(affiliates[0]) : '';
+  const affiliateMiddle = affiliates[1] ? generateAffiliateHTML(affiliates[1]) : '';
+  const affiliateBottom = affiliates[2] ? generateAffiliateHTML(affiliates[2]) : '';
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -7675,6 +7596,71 @@ function generateEnhancedPromptHTML(promptData) {
             box-shadow: 0 4px 15px rgba(0,0,0,0.2);
             white-space: nowrap;
         }
+        
+        /* Affiliate Styles */
+        .affiliate-container {
+            margin: 20px 0;
+            padding: 15px;
+            background: #fff;
+            border-radius: 12px;
+            border: 1px solid #e9ecef;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            transition: transform 0.2s ease;
+        }
+        .affiliate-container:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.1);
+        }
+        .affiliate-link {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            text-decoration: none;
+            color: inherit;
+        }
+        .affiliate-image {
+            width: 80px;
+            height: 80px;
+            object-fit: cover;
+            border-radius: 8px;
+            flex-shrink: 0;
+        }
+        .affiliate-info {
+            flex: 1;
+        }
+        .affiliate-info h4 {
+            margin: 0 0 5px 0;
+            color: #2d334a;
+            font-size: 1.05rem;
+        }
+        .affiliate-info p {
+            margin: 0;
+            color: #666;
+            font-size: 0.9rem;
+            line-height: 1.4;
+        }
+        .affiliate-cta {
+            background: #4e54c8;
+            color: white;
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            white-space: nowrap;
+            display: inline-block;
+            margin-top: 4px;
+        }
+        @media (max-width: 768px) {
+            .affiliate-link {
+                flex-direction: column;
+                text-align: center;
+            }
+            .affiliate-image {
+                width: 100%;
+                height: auto;
+                max-height: 150px;
+            }
+        }
     </style>
 </head>
 <body>
@@ -7741,7 +7727,7 @@ function generateEnhancedPromptHTML(promptData) {
             </div>
 
             <!-- Adsterra Ads - Top of content (high visibility) -->
-     <div id="ezoic-pub-ad-placeholder-118"></div>
+            <div id="ezoic-pub-ad-placeholder-118"></div>
 <script>
     ezstandalone.cmd.push(function () {
         ezstandalone.showAds(118);
@@ -7749,6 +7735,9 @@ function generateEnhancedPromptHTML(promptData) {
 </script>
             
             ${mediaDisplay}
+
+            <!-- AFFILIATE: TOP -->
+            ${affiliateTop}
 
             <div class="prompt-content">
                 <section class="content-section">
@@ -7769,7 +7758,7 @@ function generateEnhancedPromptHTML(promptData) {
                 </section>
 
                 <!-- Adsterra Ads - Middle of content -->
-               <div id="ezoic-pub-ad-placeholder-119"></div>
+                <div id="ezoic-pub-ad-placeholder-119"></div>
           <script>
          ezstandalone.cmd.push(function () {
         ezstandalone.showAds(119);
@@ -7782,6 +7771,9 @@ function generateEnhancedPromptHTML(promptData) {
                         <p>${promptData.detailedExplanation}</p>
                     </div>
                 </section>
+
+                <!-- AFFILIATE: MIDDLE -->
+                ${affiliateMiddle}
 
                 <section class="content-section">
                     <h2 class="section-title"><i class="fas fa-chart-bar"></i> AI Platform Comparison (${isVideo ? AIModelManager.getVideoModelCount() : AIModelManager.getPhotoModelCount()}+ Models)</h2>
@@ -7852,6 +7844,9 @@ function generateEnhancedPromptHTML(promptData) {
         ezstandalone.showAds(120);
     });
 </script>
+
+            <!-- AFFILIATE: BOTTOM -->
+            ${affiliateBottom}
         </article>
         
         <section class="content-section" style="margin-top: 2rem;">
@@ -7937,6 +7932,7 @@ function generateEnhancedPromptHTML(promptData) {
                     <li><a href="https://www.toolsprompt.com/howitworks.html">How It Works</a></li>
                     <li><a href="/sitemap.xml">Sitemap</a></li>
                     <li><a href="/robots.txt">Robots.txt</a></li>
+                    <li><a href="/affiliate.html">Affiliate Manager (Admin)</a></li>
                 </ul>
             </div>
         </div>
@@ -8851,4 +8847,6 @@ app.listen(port, async () => {
   console.log(`💰 MARKETPLACE ACTIVE: Buy and sell prompts!`);
   console.log(`💳 PAYMENT GATEWAY: Razorpay (India)`);
   console.log(`💰 NON-FIREBASE SERVICE CHARGES: ELIMINATED (R2 has zero egress fees)`);
+  console.log(`🔗 AFFILIATE PROGRAM ACTIVE: Manage affiliate products at /affiliate.html`);
+  console.log(`   → Random 3 affiliates shown per prompt page (top, middle, bottom)`);
 });

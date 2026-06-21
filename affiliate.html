@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Affiliate Manager - Tools Prompt</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', sans-serif; }
+    body { background: #f5f7fa; padding: 30px; }
+    .container { max-width: 900px; margin: 0 auto; background: white; padding: 30px; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); }
+    h1 { color: #4e54c8; margin-bottom: 30px; display: flex; align-items: center; gap: 10px; }
+    .form-group { margin-bottom: 20px; }
+    label { display: block; font-weight: 600; margin-bottom: 5px; color: #333; }
+    input, textarea { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 1rem; }
+    textarea { resize: vertical; min-height: 60px; }
+    .btn { background: #4e54c8; color: white; border: none; padding: 12px 24px; border-radius: 30px; font-size: 1rem; font-weight: 600; cursor: pointer; transition: 0.3s; }
+    .btn:hover { background: #3a3fb5; transform: translateY(-2px); }
+    .btn-danger { background: #ff6b6b; }
+    .btn-danger:hover { background: #e55a5a; }
+    .affiliate-list { margin-top: 40px; }
+    .affiliate-item { display: flex; justify-content: space-between; align-items: center; padding: 15px; background: #f8f9fa; border-radius: 10px; margin-bottom: 10px; border-left: 4px solid #4e54c8; }
+    .affiliate-info { flex: 1; }
+    .affiliate-info h3 { margin: 0 0 5px; font-size: 1.1rem; }
+    .affiliate-info p { margin: 0; color: #666; font-size: 0.9rem; }
+    .affiliate-info a { color: #4e54c8; word-break: break-all; }
+    .empty { text-align: center; color: #888; padding: 40px; }
+    .nav-links { margin-bottom: 20px; }
+    .nav-links a { color: #4e54c8; text-decoration: none; margin-right: 20px; font-weight: 500; }
+    .nav-links a:hover { text-decoration: underline; }
+    .toast { position: fixed; bottom: 20px; right: 20px; background: #20bf6b; color: white; padding: 12px 20px; border-radius: 8px; z-index: 999; box-shadow: 0 4px 12px rgba(0,0,0,0.2); display: none; }
+    .toast.error { background: #ff6b6b; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="nav-links">
+      <a href="/">← Home</a>
+      <a href="/dashboard.html">Dashboard</a>
+    </div>
+    <h1><i class="fas fa-link"></i> Affiliate Program Manager</h1>
+    <p style="color: #666; margin-bottom: 20px;">Add your Amazon (or any) affiliate product links. They will appear randomly on prompt pages (top, middle, bottom).</p>
+
+    <form id="affiliateForm">
+      <div class="form-group">
+        <label for="url">Product URL *</label>
+        <input type="url" id="url" placeholder="https://amazon.in/dp/..." required />
+      </div>
+      <div class="form-group">
+        <label for="title">Product Title *</label>
+        <input type="text" id="title" placeholder="Enter product name" required />
+      </div>
+      <div class="form-group">
+        <label for="image">Product Image URL (optional)</label>
+        <input type="url" id="image" placeholder="https://example.com/image.jpg" />
+      </div>
+      <div class="form-group">
+        <label for="description">Short Description (optional)</label>
+        <textarea id="description" placeholder="Brief description of the product"></textarea>
+      </div>
+      <button type="submit" class="btn"><i class="fas fa-plus"></i> Add Affiliate Link</button>
+    </form>
+
+    <div class="affiliate-list" id="affiliateList">
+      <div class="empty">Loading affiliates...</div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast"></div>
+
+  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
+  <script>
+    // Firebase config (same as main)
+    const firebaseConfig = {
+      apiKey: "AIzaSyCgc0xRtijpyPhOovfwg-MzyahsUFh-hiQ",
+      authDomain: "toolsprompt-5b07e.firebaseapp.com",
+      projectId: "toolsprompt-5b07e",
+      storageBucket: "toolsprompt-5b07e.firebasestorage.app",
+      messagingSenderId: "402263780942",
+      appId: "1:402263780942:web:1013a347dbb72db6b31d1f"
+    };
+    firebase.initializeApp(firebaseConfig);
+
+    const ADMIN_EMAILS = ['shaikhmujahid771@gmail.com', 'mujjuchatbot@gmail.com'];
+
+    async function getAuthToken() {
+      return new Promise((resolve, reject) => {
+        const unsubscribe = firebase.auth().onAuthStateChanged(user => {
+          unsubscribe();
+          if (user) {
+            user.getIdToken().then(resolve).catch(reject);
+          } else {
+            reject(new Error('Not logged in'));
+          }
+        });
+      });
+    }
+
+    async function checkAdmin() {
+      try {
+        const token = await getAuthToken();
+        const response = await fetch('/api/check-admin', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const data = await response.json();
+        if (!data.isAdmin) {
+          window.location.href = '/login.html?returnUrl=' + encodeURIComponent(window.location.href);
+        }
+        return token;
+      } catch (error) {
+        window.location.href = '/login.html?returnUrl=' + encodeURIComponent(window.location.href);
+      }
+    }
+
+    let authToken = null;
+
+    async function fetchAffiliates() {
+      try {
+        const res = await fetch('/api/affiliates');
+        const data = await res.json();
+        if (data.success) {
+          renderAffiliates(data.affiliates);
+        }
+      } catch (e) {
+        showToast('Failed to load affiliates', true);
+      }
+    }
+
+    function renderAffiliates(affiliates) {
+      const list = document.getElementById('affiliateList');
+      if (!affiliates || affiliates.length === 0) {
+        list.innerHTML = '<div class="empty"><i class="fas fa-box-open" style="font-size: 2rem; opacity: 0.3; display: block; margin-bottom: 10px;"></i>No affiliate links added yet.</div>';
+        return;
+      }
+      list.innerHTML = affiliates.map(a => `
+        <div class="affiliate-item" data-id="${a.id}">
+          <div class="affiliate-info">
+            <h3>${a.title}</h3>
+            <p>${a.description || ''}</p>
+            <a href="${a.url}" target="_blank" rel="noopener">${a.url}</a>
+          </div>
+          <button class="btn btn-danger delete-btn" data-id="${a.id}"><i class="fas fa-trash"></i></button>
+        </div>
+      `).join('');
+
+      document.querySelectorAll('.delete-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          if (!confirm('Delete this affiliate link?')) return;
+          const id = btn.dataset.id;
+          try {
+            const res = await fetch(`/api/affiliates/${id}`, {
+              method: 'DELETE',
+              headers: { 'Authorization': `Bearer ${authToken}` }
+            });
+            if (res.ok) {
+              showToast('Affiliate deleted');
+              fetchAffiliates();
+            } else {
+              showToast('Failed to delete', true);
+            }
+          } catch (e) {
+            showToast('Error deleting', true);
+          }
+        });
+      });
+    }
+
+    document.getElementById('affiliateForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const url = document.getElementById('url').value.trim();
+      const title = document.getElementById('title').value.trim();
+      const image = document.getElementById('image').value.trim();
+      const description = document.getElementById('description').value.trim();
+
+      if (!url || !title) {
+        showToast('URL and Title are required', true);
+        return;
+      }
+
+      try {
+        const res = await fetch('/api/affiliates', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${authToken}`
+          },
+          body: JSON.stringify({ url, title, image, description })
+        });
+        if (res.ok) {
+          showToast('Affiliate added successfully!');
+          document.getElementById('affiliateForm').reset();
+          fetchAffiliates();
+        } else {
+          showToast('Failed to add affiliate', true);
+        }
+      } catch (e) {
+        showToast('Error adding affiliate', true);
+      }
+    });
+
+    function showToast(msg, isError = false) {
+      const toast = document.getElementById('toast');
+      toast.textContent = msg;
+      toast.className = 'toast' + (isError ? ' error' : '');
+      toast.style.display = 'block';
+      setTimeout(() => { toast.style.display = 'none'; }, 3000);
+    }
+
+    // Init
+    (async () => {
+      try {
+        authToken = await checkAdmin();
+        await fetchAffiliates();
+      } catch (e) {
+        console.error(e);
+      }
+    })();
+  </script>
+</body>
+</html>
