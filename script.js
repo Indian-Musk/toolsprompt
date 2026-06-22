@@ -1525,6 +1525,7 @@ class ShortsHorizontalFeed {
         this.isLoading = false;
         this.hasMore = true;
         this.last24hPrompts = [];
+        this.feedSection = null;  // Store reference to the feed container
         this.init();
     }
 
@@ -1573,6 +1574,12 @@ class ShortsHorizontalFeed {
         }
         
         this.track = document.getElementById('shortsTrack');
+        this.feedSection = document.getElementById('shortsHorizontalFeed');
+        
+        // Initially hide the feed if no recent prompts (will be shown after loading)
+        if (this.feedSection) {
+            this.feedSection.style.display = 'none';
+        }
     }
 
     setupEventListeners() {
@@ -1821,6 +1828,9 @@ class ShortsHorizontalFeed {
     displayShorts() {
         if (!this.track) return;
 
+        // Clear existing content
+        this.track.innerHTML = '';
+
         if (this.last24hPrompts.length === 0) {
             this.track.innerHTML = `
                 <div class="no-prompts" style="text-align: center; padding: 40px; color: #666; width: 100%;">
@@ -1829,17 +1839,27 @@ class ShortsHorizontalFeed {
                     <p style="font-size: 0.9rem; margin-top: 5px;">Upload a prompt to see it here!</p>
                 </div>
             `;
+            // Hide the feed section
+            this.updateFeedVisibility(false);
             return;
         }
 
-        this.track.innerHTML = '';
-        
+        // Render items
         this.last24hPrompts.forEach(prompt => {
             const item = this.createShortItem(prompt);
             this.track.appendChild(item);
         });
 
         this.updateNavigation();
+        // Show the feed section
+        this.updateFeedVisibility(true);
+    }
+
+    // New method to show/hide the feed container
+    updateFeedVisibility(show) {
+        if (this.feedSection) {
+            this.feedSection.style.display = show ? 'block' : 'none';
+        }
     }
 
     createShortItem(prompt) {

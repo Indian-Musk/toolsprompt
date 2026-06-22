@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Affiliate Manager - Tools Prompt</title>
+  <title>My Affiliate Manager - Tools Prompt</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', sans-serif; }
@@ -30,6 +30,10 @@
     .nav-links a:hover { text-decoration: underline; }
     .toast { position: fixed; bottom: 20px; right: 20px; background: #20bf6b; color: white; padding: 12px 20px; border-radius: 8px; z-index: 999; box-shadow: 0 4px 12px rgba(0,0,0,0.2); display: none; }
     .toast.error { background: #ff6b6b; }
+    .auth-section { text-align: center; padding: 30px; }
+    .auth-section .btn { font-size: 1.1rem; padding: 14px 30px; }
+    .user-info { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; background: #f8f9fa; padding: 10px 20px; border-radius: 30px; justify-content: center; }
+    .user-info img { width: 40px; height: 40px; border-radius: 50%; }
   </style>
 </head>
 <body>
@@ -38,31 +42,41 @@
       <a href="/">← Home</a>
       <a href="/dashboard.html">Dashboard</a>
     </div>
-    <h1><i class="fas fa-link"></i> Affiliate Program Manager</h1>
-    <p style="color: #666; margin-bottom: 20px;">Add your Amazon (or any) affiliate product links. They will appear randomly on prompt pages (top, middle, bottom).</p>
+    <h1><i class="fas fa-link"></i> My Affiliate Links</h1>
+    <p style="color: #666; margin-bottom: 20px;">Add your own affiliate product links – they will appear only on your uploaded prompt pages (top, middle, bottom).</p>
 
-    <form id="affiliateForm">
-      <div class="form-group">
-        <label for="url">Product URL *</label>
-        <input type="url" id="url" placeholder="https://amazon.in/dp/..." required />
+    <div id="authSection">
+      <div class="auth-section">
+        <p>Please log in to manage your affiliates.</p>
+        <button class="btn" onclick="window.location.href='/login.html?returnUrl='+encodeURIComponent(window.location.href)">Login / Register</button>
       </div>
-      <div class="form-group">
-        <label for="title">Product Title *</label>
-        <input type="text" id="title" placeholder="Enter product name" required />
-      </div>
-      <div class="form-group">
-        <label for="image">Product Image URL (optional)</label>
-        <input type="url" id="image" placeholder="https://example.com/image.jpg" />
-      </div>
-      <div class="form-group">
-        <label for="description">Short Description (optional)</label>
-        <textarea id="description" placeholder="Brief description of the product"></textarea>
-      </div>
-      <button type="submit" class="btn"><i class="fas fa-plus"></i> Add Affiliate Link</button>
-    </form>
+    </div>
 
-    <div class="affiliate-list" id="affiliateList">
-      <div class="empty">Loading affiliates...</div>
+    <div id="affiliateManager" style="display:none;">
+      <div class="user-info" id="userInfo"></div>
+      <form id="affiliateForm">
+        <div class="form-group">
+          <label for="url">Product URL *</label>
+          <input type="url" id="url" placeholder="https://amazon.in/dp/..." required />
+        </div>
+        <div class="form-group">
+          <label for="title">Product Title *</label>
+          <input type="text" id="title" placeholder="Enter product name" required />
+        </div>
+        <div class="form-group">
+          <label for="image">Product Image URL (optional)</label>
+          <input type="url" id="image" placeholder="https://example.com/image.jpg" />
+        </div>
+        <div class="form-group">
+          <label for="description">Short Description (optional)</label>
+          <textarea id="description" placeholder="Brief description of the product"></textarea>
+        </div>
+        <button type="submit" class="btn"><i class="fas fa-plus"></i> Add Affiliate Link</button>
+      </form>
+
+      <div class="affiliate-list" id="affiliateList">
+        <div class="empty">Loading your affiliates...</div>
+      </div>
     </div>
   </div>
 
@@ -82,42 +96,44 @@
     };
     firebase.initializeApp(firebaseConfig);
 
-    const ADMIN_EMAILS = ['shaikhmujahid771@gmail.com', 'mujjuchatbot@gmail.com'];
+    let currentUser = null;
+    let authToken = null;
 
-    async function getAuthToken() {
-      return new Promise((resolve, reject) => {
-        const unsubscribe = firebase.auth().onAuthStateChanged(user => {
-          unsubscribe();
-          if (user) {
-            user.getIdToken().then(resolve).catch(reject);
-          } else {
-            reject(new Error('Not logged in'));
-          }
-        });
-      });
-    }
+    function updateUI(user) {
+      const authSection = document.getElementById('authSection');
+      const manager = document.getElementById('affiliateManager');
+      const userInfo = document.getElementById('userInfo');
 
-    async function checkAdmin() {
-      try {
-        const token = await getAuthToken();
-        const response = await fetch('/api/check-admin', {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        const data = await response.json();
-        if (!data.isAdmin) {
-          window.location.href = '/login.html?returnUrl=' + encodeURIComponent(window.location.href);
-        }
-        return token;
-      } catch (error) {
-        window.location.href = '/login.html?returnUrl=' + encodeURIComponent(window.location.href);
+      if (user) {
+        currentUser = user;
+        authSection.style.display = 'none';
+        manager.style.display = 'block';
+        userInfo.innerHTML = `
+          <img src="${user.photoURL || ''}" alt="Avatar" onerror="this.style.display='none'">
+          <span><strong>${user.displayName || user.email}</strong></span>
+          <button class="btn btn-danger" onclick="logout()" style="padding:6px 16px;">Logout</button>
+        `;
+        user.getIdToken().then(token => { authToken = token; fetchAffiliates(); });
+      } else {
+        currentUser = null;
+        authToken = null;
+        authSection.style.display = 'block';
+        manager.style.display = 'none';
       }
     }
 
-    let authToken = null;
+    firebase.auth().onAuthStateChanged(user => {
+      updateUI(user);
+    });
+
+    function logout() {
+      firebase.auth().signOut().then(() => window.location.reload());
+    }
 
     async function fetchAffiliates() {
+      if (!currentUser) return;
       try {
-        const res = await fetch('/api/affiliates');
+        const res = await fetch('/api/affiliates?userId=' + currentUser.uid);
         const data = await res.json();
         if (data.success) {
           renderAffiliates(data.affiliates);
@@ -130,7 +146,7 @@
     function renderAffiliates(affiliates) {
       const list = document.getElementById('affiliateList');
       if (!affiliates || affiliates.length === 0) {
-        list.innerHTML = '<div class="empty"><i class="fas fa-box-open" style="font-size: 2rem; opacity: 0.3; display: block; margin-bottom: 10px;"></i>No affiliate links added yet.</div>';
+        list.innerHTML = '<div class="empty"><i class="fas fa-box-open" style="font-size: 2rem; opacity: 0.3; display: block; margin-bottom: 10px;"></i>You haven\'t added any affiliate links yet.</div>';
         return;
       }
       list.innerHTML = affiliates.map(a => `
@@ -168,6 +184,10 @@
 
     document.getElementById('affiliateForm').addEventListener('submit', async (e) => {
       e.preventDefault();
+      if (!currentUser) {
+        showToast('Please log in first', true);
+        return;
+      }
       const url = document.getElementById('url').value.trim();
       const title = document.getElementById('title').value.trim();
       const image = document.getElementById('image').value.trim();
@@ -206,16 +226,6 @@
       toast.style.display = 'block';
       setTimeout(() => { toast.style.display = 'none'; }, 3000);
     }
-
-    // Init
-    (async () => {
-      try {
-        authToken = await checkAdmin();
-        await fetchAffiliates();
-      } catch (e) {
-        console.error(e);
-      }
-    })();
   </script>
 </body>
 </html>

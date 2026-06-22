@@ -3479,17 +3479,26 @@ app.get('/api/check-admin', async (req, res) => {
     }
 });
 
-// ==================== AFFILIATE PROGRAM ====================
+// ==================== AFFILIATE PROGRAM (PER-USER) ====================
 
-// Get all affiliates (public)
+// Get all affiliates (public) or filtered by userId
 app.get('/api/affiliates', async (req, res) => {
   try {
+    const userId = req.query.userId;
     let affiliates = [];
+    
     if (db && db.collection) {
-      const snapshot = await db.collection('affiliates').orderBy('addedAt', 'desc').get();
+      let query = db.collection('affiliates').orderBy('addedAt', 'desc');
+      if (userId) {
+        query = query.where('userId', '==', userId);
+      }
+      const snapshot = await query.get();
       affiliates = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     } else {
       affiliates = global.affiliates || [];
+      if (userId) {
+        affiliates = affiliates.filter(a => a.userId === userId);
+      }
     }
     res.json({ success: true, affiliates });
   } catch (error) {
@@ -3498,14 +3507,34 @@ app.get('/api/affiliates', async (req, res) => {
   }
 });
 
-// Add affiliate (admin only)
-app.post('/api/affiliates', isAdmin, async (req, res) => {
+// Add affiliate (any logged-in user)
+app.post('/api/affiliates', async (req, res) => {
   try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+    const idToken = authHeader.split('Bearer ')[1];
+    let userId;
+    try {
+      const decodedToken = await admin.auth().verifyIdToken(idToken);
+      userId = decodedToken.uid;
+    } catch (e) {
+      // In development, allow mock user
+      if (!adminInitialized) {
+        userId = 'mock-user-' + Date.now();
+      } else {
+        throw e;
+      }
+    }
+    
     const { url, title, image, description } = req.body;
     if (!url || !title) {
       return res.status(400).json({ error: 'URL and title are required' });
     }
+    
     const affiliateData = {
+      userId,
       url,
       title,
       image: image || '',
@@ -3525,14 +3554,47 @@ app.post('/api/affiliates', isAdmin, async (req, res) => {
     res.json({ success: true, id });
   } catch (error) {
     console.error('Error adding affiliate:', error);
-    res.status(500).json({ error: 'Failed to add affiliate' });
+    res.status(500).json({ error: 'Failed to add affiliate: ' + error.message });
   }
 });
 
-// Delete affiliate (admin only)
-app.delete('/api/affiliates/:id', isAdmin, async (req, res) => {
+// Delete affiliate (only if it belongs to the logged-in user or admin)
+app.delete('/api/affiliates/:id', async (req, res) => {
   try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+    const idToken = authHeader.split('Bearer ')[1];
+    let userId;
+    let isAdminUser = false;
+    try {
+      const decodedToken = await admin.auth().verifyIdToken(idToken);
+      userId = decodedToken.uid;
+      isAdminUser = ADMIN_EMAILS.includes(decodedToken.email);
+    } catch (e) {
+      if (!adminInitialized) {
+        userId = 'mock-user';
+      } else {
+        throw e;
+      }
+    }
+    
     const id = req.params.id;
+    let affiliate;
+    if (db && db.collection) {
+      const doc = await db.collection('affiliates').doc(id).get();
+      if (!doc.exists) return res.status(404).json({ error: 'Affiliate not found' });
+      affiliate = doc.data();
+    } else {
+      affiliate = (global.affiliates || []).find(a => a.id === id);
+      if (!affiliate) return res.status(404).json({ error: 'Affiliate not found' });
+    }
+    
+    if (affiliate.userId !== userId && !isAdminUser) {
+      return res.status(403).json({ error: 'You can only delete your own affiliates' });
+    }
+    
     if (db && db.collection) {
       await db.collection('affiliates').doc(id).delete();
     } else {
@@ -3541,20 +3603,27 @@ app.delete('/api/affiliates/:id', isAdmin, async (req, res) => {
     res.json({ success: true });
   } catch (error) {
     console.error('Error deleting affiliate:', error);
-    res.status(500).json({ error: 'Failed to delete affiliate' });
+    res.status(500).json({ error: 'Failed to delete affiliate: ' + error.message });
   }
 });
 
-// Helper to get random affiliates
-async function getRandomAffiliates(count = 3) {
+// 🔥 FIXED: Helper to get affiliates for a specific user (shuffled)
+async function getAffiliatesByUser(userId, count = 3) {
+  // ✅ Return early if userId is missing
+  if (!userId) {
+    return [];
+  }
+
   let affiliates = [];
   if (db && db.collection) {
-    const snapshot = await db.collection('affiliates').get();
+    const snapshot = await db.collection('affiliates')
+      .where('userId', '==', userId)
+      .get();
     affiliates = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
   } else {
-    affiliates = global.affiliates || [];
+    affiliates = (global.affiliates || []).filter(a => a.userId === userId);
   }
-  // Shuffle and pick
+  // Shuffle and return requested count
   const shuffled = affiliates.sort(() => 0.5 - Math.random());
   return shuffled.slice(0, count);
 }
@@ -4826,8 +4895,9 @@ app.get('/prompt/:id', async (req, res) => {
       promptData = createPromptData(mockPrompt, promptId, hasPurchased);
     }
 
-    // ===== GET 3 RANDOM AFFILIATES =====
-    const affiliates = await getRandomAffiliates(3);
+    // ===== GET AFFILIATES FOR THIS PROMPT'S CREATOR =====
+    const creatorId = promptData.userId;
+    const affiliates = await getAffiliatesByUser(creatorId, 3);
 
     const html = generateEnhancedPromptHTML(promptData, affiliates);
     cache.set(cacheKey, html, 1200);
@@ -4987,6 +5057,7 @@ function createPromptData(prompt, id, hasPurchased = false) {
     promptText: promptText,
     fullPromptText: fullPromptText,
     userName: safePrompt.userName || 'Anonymous',
+userId: safePrompt.userId || 'anonymous', 
     likes: safePrompt.likes || 0,
     views: safePrompt.views || 0,
     uses: safePrompt.uses || 0,

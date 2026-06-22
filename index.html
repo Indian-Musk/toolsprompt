@@ -494,6 +494,114 @@ nav {
     line-height: 1.5;
 }
 
+/* ===== NEW: EARNING HERO & STEPS SECTION ===== */
+.earn-hero-section {
+    background: linear-gradient(135deg, #4e54c8 0%, #8f94fb 100%);
+    color: white;
+    padding: 50px 20px;
+    border-radius: 20px;
+    margin: 40px 0;
+    box-shadow: 0 10px 30px rgba(78,84,200,0.3);
+    position: relative;
+    overflow: hidden;
+}
+.earn-hero-section::before {
+    content: "💰";
+    position: absolute;
+    font-size: 8rem;
+    opacity: 0.1;
+    right: -20px;
+    top: -30px;
+    transform: rotate(15deg);
+}
+.earn-hero-section h2 {
+    font-size: 2.2rem;
+    margin-bottom: 15px;
+    color: white;
+}
+.earn-hero-section p {
+    font-size: 1.2rem;
+    opacity: 0.95;
+    max-width: 700px;
+    margin: 0 auto 25px;
+}
+.earn-stats {
+    display: flex;
+    justify-content: center;
+    gap: 40px;
+    flex-wrap: wrap;
+    margin: 25px 0;
+}
+.earn-stat {
+    font-weight: bold;
+    font-size: 1.6rem;
+}
+.earn-stat small {
+    display: block;
+    font-size: 0.9rem;
+    opacity: 0.8;
+    font-weight: normal;
+}
+
+.earn-cta-btn {
+    background: white;
+    color: #4e54c8;
+    border: none;
+    padding: 16px 40px;
+    border-radius: 50px;
+    font-size: 1.2rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+}
+.earn-cta-btn:hover {
+    transform: scale(1.05) translateY(-3px);
+    box-shadow: 0 8px 25px rgba(0,0,0,0.3);
+}
+
+.steps-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 25px;
+    margin: 30px 0;
+}
+.step-card {
+    background: white;
+    color: #2d334a;
+    padding: 25px;
+    border-radius: 15px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+    text-align: center;
+    border-top: 4px solid #4e54c8;
+}
+.step-number {
+    background: #4e54c8;
+    color: white;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    margin: 0 auto 15px;
+}
+.step-card h3 {
+    color: #2d334a;
+    margin-bottom: 8px;
+}
+.step-card p {
+    color: #555;
+}
+
+@media (max-width: 768px) {
+    .earn-hero-section h2 { font-size: 1.8rem; }
+    .earn-stats { gap: 20px; }
+    .earn-stat { font-size: 1.3rem; }
+    .steps-grid { grid-template-columns: 1fr; }
+}
+
 /* Desktop Title */
 .desktop-only {
     margin: 20px 0;
@@ -1895,7 +2003,7 @@ nav {
                 <div class="nav-left">
                     <a href="index.html" class="logo">
                         <img src="logo.png" alt="Tools prompt Logo - AI Prompt Marketplace">
-                        <span>Tools prompt</span>
+                        <span>Toolsprompt</span>
                     </a>
                 </div>
                 
@@ -1915,49 +2023,91 @@ nav {
                 </div>
 
                 <div class="nav-right">
+                    <!-- NEW AFFILIATE LINK -->
+                    <a href="/affiliate.html" class="affiliate-link" style="margin-right: 15px; color: #4e54c8; text-decoration: none; font-weight: 500; display: inline-flex; align-items: center; gap: 5px;">
+                        <i class="fas fa-link"></i> Affiliate
+                    </a>
                     <div class="auth-section" id="authSection"></div>
                 </div>
             </nav>
         </div>
     </header>
 
-    <!-- SEO Optimized Content Section -->
-    <section class="seo-content-section">
-        <div class="container">
-            <h2>Welcome to Tools prompt - AI Prompt Marketplace</h2>
-            <p>Discover the power of <span class="seo-keyword-highlight">Toolsprompt</span>, the leading AI Prompt Marketplace where you can <span class="seo-keyword-highlight">buy and sell AI prompts</span> access<span class="seo-keyword-highlight">Unlimited Free Prompts</span>  Join thousands of prompt engineers and start earning from your creative prompts today!</p>
-            <p>Whether you're looking for <span class="seo-keyword-highlight">AI photo prompts</span>, <span class="seo-keyword-highlight">AI video prompts</span>, or <span class="seo-keyword-highlight">viral AI reels</span>, our marketplace has everything you need. <span class="seo-keyword-highlight">Sell your prompts</span> and make money while helping others create amazing AI content!</p>
-        </div>
-    </section>
-
-    <!-- Benefits Section -->
-    <section class="container">
-        <h2 style="text-align: center; color: #2d334a; margin: 40px 0 30px;">Why Choose Tools prompt Marketplace?</h2>
-        <div class="benefits-grid">
-            <div class="benefit-card">
-                <i class="fas fa-shopping-cart"></i>
-                <h3>Buy Premium Prompts</h3>
-                <p>Access thousands of high-quality AI prompts from top creators. Get instant access to the prompts you need.</p>
-            </div>
-            <div class="benefit-card">
-                <i class="fas fa-dollar-sign"></i>
-                <h3>Sell Your Prompts</h3>
-                <p>Earn 80% commission on every sale. Set your own prices and start monetizing your prompt engineering skills.</p>
-            </div>
-            <div class="benefit-card">
-                <i class="fas fa-chart-line"></i>
-                <h3>Track Your Earnings</h3>
-                <p>Real-time dashboard showing your sales, purchases, and earnings. See your success at a glance.</p>
-            </div>
-            <div class="benefit-card">
-                <i class="fas fa-graduation-cap"></i>
-                <h3>Learn & Grow</h3>
-                <p>Access tutorials and tips from top prompt engineers. Master the art of prompt engineering.</p>
-            </div>
-        </div>
-    </section>
-
    
+    <!-- ===== NEW: EARNING HERO + 3-STEP SECTION ===== -->
+    <section class="earn-hero-section">
+        <div class="container">
+            <h2><i class="fas fa-rocket"></i> Turn Your AI Prompts into Passive Income</h2>
+            <p>Join <strong>5,000+ creators</strong> already earning from their prompts. Set your own price and keep <strong>80%</strong> of every sale.</p>
+            
+            <!-- ===== PSYCHOLOGICAL SLOGAN - NO UPLOAD WASTED ===== -->
+            <div style="background: rgba(255,255,255,0.15); backdrop-filter: blur(10px); border-radius: 16px; padding: 18px 25px; margin: 20px auto 25px; max-width: 800px; border: 1px solid rgba(255,255,255,0.25);">
+                <p style="font-size: 1.25rem; font-weight: 600; margin: 0; display: flex; align-items: center; justify-content: center; gap: 12px; flex-wrap: wrap;">
+                    <span style="background: #ffd700; color: #2d334a; padding: 4px 14px; border-radius: 50px; font-size: 0.85rem; font-weight: 800; text-transform: uppercase;">🔥 New</span>
+                    <span>Even <strong style="color: #ffd700;">FREE</strong> prompts earn!</span>
+                    <span style="color: rgba(255,255,255,0.7); font-weight: 300;">|</span>
+                    <span style="font-size: 1.05rem;">💎 <strong>No upload is ever wasted</strong> — earn via <span style="color: #ffd700;">affiliate commissions</span> too!</span>
+                </p>
+                <p style="font-size: 0.9rem; opacity: 0.85; margin: 8px 0 0; text-align: center;">
+                    <i class="fas fa-link"></i> Add your affiliate links → every view earns you money, even if your prompt is free!
+                </p>
+            </div>
+            
+            <div class="earn-stats">
+                <div class="earn-stat">₹50,000+ <small>Earned this month</small></div>
+                <div class="earn-stat">1,200+ <small>Prompts sold</small></div>
+                <div class="earn-stat">4.9★ <small>Average rating</small></div>
+            </div>
+            <button class="earn-cta-btn" id="startEarningBtn"><i class="fas fa-plus-circle"></i> Start Earning Now</button>
+            <p style="margin-top: 15px; font-size: 0.9rem; opacity: 0.8;">⚡ First 100 uploads get a FREE promotion boost!</p>
+        </div>
+    </section>
+
+    <!-- 3‑Step Guide -->
+    <section class="container" style="margin-top: -10px;">
+        <h2 style="text-align: center; margin-bottom: 20px;">How to Start Selling in 3 Simple Steps</h2>
+        <div class="steps-grid">
+            <div class="step-card">
+                <div class="step-number">1</div>
+                <h3>Create Your Prompt</h3>
+                <p>Write a detailed, high‑quality prompt that solves a specific need.</p>
+            </div>
+            <div class="step-card">
+                <div class="step-number">2</div>
+                <h3>Set Your Price</h3>
+                <p>Choose to offer it <strong>free</strong> (to build reputation) or <strong>paid</strong> (earn 80% per sale).</p>
+            </div>
+            <div class="step-card">
+                <div class="step-number">3</div>
+                <h3>Get Paid Instantly</h3>
+                <p>Track sales in your dashboard and withdraw earnings via UPI/Bank.</p>
+            </div>
+        </div>
+        
+        <!-- ===== PSYCHOLOGICAL SLOGAN - NO UPLOAD WASTED (SECOND PLACEMENT) ===== -->
+        <div style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); border-radius: 16px; padding: 20px 25px; margin: 15px 0 30px; text-align: center; border: 2px solid #4e54c8; position: relative; overflow: hidden;">
+            <div style="position: absolute; top: -30px; right: -30px; font-size: 6rem; opacity: 0.08; transform: rotate(15deg);">💎</div>
+            <p style="font-size: 1.2rem; font-weight: 600; color: #2d334a; margin: 0;">
+                <i class="fas fa-gem" style="color: #4e54c8; margin-right: 10px;"></i>
+                <span style="background: #4e54c8; color: white; padding: 2px 12px; border-radius: 20px; font-size: 0.8rem; margin-right: 8px;">NEW</span>
+                <span>Every prompt you upload — <strong>free or paid</strong> — becomes a <strong style="color: #4e54c8;">money-making machine</strong>.</span>
+            </p>
+            <p style="font-size: 0.95rem; color: #555; margin: 8px 0 0;">
+                <i class="fas fa-link" style="color: #4e54c8;"></i> 
+                Add affiliate products to your prompt page → earn commissions from <strong>every visitor</strong>!
+            </p>
+            <p style="font-size: 0.85rem; color: #888; margin: 5px 0 0;">
+                ⚡ Your creativity never goes to waste. <strong>Every upload is an asset.</strong>
+            </p>
+        </div>
+        
+        <div style="text-align: center; margin: 20px 0 40px;">
+            <button class="upload-btn" id="stepUploadBtn" style="display: inline-flex; margin: 0 auto; background: linear-gradient(135deg, #4e54c8, #8f94fb);">
+                <i class="fas fa-upload"></i> Upload Your First Prompt
+            </button>
+        </div>
+    </section>
+
     <!-- Upload Modal -->
     <div class="modal-overlay" id="uploadModal">
         <div class="upload-modal">
@@ -2038,6 +2188,26 @@ nav {
                     </div>
                 </div>
                 
+                <!-- ===== PSYCHOLOGICAL SLOGAN - INSIDE UPLOAD MODAL (STRONGEST PLACEMENT) ===== -->
+                <div style="background: linear-gradient(135deg, #1a1a2e 0%, #2d334a 100%); border-radius: 16px; padding: 20px 22px; margin: 20px 0 25px; border-left: 5px solid #ffd700; position: relative; overflow: hidden;">
+                    <div style="position: absolute; top: -20px; right: -10px; font-size: 5rem; opacity: 0.06; transform: rotate(10deg);">💰</div>
+                    <p style="font-size: 1.15rem; font-weight: 700; color: #fff; margin: 0 0 6px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                        <span style="background: #ffd700; color: #1a1a2e; padding: 2px 12px; border-radius: 50px; font-size: 0.75rem; font-weight: 800; text-transform: uppercase;">💎 Pro Tip</span>
+                        <span style="color: #ffd700;">Every upload = 💰 Money</span>
+                    </p>
+                    <p style="font-size: 0.95rem; color: rgba(255,255,255,0.9); margin: 0; line-height: 1.5;">
+                        <i class="fas fa-check-circle" style="color: #20bf6b; margin-right: 6px;"></i>
+                        <strong>Free prompt?</strong> No problem! Add <strong style="color: #ffd700;">affiliate links</strong> to your prompt page and earn from every visitor.
+                        <br>
+                        <i class="fas fa-check-circle" style="color: #20bf6b; margin-right: 6px;"></i>
+                        <strong>Paid prompt?</strong> Earn <strong style="color: #ffd700;">80%</strong> of every sale <strong>PLUS</strong> affiliate commissions.
+                        <br>
+                        <span style="display: inline-block; background: rgba(255,215,0,0.15); padding: 4px 14px; border-radius: 20px; margin-top: 6px; font-weight: 600; color: #ffd700; font-size: 0.85rem;">
+                            🔥 Your creativity never goes to waste — every upload is an asset!
+                        </span>
+                    </p>
+                </div>
+                
                 <button type="submit" class="submit-btn">
                     <i class="fas fa-upload"></i> List Your Prompt for Sale
                 </button>
@@ -2091,20 +2261,6 @@ nav {
                 }, 2000);
             </script>
 
-            <div class="seo-outro" style="margin: 40px 0; padding: 25px; background: linear-gradient(135deg, #4e54c8 0%, #8f94fb 100%); color: white; border-radius: 10px;">
-                <h3 style="color: white; margin-bottom: 15px;">Why Tools prompt Marketplace is Your Best Choice</h3>
-                <p><strong>Tools prompt</strong> offers the most comprehensive AI prompt marketplace. With our platform, you get:</p>
-                <ul style="list-style: none; padding-left: 0;">
-                    <li style="margin-bottom: 10px;">✓ <strong>Buy Premium Prompts</strong> - Access thousands of high-quality AI prompts</li>
-                    <li style="margin-bottom: 10px;">✓ <strong>Sell Your Prompts</strong> - Earn 80% commission on every sale</li>
-                    <li style="margin-bottom: 10px;">✓ <strong>Real-time Dashboard</strong> - Track your sales, purchases, and earnings</li>
-                    <li style="margin-bottom: 10px;">✓ <strong>Active Community</strong> - Join thousands of prompt engineers</li>
-                    <li style="margin-bottom: 10px;">✓ <strong>Secure Payments</strong> - Powered by Razorpay India</li>
-                </ul>
-                <p>Join the <strong>Tools prompt Marketplace</strong> today and start buying or selling AI prompts!</p>
-            </div>
-        </div>
-    </section>
 
     <!-- Footer -->
     <footer class="site-footer">
@@ -2173,6 +2329,25 @@ nav {
                     priceContainer.style.display = 'block';
                 });
             }
+
+            // Hook the new "Start Earning Now" and step upload button to open the upload modal
+            const startBtn = document.getElementById('startEarningBtn');
+            const stepBtn = document.getElementById('stepUploadBtn');
+            const uploadModal = document.getElementById('uploadModal');
+            const openUploadBtn = document.getElementById('openUploadModal');
+
+            function openModal(e) {
+                e.preventDefault();
+                if (uploadModal) {
+                    uploadModal.classList.add('active');
+                    document.body.style.overflow = 'hidden';
+                }
+            }
+
+            if (startBtn) startBtn.addEventListener('click', openModal);
+            if (stepBtn) stepBtn.addEventListener('click', openModal);
+            // The existing openUploadBtn already has its own handler from script.js,
+            // but we keep it as is.
         });
 
         // ===== PROMOTIONAL POPUP BANNER - Displays on every visit, 5 min cooldowns =====
