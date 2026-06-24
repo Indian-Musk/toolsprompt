@@ -10,6 +10,12 @@ const mime = require('mime-types');
 const Razorpay = require('razorpay');
 require('dotenv').config();
 
+// ========== NEW: OpenAI for AI Image Generation ==========
+const OpenAI = require('openai');
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
+
 // ========== NEW: S3 Client for Cloudflare R2 (zero egress) ==========
 const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
 
@@ -58,6 +64,84 @@ function sanitizeFirestoreData(data) {
         sanitized[key] = value;
     }
     return sanitized;
+}
+
+// ========== CREDIT SYSTEM ==========
+async function getUserCredits(userId) {
+  if (!db) return { credits: 5, freeLimit: 5, isFree: true };
+  const doc = await db.collection('credits').doc(userId).get();
+  if (!doc.exists) {
+    const now = new Date().toISOString().split('T')[0];
+    await db.collection('credits').doc(userId).set({
+      credits: 5,
+      freeLimit: 5,
+      lastResetDate: now,
+      totalPurchased: 0,
+      totalUsed: 0,
+      updatedAt: new Date().toISOString()
+    });
+    return { credits: 5, freeLimit: 5, isFree: true };
+  }
+  const data = doc.data();
+  const today = new Date().toISOString().split('T')[0];
+  if (data.lastResetDate !== today) {
+    await db.collection('credits').doc(userId).update({
+      credits: data.freeLimit || 5,
+      lastResetDate: today,
+      updatedAt: new Date().toISOString()
+    });
+    return { credits: data.freeLimit || 5, freeLimit: data.freeLimit || 5, isFree: true };
+  }
+  return { credits: data.credits || 0, freeLimit: data.freeLimit || 5, isFree: data.credits <= (data.freeLimit || 5) };
+}
+
+async function deductCredit(userId) {
+  if (!db) return true; // mock
+  const doc = await db.collection('credits').doc(userId).get();
+  if (!doc.exists) {
+    const now = new Date().toISOString().split('T')[0];
+    await db.collection('credits').doc(userId).set({
+      credits: 4,
+      freeLimit: 5,
+      lastResetDate: now,
+      totalPurchased: 0,
+      totalUsed: 1,
+      updatedAt: new Date().toISOString()
+    });
+    return true;
+  }
+  const data = doc.data();
+  if (data.credits <= 0) return false;
+  const newCredits = data.credits - 1;
+  await db.collection('credits').doc(userId).update({
+    credits: newCredits,
+    totalUsed: (data.totalUsed || 0) + 1,
+    updatedAt: new Date().toISOString()
+  });
+  return true;
+}
+
+async function addCredits(userId, amount) {
+  if (!db) return;
+  const doc = await db.collection('credits').doc(userId).get();
+  if (!doc.exists) {
+    const now = new Date().toISOString().split('T')[0];
+    await db.collection('credits').doc(userId).set({
+      credits: amount,
+      freeLimit: 5,
+      lastResetDate: now,
+      totalPurchased: amount,
+      totalUsed: 0,
+      updatedAt: new Date().toISOString()
+    });
+    return;
+  }
+  const data = doc.data();
+  await db.collection('credits').doc(userId).update({
+    credits: (data.credits || 0) + amount,
+    totalPurchased: (data.totalPurchased || 0) + amount,
+    updatedAt: new Date().toISOString()
+  });
 }
 
 // Initialize Razorpay
@@ -290,6 +374,7 @@ function generateAllAdsterraAds() {
 const downloadAppCSS = `
 /* Floating Download App Button */
 .floating-download-btn {
+ display: none !important;
     position: fixed;
     bottom: 30px;
     left: 50%;
@@ -4995,6 +5080,202 @@ app.get('/api/ai-model/:modelId', (req, res) => {
   }
 });
 
+// ==================== CREDITS & AI GENERATION ====================
+
+// Get user credits
+app.get('/api/credits/:userId', async (req, res) => {
+  try {
+    const userId = req.params.userId;
+    const creditInfo = await getUserCredits(userId);
+    res.json({ success: true, ...creditInfo });
+  } catch (error) {
+    console.error('Error fetching credits:', error);
+    res.status(500).json({ error: 'Failed to fetch credits' });
+  }
+});
+
+app.post('/api/generate-image', async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+    const idToken = authHeader.split('Bearer ')[1];
+    const decodedToken = await admin.auth().verifyIdToken(idToken);
+    const userId = decodedToken.uid;
+
+    const creditInfo = await getUserCredits(userId);
+    if (creditInfo.credits <= 0) {
+      return res.status(403).json({ error: 'Insufficient credits. Please upgrade.' });
+    }
+
+    const busboy = Busboy({ headers: req.headers, limits: { fileSize: 10 * 1024 * 1024 } });
+    let prompt = '';
+    let imageBuffer = null;
+    let imageMimeType = null;
+
+    busboy.on('field', (fieldname, val) => {
+      if (fieldname === 'prompt') prompt = val;
+    });
+
+    busboy.on('file', (fieldname, file, info) => {
+      if (fieldname === 'image') {
+        const chunks = [];
+        file.on('data', (data) => chunks.push(data));
+        file.on('end', () => {
+          imageBuffer = Buffer.concat(chunks);
+          imageMimeType = info.mimeType;
+        });
+      }
+    });
+
+    busboy.on('finish', async () => {
+      try {
+        let finalPrompt = prompt.trim();
+        if (!finalPrompt) {
+          return res.status(400).json({ error: 'Prompt is required' });
+        }
+
+        // Optional: Use GPT-4 Vision to describe uploaded image (keep this part)
+        let imageDescription = '';
+        if (imageBuffer) {
+          try {
+            const base64Image = imageBuffer.toString('base64');
+            const visionResponse = await openai.chat.completions.create({
+              model: 'gpt-4-vision-preview',
+              messages: [{
+                role: 'user',
+                content: [
+                  { type: 'text', text: 'Describe this image in detail, focusing on style, composition, colors, and content. Keep it under 200 words.' },
+                  { type: 'image_url', image_url: { url: `data:${imageMimeType || 'image/png'};base64,${base64Image}` } }
+                ]
+              }],
+              max_tokens: 500,
+            });
+            imageDescription = visionResponse.choices[0].message.content;
+            finalPrompt = `Using this image description as reference: "${imageDescription}". Now generate a new image based on this prompt: "${prompt}"`;
+          } catch (visionError) {
+            console.error('Vision API error:', visionError.message);
+            // Continue without description if vision fails
+          }
+        }
+
+        // ===== Generate image using Pollinations.ai =====
+        const encodedPrompt = encodeURIComponent(finalPrompt);
+        const pollinationsUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1024&height=1024&model=flux&nologo=true`;
+
+        const response = await axios({
+          method: 'get',
+          url: pollinationsUrl,
+          responseType: 'arraybuffer',
+          timeout: 30000,
+        });
+
+        const base64Image = Buffer.from(response.data, 'binary').toString('base64');
+        const mimeType = response.headers['content-type'] || 'image/png';
+        const imageUrl = `data:${mimeType};base64,${base64Image}`;
+
+        console.log('✅ Image generated via Pollinations.ai');
+
+        // Deduct credit
+        await deductCredit(userId);
+
+        res.json({
+          success: true,
+          imageUrl,
+          remainingCredits: (await getUserCredits(userId)).credits,
+          prompt: finalPrompt,
+          modelUsed: 'pollinations.ai (flux)'
+        });
+      } catch (error) {
+        console.error('Generation error:', error);
+        res.status(500).json({ error: error.message || 'Image generation failed' });
+      }
+    });
+
+    req.pipe(busboy);
+  } catch (error) {
+    console.error('Generate image error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Top-up credits: create Razorpay order for ₹20 (50 credits)
+app.post('/api/top-up-credits', async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+    const idToken = authHeader.split('Bearer ')[1];
+    const decodedToken = await admin.auth().verifyIdToken(idToken);
+    const userId = decodedToken.uid;
+
+    if (!razorpay) {
+      // Demo mode
+      return res.json({
+        success: true,
+        orderId: 'order_demo_topup_' + Date.now(),
+        amount: 2000, // 20 INR in paise
+        currency: 'INR',
+        isDemo: true,
+        keyId: razorpayKeyId || 'rzp_live_SXMEZ6fYLjDmzD'
+      });
+    }
+
+    const options = {
+      amount: 2000, // ₹20
+      currency: 'INR',
+      notes: {
+        userId: userId,
+        type: 'credit_topup',
+        credits: 50
+      },
+      payment_capture: 1
+    };
+    const order = await razorpay.orders.create(options);
+    res.json({
+      success: true,
+      orderId: order.id,
+      amount: order.amount,
+      currency: order.currency,
+      isDemo: false,
+      keyId: razorpayKeyId
+    });
+  } catch (error) {
+    console.error('Top-up order error:', error);
+    res.status(500).json({ error: 'Failed to create top-up order' });
+  }
+});
+
+// Verify top-up payment
+app.post('/api/verify-topup', async (req, res) => {
+  try {
+    const { orderId, paymentId, signature, userId } = req.body;
+    if (!razorpay) {
+      // Demo mode: add credits
+      await addCredits(userId, 50);
+      return res.json({ success: true, message: 'Added 50 credits (demo)' });
+    }
+
+    const crypto = require('crypto');
+    const generatedSignature = crypto
+      .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
+      .update(orderId + '|' + paymentId)
+      .digest('hex');
+
+    if (generatedSignature !== signature) {
+      return res.status(400).json({ error: 'Invalid payment signature' });
+    }
+
+    await addCredits(userId, 50);
+    res.json({ success: true, message: 'Added 50 credits' });
+  } catch (error) {
+    console.error('Top-up verification error:', error);
+    res.status(500).json({ error: 'Failed to verify top-up' });
+  }
+});
+
 // Helper functions
 function createNewsData(news, id) {
   const safeNews = news || {};
@@ -6441,6 +6722,7 @@ function generateAffiliateHTML(affiliate) {
   `;
 }
 
+// ==================== UPDATED generateEnhancedPromptHTML ====================
 function generateEnhancedPromptHTML(promptData, affiliates) {
   const prompt = promptData;
   const baseUrl = 'https://www.toolsprompt.com';
@@ -6722,8 +7004,594 @@ function generateEnhancedPromptHTML(promptData, affiliates) {
   const affiliateMiddle = affiliates[1] ? generateAffiliateHTML(affiliates[1]) : '';
   const affiliateBottom = affiliates[2] ? generateAffiliateHTML(affiliates[2]) : '';
 
+  // ==================== AI GENERATOR STICKY BAR CSS ====================
+  const aiGeneratorCSS = `
+/* Sticky AI Generator Bar */
+.ai-generator-bar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: rgba(255, 255, 255, 0.98);
+    backdrop-filter: blur(10px);
+    border-top: 1px solid #e9ecef;
+    padding: 12px 20px;
+    display: none;
+    align-items: flex-start;
+    gap: 12px;
+    z-index: 9999;
+    box-shadow: 0 -4px 20px rgba(0,0,0,0.1);
+    transition: transform 0.3s ease;
+}
+.ai-generator-bar.active {
+    display: flex;
+}
+.ai-generator-input {
+    flex: 1;
+    min-height: 44px;
+    max-height: 120px;
+    padding: 10px 15px;
+    border: 2px solid #e9ecef;
+    border-radius: 24px;
+    font-size: 0.95rem;
+    resize: none;
+    outline: none;
+    transition: border-color 0.3s ease;
+    font-family: inherit;
+    background: white;
+}
+.ai-generator-input:focus {
+    border-color: #4e54c8;
+}
+.ai-generator-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+.ai-image-upload-btn {
+    background: #f1f3f5;
+    border: none;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    font-size: 1.4rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s ease;
+    color: #495057;
+}
+.ai-image-upload-btn:hover {
+    background: #4e54c8;
+    color: white;
+    transform: scale(1.05);
+}
+.ai-generate-btn {
+    background: linear-gradient(135deg, #4e54c8, #8f94fb);
+    border: none;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    color: white;
+    font-size: 1.2rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 12px rgba(78,84,200,0.3);
+}
+.ai-generate-btn:hover {
+    transform: scale(1.05);
+    box-shadow: 0 6px 20px rgba(78,84,200,0.5);
+}
+.ai-generate-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+}
+.ai-credit-display {
+    font-size: 0.8rem;
+    color: #495057;
+    padding: 0 8px;
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+.ai-credit-display .credits-num {
+    font-weight: 700;
+    color: #4e54c8;
+}
+.ai-credit-display .credits-free {
+    color: #20bf6b;
+}
+.ai-credit-display .credits-paid {
+    color: #ff6b6b;
+}
+.ai-file-input {
+    display: none;
+}
+.ai-image-preview {
+    display: none;
+    position: relative;
+    width: 44px;
+    height: 44px;
+    border-radius: 8px;
+    overflow: hidden;
+    flex-shrink: 0;
+    border: 2px solid #4e54c8;
+}
+.ai-image-preview img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+.ai-image-preview .remove-image {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    background: #ff6b6b;
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 18px;
+    height: 18px;
+    font-size: 10px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+/* Generated Image Modal */
+.generated-modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0,0,0,0.85);
+    z-index: 99999;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+}
+.generated-modal.active {
+    display: flex;
+}
+.generated-modal-content {
+    max-width: 90%;
+    max-height: 90%;
+    position: relative;
+}
+.generated-modal-content img {
+    max-width: 100%;
+    max-height: 90vh;
+    border-radius: 12px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+}
+.generated-modal-close {
+    position: absolute;
+    top: -40px;
+    right: -40px;
+    background: white;
+    border: none;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    font-size: 1.5rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #333;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+}
+.generated-modal-close:hover {
+    background: #ff6b6b;
+    color: white;
+}
+.generated-modal-download {
+    position: absolute;
+    bottom: -50px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #4e54c8;
+    color: white;
+    border: none;
+    padding: 10px 24px;
+    border-radius: 30px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.3s ease;
+}
+.generated-modal-download:hover {
+    background: #3f44b8;
+}
+@media (max-width: 768px) {
+    .ai-generator-bar {
+        padding: 10px 12px;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+    .ai-generator-input {
+        font-size: 0.9rem;
+        min-height: 38px;
+    }
+    .ai-generator-actions {
+        gap: 4px;
+    }
+    .ai-image-upload-btn, .ai-generate-btn {
+        width: 38px;
+        height: 38px;
+        font-size: 1rem;
+    }
+    .ai-credit-display {
+        font-size: 0.7rem;
+    }
+    .generated-modal-close {
+        top: 10px;
+        right: 10px;
+        width: 34px;
+        height: 34px;
+        font-size: 1.2rem;
+    }
+    .generated-modal-download {
+        bottom: -40px;
+        padding: 8px 16px;
+        font-size: 0.9rem;
+    }
+}
+  `;
+
+  // ==================== AI GENERATOR STICKY BAR HTML ====================
+  const aiGeneratorHTML = `
+<!-- AI Generator Sticky Bar -->
+<div class="ai-generator-bar" id="aiGeneratorBar">
+    <textarea class="ai-generator-input" id="aiPromptInput" placeholder="Describe the image you want to generate..." rows="1"></textarea>
+    <div class="ai-generator-actions">
+        <div class="ai-image-preview" id="aiImagePreview">
+            <img id="aiPreviewImg" src="" alt="Uploaded preview">
+            <button class="remove-image" id="aiRemoveImage">&times;</button>
+        </div>
+        <button class="ai-image-upload-btn" id="aiImageUploadBtn" title="Upload an image for reference">
+            <i class="fas fa-plus"></i>
+        </button>
+        <input type="file" class="ai-file-input" id="aiFileInput" accept="image/*">
+        <span class="ai-credit-display" id="aiCreditDisplay">
+            <i class="fas fa-coins"></i> <span class="credits-num" id="aiCreditsCount">0</span> credits
+        </span>
+        <button class="ai-generate-btn" id="aiGenerateBtn" title="Generate Image">
+            <i class="fas fa-arrow-right"></i>
+        </button>
+    </div>
+</div>
+
+<!-- Generated Image Modal -->
+<div class="generated-modal" id="generatedModal">
+    <div class="generated-modal-content">
+        <button class="generated-modal-close" id="generatedModalClose">&times;</button>
+        <img id="generatedImage" src="" alt="Generated Image">
+        <button class="generated-modal-download" id="generatedDownloadBtn">Download Image</button>
+    </div>
+</div>
+
+<!-- Upgrade Modal (for credits) -->
+<div class="buy-modal-overlay" id="upgradeModal" style="display:none;">
+    <div class="buy-modal" style="max-width:500px;">
+        <div class="modal-header">
+            <h2><i class="fas fa-gem"></i> Upgrade Credits</h2>
+            <button class="close-modal" id="upgradeModalClose">&times;</button>
+        </div>
+        <div class="buy-modal-content" style="grid-template-columns:1fr;padding:20px;">
+            <div style="text-align:center;">
+                <p>You have <strong id="upgradeCurrentCredits">0</strong> credits left.</p>
+                <p>Get <strong>50 credits</strong> for just <strong>₹20</strong>!</p>
+                <button class="buy-now-btn" id="upgradePayBtn" style="margin-top:20px;">
+                    <i class="fas fa-rupee-sign"></i> Pay ₹20 for 50 credits
+                </button>
+                <p class="secure-payment" style="margin-top:15px;">
+                    <i class="fas fa-lock"></i> Secure payment via Razorpay
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+  `;
+
+  // ==================== AI GENERATOR JAVASCRIPT ====================
+  const aiGeneratorJS = `
+// ==================== AI GENERATOR STICKY BAR ====================
+(function() {
+    const bar = document.getElementById('aiGeneratorBar');
+    const promptInput = document.getElementById('aiPromptInput');
+    const generateBtn = document.getElementById('aiGenerateBtn');
+    const uploadBtn = document.getElementById('aiImageUploadBtn');
+    const fileInput = document.getElementById('aiFileInput');
+    const previewContainer = document.getElementById('aiImagePreview');
+    const previewImg = document.getElementById('aiPreviewImg');
+    const removeImageBtn = document.getElementById('aiRemoveImage');
+    const creditDisplay = document.getElementById('aiCreditsCount');
+    const modal = document.getElementById('generatedModal');
+    const modalImg = document.getElementById('generatedImage');
+    const modalClose = document.getElementById('generatedModalClose');
+    const downloadBtn = document.getElementById('generatedDownloadBtn');
+    const upgradeModal = document.getElementById('upgradeModal');
+    const upgradeClose = document.getElementById('upgradeModalClose');
+    const upgradePayBtn = document.getElementById('upgradePayBtn');
+    const upgradeCurrent = document.getElementById('upgradeCurrentCredits');
+
+    let currentUserId = null;
+    let uploadedImage = null; // base64 or File
+    let isGenerating = false;
+
+    // Show bar only on prompt pages
+    bar.classList.add('active');
+
+    // Auto-resize textarea
+    promptInput.addEventListener('input', function() {
+        this.style.height = 'auto';
+        this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+    });
+
+    // Image upload
+    uploadBtn.addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', function(e) {
+        const file = this.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = function(ev) {
+                previewImg.src = ev.target.result;
+                previewContainer.style.display = 'block';
+                uploadedImage = file;
+            };
+            reader.readAsDataURL(file);
+        }
+    });
+    removeImageBtn.addEventListener('click', function() {
+        previewContainer.style.display = 'none';
+        previewImg.src = '';
+        fileInput.value = '';
+        uploadedImage = null;
+    });
+
+    // Fetch credits on load
+    async function fetchCredits() {
+        const user = await getCurrentUser();
+        if (!user) {
+            creditDisplay.textContent = '0';
+            return;
+        }
+        currentUserId = user.uid;
+        try {
+            const res = await fetch(\`/api/credits/\${user.uid}\`);
+            const data = await res.json();
+            if (data.success) {
+                creditDisplay.textContent = data.credits;
+            }
+        } catch(e) {
+            console.error('Credit fetch error', e);
+        }
+    }
+    fetchCredits();
+
+    // Generate
+    generateBtn.addEventListener('click', async function() {
+        if (isGenerating) return;
+        const prompt = promptInput.value.trim();
+        if (!prompt) {
+            showNotification('Please enter a prompt.', 'error');
+            return;
+        }
+
+        // Check login
+        let user = await getCurrentUser();
+        if (!user) {
+            showNotification('Please login to generate images.', 'error');
+            // Redirect to login with return URL
+            const returnUrl = encodeURIComponent(window.location.href);
+            window.location.href = '/login.html?returnUrl=' + returnUrl;
+            return;
+        }
+        currentUserId = user.uid;
+
+        // Check credits
+        const creditInfo = await fetch(\`/api/credits/\${user.uid}\`).then(r => r.json());
+        if (!creditInfo.success || creditInfo.credits <= 0) {
+            // Show upgrade modal
+            upgradeCurrent.textContent = creditInfo.credits || 0;
+            upgradeModal.style.display = 'flex';
+            return;
+        }
+
+        // Proceed with generation
+        isGenerating = true;
+        generateBtn.disabled = true;
+        generateBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+
+        try {
+            const formData = new FormData();
+            formData.append('prompt', prompt);
+            if (uploadedImage) {
+                formData.append('image', uploadedImage);
+            }
+
+            const idToken = await user.getIdToken();
+            const response = await fetch('/api/generate-image', {
+                method: 'POST',
+                headers: { 'Authorization': \`Bearer \${idToken}\` },
+                body: formData
+            });
+
+            const result = await response.json();
+            if (!response.ok) {
+                throw new Error(result.error || 'Generation failed');
+            }
+
+            // Show generated image
+            modalImg.src = result.imageUrl;
+            modal.classList.add('active');
+            // Update remaining credits
+            creditDisplay.textContent = result.remainingCredits;
+
+            // Clear input and image
+            promptInput.value = '';
+            promptInput.style.height = 'auto';
+            previewContainer.style.display = 'none';
+            previewImg.src = '';
+            fileInput.value = '';
+            uploadedImage = null;
+
+            showNotification('Image generated successfully!', 'success');
+        } catch (error) {
+            showNotification(error.message, 'error');
+        } finally {
+            isGenerating = false;
+            generateBtn.disabled = false;
+            generateBtn.innerHTML = '<i class="fas fa-arrow-right"></i>';
+        }
+    });
+
+    // Modal controls
+    modalClose.addEventListener('click', () => modal.classList.remove('active'));
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) modal.classList.remove('active');
+    });
+    downloadBtn.addEventListener('click', function() {
+        const link = document.createElement('a');
+        link.href = modalImg.src;
+        link.download = 'generated-image.png';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    });
+
+    // Upgrade modal
+    upgradeClose.addEventListener('click', () => upgradeModal.style.display = 'none');
+    upgradeModal.addEventListener('click', (e) => {
+        if (e.target === upgradeModal) upgradeModal.style.display = 'none';
+    });
+
+    upgradePayBtn.addEventListener('click', async function() {
+        const user = await getCurrentUser();
+        if (!user) {
+            showNotification('Please login first.', 'error');
+            return;
+        }
+        this.disabled = true;
+        this.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating order...';
+
+        try {
+            const idToken = await user.getIdToken();
+            const res = await fetch('/api/top-up-credits', {
+                method: 'POST',
+                headers: { 'Authorization': \`Bearer \${idToken}\` }
+            });
+            const data = await res.json();
+            if (!data.success) throw new Error('Failed to create order');
+
+            if (data.isDemo) {
+                // Demo mode: add credits directly
+                const verifyRes = await fetch('/api/verify-topup', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        orderId: data.orderId,
+                        paymentId: 'demo_pay_' + Date.now(),
+                        signature: 'demo_signature',
+                        userId: user.uid
+                    })
+                });
+                const verifyData = await verifyRes.json();
+                if (verifyData.success) {
+                    showNotification('Added 50 credits (demo)!', 'success');
+                    upgradeModal.style.display = 'none';
+                    fetchCredits();
+                } else {
+                    throw new Error('Demo verification failed');
+                }
+            } else {
+                // Real Razorpay checkout
+                if (typeof Razorpay === 'undefined') {
+                    await new Promise((resolve, reject) => {
+                        const script = document.createElement('script');
+                        script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+                        script.onload = resolve;
+                        script.onerror = reject;
+                        document.head.appendChild(script);
+                    });
+                }
+                const options = {
+                    key: data.keyId,
+                    amount: data.amount,
+                    currency: data.currency,
+                    name: 'Tools Prompt',
+                    description: 'Top-up 50 credits',
+                    order_id: data.orderId,
+                    handler: async function(response) {
+                        try {
+                            const verifyRes = await fetch('/api/verify-topup', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    orderId: response.razorpay_order_id,
+                                    paymentId: response.razorpay_payment_id,
+                                    signature: response.razorpay_signature,
+                                    userId: user.uid
+                                })
+                            });
+                            const verifyData = await verifyRes.json();
+                            if (verifyData.success) {
+                                showNotification('Credits added!', 'success');
+                                upgradeModal.style.display = 'none';
+                                fetchCredits();
+                            } else {
+                                throw new Error('Verification failed');
+                            }
+                        } catch (e) {
+                            showNotification('Top-up failed: ' + e.message, 'error');
+                        }
+                    },
+                    modal: {
+                        ondismiss: function() {
+                            showNotification('Payment cancelled', 'info');
+                        }
+                    },
+                    theme: { color: '#4e54c8' },
+                    prefill: {
+                        email: user.email,
+                        name: user.displayName || user.email
+                    }
+                };
+                const rzp = new Razorpay(options);
+                rzp.open();
+            }
+        } catch (error) {
+            showNotification('Upgrade error: ' + error.message, 'error');
+        } finally {
+            this.disabled = false;
+            this.innerHTML = '<i class="fas fa-rupee-sign"></i> Pay ₹20 for 50 credits';
+        }
+    });
+
+    // Keyboard shortcut: Ctrl+Enter to generate
+    promptInput.addEventListener('keydown', function(e) {
+        if (e.ctrlKey && e.key === 'Enter') {
+            e.preventDefault();
+            generateBtn.click();
+        }
+    });
+
+    // Expose fetchCredits for after top-up
+    window.refreshCredits = fetchCredits;
+})();
+  `;
+
   return `<!DOCTYPE html>
-<html lang="en">
+<html lang="en" itemscope itemtype="https://schema.org/Article">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -6781,7 +7649,8 @@ function generateEnhancedPromptHTML(promptData, affiliates) {
     </script>
     
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
         body { background: #f5f7fa; line-height: 1.6; color: #2d334a; }
@@ -6790,6 +7659,7 @@ function generateEnhancedPromptHTML(promptData, affiliates) {
         ${platformComparisonCSS}
         ${commentSystemCSS}
         ${downloadAppCSS}
+        ${aiGeneratorCSS}
         
         /* Ad Container Styles */
         .ad-container {
@@ -7731,7 +8601,199 @@ function generateEnhancedPromptHTML(promptData, affiliates) {
                 height: auto;
                 max-height: 150px;
             }
+
         }
+
+/* ── User Profile & Avatar Styles ── */
+.user-profile {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: #f8f9fa;
+    padding: 5px 15px 5px 10px;
+    border-radius: 40px;
+    border: 1px solid #e9ecef;
+    transition: all 0.3s ease;
+}
+.user-profile:hover {
+    border-color: #4e54c8;
+    box-shadow: 0 2px 12px rgba(78,84,200,0.15);
+}
+.user-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid #fff;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+    flex-shrink: 0;
+}
+.user-profile span {
+    font-weight: 500;
+    color: #2d334a;
+    font-size: 0.95rem;
+    max-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.logout-btn {
+    background: none;
+    border: none;
+    color: #ff6b6b;
+    cursor: pointer;
+    font-size: 1rem;
+    padding: 6px 8px;
+    border-radius: 50%;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+}
+.logout-btn:hover {
+    background: #ffeaea;
+    transform: scale(1.1);
+    color: #e03131;
+}
+.logout-btn i {
+    font-size: 1rem;
+}
+
+/* Mini version for prompt pages */
+.user-profile-mini {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: #f8f9fa;
+    padding: 4px 12px 4px 8px;
+    border-radius: 40px;
+    border: 1px solid #e9ecef;
+    transition: all 0.3s ease;
+}
+.user-profile-mini:hover {
+    border-color: #4e54c8;
+}
+.user-avatar-mini {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid #fff;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, #4e54c8, #8f94fb);
+    color: #fff;
+    font-weight: 700;
+    font-size: 0.9rem;
+}
+.user-name-mini {
+    font-weight: 500;
+    color: #2d334a;
+    font-size: 0.85rem;
+    max-width: 100px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.logout-btn-mini {
+    background: none;
+    border: none;
+    color: #ff6b6b;
+    cursor: pointer;
+    font-size: 0.85rem;
+    padding: 4px 6px;
+    border-radius: 50%;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+}
+.logout-btn-mini:hover {
+    background: #ffeaea;
+    transform: scale(1.1);
+    color: #e03131;
+}
+.logout-btn-mini i {
+    font-size: 0.85rem;
+}
+
+/* Login button in header */
+.login-btn-header {
+    background: linear-gradient(135deg, #4e54c8, #8f94fb);
+    color: #fff;
+    padding: 8px 20px;
+    border-radius: 30px;
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 0.9rem;
+    transition: all 0.3s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+}
+.login-btn-header:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(78,84,200,0.35);
+    color: #fff;
+}
+
+/* Responsive tweaks */
+@media (max-width: 768px) {
+    .user-profile span {
+        max-width: 80px;
+        font-size: 0.85rem;
+    }
+    .user-avatar {
+        width: 30px;
+        height: 30px;
+    }
+    .user-profile {
+        padding: 4px 10px 4px 6px;
+        gap: 8px;
+    }
+    .logout-btn {
+        width: 28px;
+        height: 28px;
+        font-size: 0.85rem;
+    }
+    .user-name-mini {
+        max-width: 70px;
+        font-size: 0.8rem;
+    }
+    .user-avatar-mini {
+        width: 28px;
+        height: 28px;
+        font-size: 0.8rem;
+    }
+    .login-btn-header {
+        padding: 6px 14px;
+        font-size: 0.8rem;
+    }
+}
+@media (max-width: 480px) {
+    .user-profile span {
+        display: none;
+    }
+    .user-profile {
+        padding: 4px 8px;
+        gap: 4px;
+    }
+    .user-name-mini {
+        display: none;
+    }
+    .user-profile-mini {
+        padding: 4px 8px;
+        gap: 4px;
+    }
+}
     </style>
 </head>
 <body>
@@ -8014,6 +9076,7 @@ function generateEnhancedPromptHTML(promptData, affiliates) {
 
     ${miniBrowserHTML}
     ${downloadAppButtonHTMLWithStyle}
+    ${aiGeneratorHTML}
 
 <script>
 // ==================== FIREBASE INITIALIZATION ====================
@@ -8718,6 +9781,7 @@ function generateEnhancedPromptHTML(promptData, affiliates) {
 
     ${miniBrowserJS}
     ${downloadAppJS}
+    ${aiGeneratorJS}
     ${generateCommentSystemJS(promptData)}
 </script>
 </body>
@@ -8920,4 +9984,10 @@ app.listen(port, async () => {
   console.log(`💰 NON-FIREBASE SERVICE CHARGES: ELIMINATED (R2 has zero egress fees)`);
   console.log(`🔗 AFFILIATE PROGRAM ACTIVE: Manage affiliate products at /affiliate.html`);
   console.log(`   → Random 3 affiliates shown per prompt page (top, middle, bottom)`);
+  
+  console.log(`🖼️ AI IMAGE GENERATOR ACTIVE (DALL-E 3 + Vision):`);
+  console.log(`   → Sticky bar on prompt pages with credit system`);
+  console.log(`   → 5 free credits per user per day`);
+  console.log(`   → Top-up: ₹20 for 50 credits via Razorpay`);
+  console.log(`   → Upload image for style reference (GPT-4 Vision)`);
 });
