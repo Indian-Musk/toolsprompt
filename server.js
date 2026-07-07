@@ -1,4 +1,8 @@
-﻿const express = require('express');
+﻿// =====================================================================
+// server.js – Full corrected file with Instagram sticky badge + animation
+// =====================================================================
+
+const express = require('express');
 const path = require('path');
 const admin = require('firebase-admin');
 const Busboy = require('busboy');
@@ -4119,7 +4123,7 @@ app.get('/sitemap-posts.xml', async (req, res) => {
     if (db) {
       const snapshot = await db.collection('uploads')
         .orderBy('updatedAt', 'desc')
-        .limit(500)
+        .limit(1500)
         .get();
 
       prompts = snapshot.docs.map(doc => {
@@ -7590,6 +7594,211 @@ function generateEnhancedPromptHTML(promptData, affiliates) {
 })();
   `;
 
+  // ==================== STICKY INSTAGRAM BADGE ====================
+  // CSS for the sticky Instagram icon (with periodic shake animation)
+ // ==================== STICKY SOCIAL BADGES (Instagram + YouTube) ====================
+const socialBadgesCSS = `
+/* Sticky Social Badges Container - Left Side */
+.social-badges-container {
+    position: fixed;
+    left: 20px;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 9998;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+}
+
+/* Toggle button */
+.social-badges-toggle {
+    background: rgba(255, 255, 255, 0.95);
+    border: none;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+    transition: all 0.3s ease;
+    color: #4e54c8;
+    font-size: 1.2rem;
+    margin-bottom: 6px;
+    backdrop-filter: blur(5px);
+    border: 2px solid rgba(255, 255, 255, 0.3);
+}
+.social-badges-toggle:hover {
+    transform: scale(1.1);
+    box-shadow: 0 6px 20px rgba(78, 84, 200, 0.4);
+}
+
+/* Each badge */
+.social-badge {
+    background: rgba(255, 255, 255, 0.95);
+    border-radius: 50px;
+    padding: 10px 12px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-decoration: none;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+    cursor: pointer;
+    min-width: 44px;
+    min-height: 44px;
+    font-family: 'Segoe UI', sans-serif;
+    border: 2px solid rgba(255, 255, 255, 0.2);
+    backdrop-filter: blur(5px);
+    animation: social-shake 5s ease-in-out infinite;
+    transform-origin: center;
+    color: white;
+    opacity: 1;
+    transform: scale(1) translateY(0);
+    pointer-events: auto;
+}
+
+/* Collapsed state: hide badges with a page‑turn effect */
+.social-badges-container.collapsed .social-badge {
+    opacity: 0;
+    transform: scale(0.5) rotateY(90deg) translateY(-40px);
+    pointer-events: none;
+    animation: none;
+}
+
+.social-badges-container.collapsed .social-badges-toggle i {
+    transform: rotate(180deg);
+}
+
+.social-badge:hover {
+    transform: scale(1.1);
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
+    border-color: rgba(255, 255, 255, 0.5);
+    animation: none;
+}
+
+.social-badge i {
+    font-size: 1.8rem;
+    margin-bottom: 4px;
+    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.social-badge .followers-text {
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+    white-space: nowrap;
+}
+
+.instagram-badge {
+    background: linear-gradient(135deg, #405de6, #5851db, #833ab4, #c13584, #e1306c, #fd1d1d);
+    background-size: 200% 200%;
+    animation: social-shake 5s ease-in-out infinite, gradient-shift 3s ease infinite;
+}
+
+.youtube-badge {
+    background: linear-gradient(135deg, #ff0000, #cc0000);
+    background-size: 200% 200%;
+    animation: social-shake 5s ease-in-out infinite 0.5s, gradient-shift 3s ease infinite 0.5s;
+}
+
+.whatsapp-badge {
+    background: linear-gradient(135deg, #25d366, #128c7e);
+    background-size: 200% 200%;
+    animation: social-shake 5s ease-in-out infinite 1s, gradient-shift 3s ease infinite 1s;
+}
+
+@keyframes social-shake {
+    0%, 88% { transform: scale(1); }
+    90% { transform: scale(1.15); }
+    92% { transform: scale(0.85); }
+    94% { transform: scale(1.05); }
+    96% { transform: scale(0.95); }
+    98% { transform: scale(1.02); }
+    100% { transform: scale(1); }
+}
+
+@keyframes gradient-shift {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+}
+
+@media (max-width: 768px) {
+    .social-badges-container {
+        left: 10px;
+        gap: 6px;
+    }
+    .social-badges-toggle {
+        width: 34px;
+        height: 34px;
+        font-size: 1rem;
+    }
+    .social-badge {
+        padding: 8px 10px;
+        min-width: 38px;
+        min-height: 38px;
+    }
+    .social-badge i {
+        font-size: 1.4rem;
+    }
+    .social-badge .followers-text {
+        font-size: 0.5rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .social-badges-container {
+        left: 6px;
+        gap: 4px;
+    }
+    .social-badges-toggle {
+        width: 28px;
+        height: 28px;
+        font-size: 0.8rem;
+    }
+    .social-badge {
+        padding: 6px 8px;
+        min-width: 32px;
+        min-height: 32px;
+    }
+    .social-badge i {
+        font-size: 1.2rem;
+    }
+    .social-badge .followers-text {
+        font-size: 0.45rem;
+    }
+}
+`;
+const socialBadgesHTML = `
+<!-- Sticky Social Badges with Toggle -->
+<div class="social-badges-container" id="socialBadgesContainer">
+    <button class="social-badges-toggle" id="socialToggleBtn" aria-label="Toggle social badges">
+        <i class="fas fa-chevron-up"></i>
+    </button>
+    <a href="https://instagram.com/toolsprompt" target="_blank" class="social-badge instagram-badge" rel="noopener noreferrer">
+        <i class="fab fa-instagram"></i>
+        <span class="followers-text">10K Followers</span>
+    </a>
+    <a href="https://youtube.com/@toolsprompt" target="_blank" class="social-badge youtube-badge" rel="noopener noreferrer">
+        <i class="fab fa-youtube"></i>
+        <span class="followers-text">10K Subscribers</span>
+    </a>
+    <a href="https://wa.me/yourwhatsappnumber" target="_blank" class="social-badge whatsapp-badge" rel="noopener noreferrer">
+        <i class="fab fa-whatsapp"></i>
+        <span class="followers-text">10K Members</span>
+    </a>
+</div>
+`;
+
+
+
+
+
   return `<!DOCTYPE html>
 <html lang="en" itemscope itemtype="https://schema.org/Article">
 <head>
@@ -7660,6 +7869,7 @@ function generateEnhancedPromptHTML(promptData, affiliates) {
         ${commentSystemCSS}
         ${downloadAppCSS}
         ${aiGeneratorCSS}
+        ${socialBadgesCSS}
         
         /* Ad Container Styles */
         .ad-container {
@@ -9075,6 +9285,7 @@ function generateEnhancedPromptHTML(promptData, affiliates) {
     </footer>
 
     ${miniBrowserHTML}
+    ${socialBadgesHTML}
     ${downloadAppButtonHTMLWithStyle}
     ${aiGeneratorHTML}
 
@@ -9310,6 +9521,18 @@ function generateEnhancedPromptHTML(promptData, affiliates) {
         handleCopyOrBuy();
         return false;
     }
+
+// ==================== SOCIAL BADGES TOGGLE ====================
+document.addEventListener('DOMContentLoaded', function() {
+    const container = document.getElementById('socialBadgesContainer');
+    const toggleBtn = document.getElementById('socialToggleBtn');
+    if (container && toggleBtn) {
+        toggleBtn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            container.classList.toggle('collapsed');
+        });
+    }
+});
 
     // ==================== BUY MODAL WITH ALL FIELDS ====================
 
@@ -9790,8 +10013,12 @@ function generateEnhancedPromptHTML(promptData, affiliates) {
 
 function generateCategoryHTML(category, baseUrl) {
   const categoryNames = {
-    'art': 'AI Art', 'photography': 'AI Photography', 'design': 'AI Design',
-    'writing': 'AI Writing', 'video': 'AI Video Reels', 'other': 'Other AI Creations'
+    'art': 'AI Art',
+    'photography': 'AI Photography',
+    'design': 'AI Design',
+    'writing': 'AI Writing',
+    'video': 'AI Video Reels',
+    'other': 'Other AI Creations'
   };
   
   const categoryName = categoryNames[category] || 'AI Prompts';
@@ -9990,4 +10217,9 @@ app.listen(port, async () => {
   console.log(`   → 5 free credits per user per day`);
   console.log(`   → Top-up: ₹20 for 50 credits via Razorpay`);
   console.log(`   → Upload image for style reference (GPT-4 Vision)`);
+  
+  console.log(`📸 INSTAGRAM BADGE:`);
+  console.log(`   → Sticky left side badge with periodic shake animation every 5 seconds`);
+  console.log(`   → Hover pauses the animation, scales up and highlights`);
+  console.log(`   → Links to https://instagram.com/toolsprompt`);
 });
