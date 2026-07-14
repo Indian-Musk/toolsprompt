@@ -8048,19 +8048,21 @@ const socialBadgesHTML = `
         min-height: 44px;
     }
     .social-feed-container.expanded .social-feed-panel {
-        width: 300px;
-        height: 50vh;
-        max-height: 70vh;
+        width: 90vw;
+        height: 90vh;
+        max-height: 90vh;
         right: 0;
         bottom: auto;
         top: auto;
-        border-radius: 8px 0 0 8px;
+        border-radius: 0;
     }
 }
 @media (max-width: 480px) {
     .social-feed-container.expanded .social-feed-panel {
-        width: 260px;
-        height: 40vh;
+       width: 90vw;
+        height: 90vh;
+        max-height: 90vh;
+        border-radius: 0;
     }
 }
     .social-feed-panel {
