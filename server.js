@@ -1,5 +1,5 @@
 ﻿// =====================================================================
-// server.js – Full corrected file with Instagram sticky badge + animation
+// server.js – Fully corrected with working social feed toggle
 // =====================================================================
 
 const express = require('express');
@@ -3932,7 +3932,9 @@ app.get('/health', (req, res) => {
       customThumbnails: true,
       marketplace: true,
       downloadAppButton: true,
-      affiliateProgram: true
+      affiliateProgram: true,
+      socialFeed: true,
+      liveChat: true
     },
     uploadLimits: {
       maxFileSize: '100MB',
@@ -4357,6 +4359,21 @@ app.post('/api/upload', async (req, res) => {
         fileType: isVideo ? 'video' : 'image',
         detectedPlatform: detectedPlatform
       });
+
+      // ==================== ACTIVITY FEED ENTRY ====================
+      const activity = {
+        id: uuidv4(),
+        type: 'upload',
+        promptId: docRef.id,
+        title: fields.title,
+        userName: fields.userName || 'Anonymous',
+        timestamp: new Date().toISOString()
+      };
+      if (db && db.collection) {
+        await db.collection('activity_feed').doc(activity.id).set(activity);
+        broadcastActivity(activity);
+      }
+
     } catch (error) {
       console.error('❌ Upload error:', error);
       res.status(500).json({ error: 'Upload failed', details: error.message });
@@ -5280,7 +5297,161 @@ app.post('/api/verify-topup', async (req, res) => {
   }
 });
 
-// Helper functions
+// ==================== NEW: SOCIAL FEED / CHAT / ACTIVITY ENDPOINTS ====================
+
+// Store connected SSE clients
+let chatClients = [];
+
+// SSE stream endpoint
+app.get('/api/chat/stream', async (req, res) => {
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive',
+    'Access-Control-Allow-Origin': '*'
+  });
+
+  // Send initial recent messages (last 50)
+  const recentMessages = await getRecentMessages(50);
+  res.write(`data: ${JSON.stringify({ type: 'init', messages: recentMessages })}\n\n`);
+
+  // Add client to list
+  const clientId = Date.now() + '-' + Math.random();
+  chatClients.push({ id: clientId, res });
+
+  // Remove client on close
+  req.on('close', () => {
+    chatClients = chatClients.filter(c => c.id !== clientId);
+  });
+
+  // Keep alive
+  const keepAlive = setInterval(() => {
+    res.write(': keepalive\n\n');
+  }, 30000);
+
+  req.on('end', () => clearInterval(keepAlive));
+});
+
+// Get chat messages (for initial load)
+app.get('/api/chat/messages', async (req, res) => {
+  const limit = parseInt(req.query.limit) || 50;
+  const messages = await getRecentMessages(limit);
+  res.json({ messages });
+});
+
+// Send a chat message
+app.post('/api/chat/send', async (req, res) => {
+  const { userId, userName, content, parentId, sticker } = req.body;
+  if (!content && !sticker) {
+    return res.status(400).json({ error: 'Message content or sticker required' });
+  }
+
+  const message = {
+    id: uuidv4(),
+    userId: userId || 'anonymous',
+    userName: userName || 'Anonymous',
+    content: content || '',
+    parentId: parentId || null, // for replies
+    sticker: sticker || null,
+    reactions: {},
+    timestamp: new Date().toISOString()
+  };
+
+  // Save to Firestore
+  if (db && db.collection) {
+    await db.collection('chat_messages').doc(message.id).set(message);
+  } else {
+    // demo mode: store in memory
+    if (!global.chatMessages) global.chatMessages = [];
+    global.chatMessages.push(message);
+  }
+
+  // Broadcast to all clients
+  broadcastChatMessage(message);
+
+  res.json({ success: true, message });
+});
+
+// Add/update a reaction
+app.post('/api/chat/react', async (req, res) => {
+  const { messageId, userId, emoji } = req.body;
+  if (!messageId || !emoji) {
+    return res.status(400).json({ error: 'Missing messageId or emoji' });
+  }
+
+  // Update Firestore
+  if (db && db.collection) {
+    const msgRef = db.collection('chat_messages').doc(messageId);
+    await msgRef.update({
+      [`reactions.${emoji}`]: admin.firestore.FieldValue.arrayUnion(userId || 'anonymous')
+    });
+    const updated = await msgRef.get();
+    // Broadcast updated reactions
+    broadcastChatMessage({ type: 'reaction', messageId, reactions: updated.data().reactions });
+  } else {
+    // demo mode
+    const msg = global.chatMessages?.find(m => m.id === messageId);
+    if (msg) {
+      if (!msg.reactions) msg.reactions = {};
+      if (!msg.reactions[emoji]) msg.reactions[emoji] = [];
+      if (!msg.reactions[emoji].includes(userId || 'anonymous')) {
+        msg.reactions[emoji].push(userId || 'anonymous');
+      }
+      broadcastChatMessage({ type: 'reaction', messageId, reactions: msg.reactions });
+    }
+  }
+
+  res.json({ success: true });
+});
+
+// Get activity feed
+app.get('/api/activity', async (req, res) => {
+  const limit = parseInt(req.query.limit) || 20;
+  const items = await getRecentActivity(limit);
+  res.json({ items });
+});
+
+// ===== Helper functions for chat & activity =====
+async function getRecentMessages(limit = 50) {
+  if (db && db.collection) {
+    const snapshot = await db.collection('chat_messages')
+      .orderBy('timestamp', 'desc')
+      .limit(limit)
+      .get();
+    return snapshot.docs.map(d => ({ id: d.id, ...d.data() })).reverse();
+  } else {
+    const messages = global.chatMessages || [];
+    return messages.slice(-limit);
+  }
+}
+
+async function getRecentActivity(limit = 20) {
+  if (db && db.collection) {
+    const snapshot = await db.collection('activity_feed')
+      .orderBy('timestamp', 'desc')
+      .limit(limit)
+      .get();
+    return snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+  } else {
+    const items = global.activityFeed || [];
+    return items.slice(-limit);
+  }
+}
+
+function broadcastChatMessage(message) {
+  chatClients.forEach(client => {
+    client.res.write(`data: ${JSON.stringify({ type: 'message', message })}\n\n`);
+  });
+}
+
+function broadcastActivity(activity) {
+  chatClients.forEach(client => {
+    client.res.write(`data: ${JSON.stringify({ type: 'activity', activity })}\n\n`);
+  });
+}
+
+// ==================== HELPER FUNCTIONS FOR PROMPT PAGE GENERATION ====================
+
 function createNewsData(news, id) {
   const safeNews = news || {};
   return {
@@ -7594,9 +7765,7 @@ function generateEnhancedPromptHTML(promptData, affiliates) {
 })();
   `;
 
-  // ==================== STICKY INSTAGRAM BADGE ====================
-  // CSS for the sticky Instagram icon (with periodic shake animation)
- // ==================== STICKY SOCIAL BADGES (Instagram + YouTube) ====================
+  // ==================== STICKY SOCIAL BADGES (Instagram + YouTube) ====================
 const socialBadgesCSS = `
 /* Sticky Social Badges Container - Left Side */
 .social-badges-container {
@@ -7795,10 +7964,742 @@ const socialBadgesHTML = `
 </div>
 `;
 
+  // ==================== SOCIAL FEED CSS ====================
+  const socialFeedCSS = `
+/* Social Feed Container - Right Side, Centered */
+.social-feed-container {
+    position: fixed;
+    right: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    direction: rtl; /* panel appears to the left of toggle */
+}
+.social-feed-toggle {
+    background: #4e54c8;
+    color: white;
+    border: none;
+    border-radius: 8px 0 0 8px;
+    padding: 12px 8px;
+    cursor: pointer;
+    font-size: 1.2rem;
+    transition: all 0.3s ease;
+    box-shadow: -2px 0 10px rgba(0,0,0,0.2);
+    touch-action: manipulation;
+    z-index: 10000;
+    min-width: 44px;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.social-feed-toggle:hover {
+    background: #3f44b8;
+    transform: scale(1.05);
+}
+.social-feed-toggle:active {
+    transform: scale(0.95);
+}
+.social-feed-panel {
+    width: 0;
+    height: 0;
+    background: white;
+    border-radius: 8px 0 0 8px;
+    box-shadow: -5px 0 20px rgba(0,0,0,0.15);
+    overflow: hidden;
+    transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    display: flex;
+    flex-direction: column;
+    opacity: 0;
+    direction: ltr; /* reset for content */
+}
+.social-feed-container.expanded .social-feed-panel {
+    width: 400px;
+    height: 60vh;
+    max-height: 80vh;
+    opacity: 1;
+}
 
+/* Mobile: keep right side, smaller panel */
+@media (max-width: 768px) {
+    .social-feed-container {
+        top: 50%;
+        transform: translateY(-50%);
+        right: 0;
+        left: auto;
+        bottom: auto;
+        flex-direction: row;
+        align-items: center;
+        height: auto;
+    }
+    .social-feed-toggle {
+        border-radius: 8px 0 0 8px;
+        padding: 12px 8px;
+        position: static;
+        bottom: auto;
+        right: auto;
+        width: auto;
+        height: auto;
+        box-shadow: -2px 0 10px rgba(0,0,0,0.2);
+        font-size: 1.2rem;
+        min-width: 44px;
+        min-height: 44px;
+    }
+    .social-feed-container.expanded .social-feed-panel {
+        width: 300px;
+        height: 50vh;
+        max-height: 70vh;
+        right: 0;
+        bottom: auto;
+        top: auto;
+        border-radius: 8px 0 0 8px;
+    }
+}
+@media (max-width: 480px) {
+    .social-feed-container.expanded .social-feed-panel {
+        width: 260px;
+        height: 40vh;
+    }
+}
+    .social-feed-panel {
+        border-radius: 12px 12px 0 0;
+        width: 100%;
+        height: 0;
+        opacity: 0;
+        transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+}
 
+.feed-header {
+    padding: 12px 16px;
+    border-bottom: 1px solid #e9ecef;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: #f8f9fa;
+}
+.feed-header h3 { margin: 0; font-size: 1.1rem; color: #4e54c8; }
+.feed-close { background: none; border: none; font-size: 1.2rem; cursor: pointer; color: #666; }
 
+.feed-tabs {
+    display: flex;
+    background: #f8f9fa;
+    border-bottom: 1px solid #e9ecef;
+}
+.feed-tab {
+    flex: 1;
+    padding: 10px;
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    cursor: pointer;
+    font-weight: 500;
+    transition: all 0.3s ease;
+}
+.feed-tab.active {
+    border-bottom-color: #4e54c8;
+    color: #4e54c8;
+}
+.feed-tab:hover { background: rgba(78,84,200,0.05); }
 
+.feed-content {
+    flex: 1;
+    overflow: hidden;
+    position: relative;
+}
+.feed-tab-content {
+    display: none;
+    height: 100%;
+    overflow-y: auto;
+    padding: 10px;
+}
+.feed-tab-content.active { display: block; }
+
+/* Make actions visible on hover over the whole message */
+.chat-message {
+    position: relative;
+    transition: background 0.2s ease;
+}
+.chat-message:hover .msg-actions {
+    display: flex;
+}
+.msg-actions {
+    position: absolute;
+    right: 5px;
+    top: 5px;
+    display: none;
+    flex-direction: row;
+    gap: 4px;
+    background: rgba(255,255,255,0.9);
+    border-radius: 20px;
+    padding: 4px 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+.msg-actions button {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 1rem;
+    padding: 2px 6px;
+    border-radius: 12px;
+    transition: background 0.2s;
+}
+.msg-actions button:hover {
+    background: #e9ecef;
+}
+/* Reply context styling */
+.msg-reply-context {
+    font-size: 0.8rem;
+    color: #666;
+    background: #f1f3f4;
+    padding: 2px 8px;
+    border-radius: 8px;
+    margin-bottom: 4px;
+    border-left: 3px solid #4e54c8;
+}
+/* Sticker display */
+.msg-sticker {
+    font-size: 2.5rem;
+    line-height: 1.2;
+    padding: 4px 0;
+}
+
+/* Chat Messages */
+.chat-messages {
+    height: calc(100% - 80px);
+    overflow-y: auto;
+    padding: 10px;
+}
+.chat-message {
+    margin-bottom: 12px;
+    padding: 8px 12px;
+    border-radius: 12px;
+    background: #f1f3f4;
+    max-width: 85%;
+    word-wrap: break-word;
+    position: relative;
+}
+.chat-message.own {
+    background: #4e54c8;
+    color: white;
+    margin-left: auto;
+}
+.chat-message .msg-user { font-size: 0.8rem; font-weight: 600; margin-bottom: 2px; }
+.chat-message .msg-time { font-size: 0.7rem; color: #999; float: right; }
+.chat-message .msg-content { line-height: 1.4; }
+.chat-message .msg-reactions { margin-top: 4px; display: flex; gap: 6px; flex-wrap: wrap; }
+.chat-message .msg-reactions span { background: rgba(0,0,0,0.1); padding: 2px 6px; border-radius: 12px; font-size: 0.8rem; cursor: pointer; }
+.chat-message .msg-actions { position: absolute; right: -30px; top: 0; display: none; }
+.chat-message:hover .msg-actions { display: flex; flex-direction: column; gap: 4px; }
+.chat-message .msg-actions button { background: none; border: none; cursor: pointer; font-size: 0.9rem; color: #666; }
+
+/* Chat Input */
+.chat-input-area {
+    padding: 8px 10px;
+    border-top: 1px solid #e9ecef;
+    background: #f8f9fa;
+}
+.reply-indicator {
+    background: #e9ecef;
+    padding: 6px 10px;
+    border-radius: 8px;
+    margin-bottom: 6px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.8rem;
+}
+.chat-input-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+.chat-input-row input {
+    flex: 1;
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    border-radius: 20px;
+    outline: none;
+}
+.chat-input-row button {
+    background: #4e54c8;
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background 0.3s ease;
+}
+.chat-input-row button:hover { background: #3f44b8; }
+.sticker-btn { background: #e9ecef; color: #666; }
+
+/* Sticker Picker */
+.sticker-picker {
+    display: none;
+    position: absolute;
+    bottom: 60px;
+    left: 0;
+    background: white;
+    border: 1px solid #e9ecef;
+    border-radius: 12px;
+    padding: 10px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+}
+.sticker-picker.open { display: grid; }
+.sticker-picker button {
+    background: none;
+    border: none;
+    font-size: 2rem;
+    cursor: pointer;
+    transition: transform 0.2s ease;
+}
+.sticker-picker button:hover { transform: scale(1.2); }
+
+/* Reaction Picker (popup) */
+.reaction-picker {
+    display: none;
+    position: absolute;
+    background: white;
+    border-radius: 20px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    padding: 6px 10px;
+    gap: 6px;
+    z-index: 10;
+}
+.reaction-picker.open { display: flex; }
+.reaction-picker button {
+    background: none;
+    border: none;
+    font-size: 1.6rem;
+    cursor: pointer;
+    transition: transform 0.2s ease;
+}
+.reaction-picker button:hover { transform: scale(1.3); }
+
+/* Activity Feed */
+.activity-item {
+    padding: 10px;
+    border-bottom: 1px solid #e9ecef;
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+}
+.activity-item .act-icon { font-size: 1.5rem; color: #4e54c8; }
+.activity-item .act-content { flex: 1; }
+.activity-item .act-content h4 { margin: 0; font-size: 0.95rem; }
+.activity-item .act-content p { margin: 2px 0; font-size: 0.85rem; color: #666; }
+.activity-item .act-time { font-size: 0.7rem; color: #999; }
+
+/* Floating Hearts Animation */
+.floating-hearts {
+    position: fixed;
+    pointer-events: none;
+    z-index: 99999;
+    font-size: 2rem;
+    animation: floatUp 1.5s ease-out forwards;
+}
+@keyframes floatUp {
+    0% { opacity: 1; transform: translateY(0) scale(0.8); }
+    100% { opacity: 0; transform: translateY(-150px) scale(1.2); }
+}
+`;
+
+   // ==================== SOCIAL FEED HTML ====================
+  const socialFeedHTML = `
+<!-- Social Feed – Right Side, Centered -->
+<div class="social-feed-container" id="socialFeed">
+    <button class="social-feed-toggle" id="feedToggle" onclick="toggleFeed()" aria-label="Toggle community feed">
+        <i class="fas fa-chevron-left" id="feedToggleIcon"></i>
+    </button>
+    <div class="social-feed-panel">
+        <div class="feed-header">
+            <h3><i class="fas fa-users"></i>Community</h3>
+            <button class="feed-close" onclick="toggleFeed()"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="feed-tabs">
+            <button class="feed-tab active" data-tab="chat">💬 Chat</button>
+            <button class="feed-tab" data-tab="feed">📢 Feed</button>
+            <button class="feed-tab" data-tab="suggest">💡 Suggest</button>
+        </div>
+        <div class="feed-content">
+            <!-- Chat Tab -->
+            <div class="feed-tab-content active" id="tab-chat">
+                <div class="chat-messages" id="chatMessages"></div>
+                <div class="chat-input-area">
+                    <div class="reply-indicator" id="replyIndicator" style="display:none;">
+                        Replying to <span id="replyUser"></span>: <span id="replyContent"></span>
+                        <button onclick="cancelReply()"><i class="fas fa-times"></i></button>
+                    </div>
+                    <div class="chat-input-row">
+                        <button class="sticker-btn" onclick="openStickerPicker()"><i class="fas fa-sticky-note"></i></button>
+                        <input type="text" id="chatInput" placeholder="Type a message..." />
+                        <button onclick="sendChatMessage()"><i class="fas fa-paper-plane"></i></button>
+                    </div>
+                    <!-- Sticker Picker -->
+                    <div class="sticker-picker" id="stickerPicker">
+                        <button onclick="sendSticker('😊')">😊</button>
+                        <button onclick="sendSticker('😂')">😂</button>
+                        <button onclick="sendSticker('❤️')">❤️</button>
+                        <button onclick="sendSticker('🔥')">🔥</button>
+                        <button onclick="sendSticker('👍')">👍</button>
+                        <button onclick="sendSticker('🎉')">🎉</button>
+                        <button onclick="sendSticker('💯')">💯</button>
+                        <button onclick="sendSticker('🤩')">🤩</button>
+                    </div>
+                </div>
+            </div>
+            <!-- Feed Tab -->
+            <div class="feed-tab-content" id="tab-feed">
+                <div class="activity-feed" id="activityFeed"></div>
+            </div>
+            <!-- Suggest Tab -->
+            <div class="feed-tab-content" id="tab-suggest">
+                <div class="suggest-area">
+                    <p>Have a prompt idea? Share it with the community!</p>
+                    <textarea id="suggestInput" rows="3" placeholder="Describe the prompt you'd like to see..."></textarea>
+                    <button onclick="submitSuggestion()">Submit Suggestion</button>
+                    <div class="suggest-notes" id="suggestNotes"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>  `;
+
+  // ==================== SOCIAL FEED JAVASCRIPT (GLOBAL) ====================
+const socialFeedJS = `
+// -------- GLOBAL SOCIAL FEED FUNCTIONS --------
+let feedExpanded = false;
+let replyTo = null;
+let messageCache = [];
+let activityCache = [];
+let eventSource = null;
+let currentUserId = null, currentUserName = null;
+
+console.log('✅ Social feed JS loaded');
+
+// Toggle feed (called from the toggle button and close button)
+window.toggleFeed = function() {
+    feedExpanded = !feedExpanded;
+    document.getElementById('socialFeed').classList.toggle('expanded', feedExpanded);
+    const icon = document.getElementById('feedToggleIcon');
+    if (icon) {
+        icon.className = feedExpanded ? 'fas fa-chevron-right' : 'fas fa-chevron-left';
+    }
+    if (feedExpanded) {
+        loadMessages();
+        loadActivity();
+        connectSSE();
+    } else {
+        if (eventSource) eventSource.close();
+    }
+};
+
+// Tab switching
+document.querySelectorAll('.feed-tab').forEach(tab => {
+    tab.addEventListener('click', function() {
+        document.querySelectorAll('.feed-tab').forEach(t => t.classList.remove('active'));
+        this.classList.add('active');
+        document.querySelectorAll('.feed-tab-content').forEach(c => c.classList.remove('active'));
+        document.getElementById('tab-' + this.dataset.tab).classList.add('active');
+    });
+});
+
+// ---- Chat ----
+async function loadMessages() {
+    try {
+        const res = await fetch('/api/chat/messages?limit=50');
+        const data = await res.json();
+        messageCache = data.messages || [];
+        renderMessages();
+    } catch(e) { console.error('Load messages error:', e); }
+}
+
+function renderMessages() {
+    const container = document.getElementById('chatMessages');
+    container.innerHTML = '';
+    messageCache.forEach(msg => {
+        const el = createMessageElement(msg);
+        container.appendChild(el);
+    });
+    container.scrollTop = container.scrollHeight;
+}
+
+// -------- FIXED: createMessageElement with sticker & reply support --------
+function createMessageElement(msg) {
+    const div = document.createElement('div');
+    div.className = 'chat-message' + (msg.userId === currentUserId ? ' own' : '');
+    div.dataset.id = msg.id;
+    
+    // Check for parent (reply)
+    let parentHtml = '';
+    if (msg.parentId) {
+        const parentMsg = messageCache.find(m => m.id === msg.parentId);
+        if (parentMsg) {
+            parentHtml = \`<div class="msg-reply-context">↳ Replying to <strong>\${escapeHtml(parentMsg.userName)}</strong>: \${escapeHtml(parentMsg.content || parentMsg.sticker || '')}</div>\`;
+        }
+    }
+    
+    // Check for sticker
+    let contentHtml = '';
+    if (msg.sticker) {
+        contentHtml = \`<div class="msg-sticker" style="font-size: 3rem; line-height: 1.2;">\${msg.sticker}</div>\`;
+    } else {
+        contentHtml = \`<div class="msg-content">\${escapeHtml(msg.content)}</div>\`;
+    }
+    
+    div.innerHTML = \`
+        <div class="msg-user">\${escapeHtml(msg.userName)}</div>
+        \${parentHtml}
+        \${contentHtml}
+        <div class="msg-time">\${timeAgo(msg.timestamp)}</div>
+        <div class="msg-reactions">\${Object.keys(msg.reactions || {}).map(emoji => 
+            \`<span onclick="reactToMessage('\${msg.id}','\${emoji}')">\${emoji} \${msg.reactions[emoji].length}</span>\`
+        ).join('')}</div>
+        <div class="msg-actions">
+            <button onclick="showReactionPicker('\${msg.id}')"><i class="far fa-smile"></i></button>
+            <button onclick="replyToMessage('\${msg.id}','\${escapeHtml(msg.userName)}','\${escapeHtml(msg.content || msg.sticker || '')}')"><i class="fas fa-reply"></i></button>
+        </div>
+    \`;
+    return div;
+}
+
+// ---- FIXED: sendChatMessage includes parentId ----
+window.sendChatMessage = function() {
+    const chatInput = document.getElementById('chatInput');
+    const content = chatInput.value.trim();
+    if (!content && !replyTo) return;
+    
+    const payload = {
+        userId: currentUserId,
+        userName: currentUserName || 'Guest',
+        content: content || '',
+        parentId: replyTo ? replyTo.id : null
+    };
+    
+    fetch('/api/chat/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+    }).then(() => {
+        chatInput.value = '';
+        cancelReply();
+    }).catch(e => console.error('Send error:', e));
+};
+
+// ---- FIXED: sendSticker (now sends as sticker field) ----
+window.sendSticker = function(sticker) {
+    if (!sticker) return;
+    const payload = {
+        userId: currentUserId,
+        userName: currentUserName || 'Guest',
+        sticker: sticker,
+        parentId: replyTo ? replyTo.id : null
+    };
+    fetch('/api/chat/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+    }).then(() => {
+        document.getElementById('stickerPicker').classList.remove('open');
+        cancelReply();
+    }).catch(e => console.error('Sticker send error:', e));
+};
+
+// ---- FIXED: replyToMessage stores the target ----
+window.replyToMessage = function(id, userName, content) {
+    replyTo = { id, userName, content };
+    const indicator = document.getElementById('replyIndicator');
+    indicator.style.display = 'flex';
+    document.getElementById('replyUser').textContent = userName;
+    document.getElementById('replyContent').textContent = (content || 'sticker').substring(0, 40) + ((content || '').length > 40 ? '...' : '');
+    document.getElementById('chatInput').focus();
+};
+
+// ---- FIXED: cancelReply clears replyTo ----
+window.cancelReply = function() {
+    replyTo = null;
+    document.getElementById('replyIndicator').style.display = 'none';
+};
+
+// ---- FIXED: showReactionPicker stays open until selection ----
+window.showReactionPicker = function(msgId) {
+    const existing = document.querySelector('.reaction-picker');
+    if (existing) existing.remove();
+    
+    const picker = document.createElement('div');
+    picker.className = 'reaction-picker open';
+    picker.style.position = 'absolute';
+    picker.style.top = '0';
+    picker.style.right = '0';
+    picker.style.zIndex = '20';
+    picker.innerHTML = ['❤️','😂','😮','😢','😡','👍'].map(emoji => 
+        \`<button onclick="reactToMessage('\${msgId}','\${emoji}'); this.closest('.reaction-picker').remove();">\${emoji}</button>\`
+    ).join('');
+    
+    const msgEl = document.querySelector(\`.chat-message[data-id="\${msgId}"]\`);
+    if (msgEl) {
+        msgEl.style.position = 'relative';
+        msgEl.appendChild(picker);
+        // Close picker when clicking outside
+        setTimeout(() => {
+            document.addEventListener('click', function closePicker(e) {
+                if (!picker.contains(e.target) && e.target.closest('.chat-message') !== msgEl) {
+                    picker.remove();
+                    document.removeEventListener('click', closePicker);
+                }
+            });
+        }, 100);
+    }
+};
+
+// ---- reactToMessage (unchanged) ----
+window.reactToMessage = function(msgId, emoji) {
+    fetch('/api/chat/react', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messageId: msgId, userId: currentUserId, emoji })
+    }).then(() => {
+        if (emoji === '❤️') triggerFloatingHearts();
+    }).catch(e => console.error('React error:', e));
+};
+
+// ---- Floating hearts (unchanged) ----
+window.triggerFloatingHearts = function() {
+    for (let i=0; i<10; i++) {
+        setTimeout(() => {
+            const heart = document.createElement('div');
+            heart.className = 'floating-hearts';
+            heart.textContent = '❤️';
+            heart.style.left = (Math.random() * 60 + 20) + '%';
+            heart.style.bottom = (Math.random() * 30 + 10) + 'vh';
+            heart.style.fontSize = (Math.random() * 1.5 + 1.5) + 'rem';
+            document.body.appendChild(heart);
+            setTimeout(() => heart.remove(), 1500);
+        }, i * 100);
+    }
+};
+
+// ---- openStickerPicker (unchanged) ----
+window.openStickerPicker = function() {
+    const picker = document.getElementById('stickerPicker');
+    if (picker) picker.classList.toggle('open');
+};
+
+// ---- submitSuggestion (unchanged) ----
+window.submitSuggestion = function() {
+    const text = document.getElementById('suggestInput').value.trim();
+    if (!text) return;
+    fetch('/api/chat/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            userId: currentUserId,
+            userName: currentUserName || 'Guest',
+            content: '💡 Suggestion: ' + text,
+            parentId: null
+        })
+    }).then(() => {
+        document.getElementById('suggestInput').value = '';
+        document.querySelector('[data-tab="chat"]').click();
+    }).catch(e => console.error('Suggestion error:', e));
+};
+
+// ---- SSE (unchanged) ----
+function connectSSE() {
+    if (eventSource) eventSource.close();
+    eventSource = new EventSource('/api/chat/stream');
+    eventSource.onmessage = function(e) {
+        const data = JSON.parse(e.data);
+        if (data.type === 'init') {
+            messageCache = data.messages || [];
+            renderMessages();
+        } else if (data.type === 'message') {
+            messageCache.push(data.message);
+            renderMessages();
+            const chatTab = document.getElementById('tab-chat');
+            if (chatTab.classList.contains('active')) {
+                document.getElementById('chatMessages').scrollTop = document.getElementById('chatMessages').scrollHeight;
+            }
+        } else if (data.type === 'reaction') {
+            const msg = messageCache.find(m => m.id === data.messageId);
+            if (msg) msg.reactions = data.reactions;
+            renderMessages();
+        } else if (data.type === 'activity') {
+            activityCache.unshift(data.activity);
+            renderActivity();
+        }
+    };
+    eventSource.onerror = function() {
+        console.log('SSE error, reconnecting...');
+        setTimeout(() => connectSSE(), 3000);
+    };
+}
+
+// ---- Activity Feed (unchanged) ----
+async function loadActivity() {
+    try {
+        const res = await fetch('/api/activity?limit=20');
+        const data = await res.json();
+        activityCache = data.items || [];
+        renderActivity();
+    } catch(e) { console.error('Load activity error:', e); }
+}
+
+function renderActivity() {
+    const container = document.getElementById('activityFeed');
+    container.innerHTML = activityCache.map(item => \`
+        <div class="activity-item">
+            <div class="act-icon">\${item.type === 'upload' ? '📸' : '📢'}</div>
+            <div class="act-content">
+                <h4>\${item.type === 'upload' ? 'New Prompt Uploaded' : 'Platform Update'}</h4>
+                <p>\${item.title || 'Untitled'} by \${item.userName || 'Anonymous'}</p>
+                <div class="act-time">\${timeAgo(item.timestamp)}</div>
+            </div>
+        </div>
+    \`).join('');
+}
+
+// ---- Helpers (unchanged) ----
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+function timeAgo(dateStr) {
+    const diff = Date.now() - new Date(dateStr).getTime();
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1) return 'just now';
+    if (mins < 60) return mins + 'm';
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return hrs + 'h';
+    return Math.floor(hrs/24) + 'd';
+}
+
+// ---- Current user (unchanged) ----
+if (typeof firebase !== 'undefined' && firebase.auth) {
+    firebase.auth().onAuthStateChanged(user => {
+        if (user) {
+            currentUserId = user.uid;
+            currentUserName = user.displayName || user.email || 'User';
+        } else {
+            currentUserId = 'guest-' + Date.now();
+            currentUserName = 'Guest';
+        }
+    });
+} else {
+    currentUserId = 'guest-' + Date.now();
+    currentUserName = 'Guest';
+}
+`;
   return `<!DOCTYPE html>
 <html lang="en" itemscope itemtype="https://schema.org/Article">
 <head>
@@ -7870,6 +8771,7 @@ const socialBadgesHTML = `
         ${downloadAppCSS}
         ${aiGeneratorCSS}
         ${socialBadgesCSS}
+        ${socialFeedCSS}
         
         /* Ad Container Styles */
         .ad-container {
@@ -9288,6 +10190,7 @@ const socialBadgesHTML = `
     ${socialBadgesHTML}
     ${downloadAppButtonHTMLWithStyle}
     ${aiGeneratorHTML}
+    ${socialFeedHTML}
 
 <script>
 // ==================== FIREBASE INITIALIZATION ====================
@@ -10002,10 +10905,11 @@ document.addEventListener('DOMContentLoaded', function() {
             });
     }
 
-    ${miniBrowserJS}
-    ${downloadAppJS}
-    ${aiGeneratorJS}
-    ${generateCommentSystemJS(promptData)}
+${miniBrowserJS}
+${downloadAppJS}
+${aiGeneratorJS}
+${generateCommentSystemJS(promptData)}
+${socialFeedJS}
 </script>
 </body>
 </html>`;
@@ -10222,4 +11126,11 @@ app.listen(port, async () => {
   console.log(`   → Sticky left side badge with periodic shake animation every 5 seconds`);
   console.log(`   → Hover pauses the animation, scales up and highlights`);
   console.log(`   → Links to https://instagram.com/toolsprompt`);
+  
+  console.log(`💬 SOCIAL FEED + CHAT (SSE) ENABLED:`);
+  console.log(`   → Real-time chat with replies, reactions (6 emojis), stickers`);
+  console.log(`   → Activity feed for new uploads and platform updates`);
+  console.log(`   → "Suggest Prompt" feature`);
+  console.log(`   → Floating hearts on ❤️ reaction`);
+  console.log(`   → Collapsible right-side panel (toggle)`);
 });
