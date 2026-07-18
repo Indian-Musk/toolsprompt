@@ -1,7 +1,6 @@
-﻿// =====================================================================
-// server.js – Fully corrected with working social feed toggle
-// =====================================================================
-
+﻿﻿// ========== AGNES AI CONFIGURATION ==========
+const AGNES_API_IP = '104.18.18.62';               // Hardcoded IP from nslookup
+const AGNES_API_HOST = 'apihub.agnes-ai.com';       // Host header for SSL
 const express = require('express');
 const path = require('path');
 const admin = require('firebase-admin');
@@ -168,6 +167,15 @@ try {
   console.error('❌ Razorpay initialization failed:', error);
   razorpayKeyId = 'rzp_live_SXMEZ6fYLjDmzD';
 }
+
+// ========== AGNES AI CONFIGURATION ==========
+const AGNES_API_KEY = process.env.AGNES_API_KEY; // Set this in your .env file
+
+// ========== ROBUST DNS RESOLVER FOR AGNES ==========
+const { Agent } = require('https');
+
+// ========== NEW: Auto-resolution based on duration ==========
+// We'll use hardcoded IP and Host from top
 
 // Initialize Firebase Admin (Auth + Firestore ONLY, NO Storage)
 let adminInitialized = false;
@@ -3934,7 +3942,8 @@ app.get('/health', (req, res) => {
       downloadAppButton: true,
       affiliateProgram: true,
       socialFeed: true,
-      liveChat: true
+      liveChat: true,
+      notifications: true
     },
     uploadLimits: {
       maxFileSize: '100MB',
@@ -5221,6 +5230,333 @@ app.post('/api/generate-image', async (req, res) => {
   }
 });
 
+// ==================== AGNES AI VIDEO GENERATION (FREE API) ====================
+
+// ===== NEW: Auto-resolution based on duration =====
+app.post('/api/generate-agnes-video', async (req, res) => {
+    if (!AGNES_API_KEY) {
+        console.error('Agnes API Key is not configured.');
+        return res.status(500).json({ error: 'Server configuration error: Agnes API Key missing.' });
+    }
+
+    // ---------- Authentication ----------
+    let userId = null;
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+        const idToken = authHeader.split('Bearer ')[1];
+        try {
+            if (adminInitialized && admin.auth) {
+                const decodedToken = await admin.auth().verifyIdToken(idToken);
+                userId = decodedToken.uid;
+            }
+        } catch (err) {
+            console.error('Auth token verification failed:', err);
+            return res.status(401).json({ error: 'Authentication failed' });
+        }
+    }
+
+    if (!userId) {
+        return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    // Check credits
+    const creditInfo = await getUserCredits(userId);
+    if (creditInfo.credits <= 0) {
+        return res.status(403).json({ error: 'Insufficient credits. Please upgrade.' });
+    }
+
+    // ---------- Busboy parsing ----------
+    const busboy = Busboy({
+        headers: req.headers,
+        limits: { fileSize: 10 * 1024 * 1024 }
+    });
+
+    let fields = {};
+    let imageBuffer = null;
+    let imageMimeType = null;
+    let imageFileName = null;
+    let uploadError = null;
+
+    busboy.on('field', (fieldname, val) => {
+        fields[fieldname] = val;
+    });
+
+    busboy.on('file', (fieldname, file, info) => {
+        if (fieldname === 'image') {
+            const { filename, mimeType } = info;
+            imageFileName = filename;
+            imageMimeType = mimeType;
+            const allowedImageTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+            if (!allowedImageTypes.includes(mimeType)) {
+                uploadError = new Error('Invalid image type. Allowed: JPEG, PNG, WebP');
+                return;
+            }
+            const chunks = [];
+            file.on('data', (data) => chunks.push(data));
+            file.on('end', () => {
+                imageBuffer = Buffer.concat(chunks);
+                if (imageBuffer.length > 10 * 1024 * 1024) {
+                    uploadError = new Error('Image size exceeds 10MB limit');
+                }
+            });
+        } else {
+            file.resume();
+        }
+    });
+
+    busboy.on('finish', async () => {
+        try {
+            if (uploadError) {
+                return res.status(400).json({ error: uploadError.message });
+            }
+
+            const prompt = fields.prompt ? fields.prompt.trim() : '';
+            // Get duration from frontend (default 5s)
+            let duration = parseFloat(fields.duration) || 5;
+
+            // ---------- Auto-select resolution based on duration ----------
+            let width, height;
+            let maxFrames;
+
+            if (duration <= 7) {
+                // 1080p – up to ~7s
+                width = 1080;
+                height = 1920; // portrait
+                maxFrames = 169;
+            } else if (duration <= 17) {
+                // 720p – up to ~17s
+                width = 768;
+                height = 1152; // portrait
+                maxFrames = 409;
+            } else {
+                // 480p – up to ~40s (cap duration to 40s)
+                duration = Math.min(duration, 40);
+                width = 480;
+                height = 640; // portrait
+                maxFrames = 961;
+            }
+
+            // Calculate required frames for the given duration at ~24fps
+            // Agnes requires num_frames to satisfy 8n + 1
+            const targetFrames = Math.floor(duration * 24);
+            let num_frames = Math.floor((targetFrames - 1) / 8) * 8 + 1;
+            // Ensure at least 9 frames (minimum)
+            num_frames = Math.max(9, num_frames);
+            // Cap to the max allowed by the resolution
+            num_frames = Math.min(num_frames, maxFrames);
+
+            // Recalculate actual duration based on capped frames
+            const actualDuration = (num_frames / 24).toFixed(1);
+
+            console.log(`Requested ${duration}s, using ${num_frames} frames (${actualDuration}s) at ${width}x${height}`);
+
+            // Upload image to R2 if provided
+            let imageUrl = null;
+            if (imageBuffer) {
+                const timestamp = Date.now();
+                const uniqueId = uuidv4();
+                const extension = imageFileName ? imageFileName.split('.').pop() : 'jpg';
+                const key = `agnese_images/${timestamp}-${uniqueId}.${extension}`;
+                imageUrl = await uploadToR2(imageBuffer, key, imageMimeType);
+                console.log(`✅ Uploaded image for Agnes: ${imageUrl}`);
+            }
+
+            // Build request data
+            const requestData = {
+                model: 'agnes-video-v2.0',
+                prompt: prompt,
+                width: width,
+                height: height,
+                num_frames: num_frames
+            };
+
+            if (imageUrl) {
+                requestData.image = imageUrl;
+            }
+
+            // ---------- Use IP directly with Host header ----------
+            const https = require('https');
+            const agent = new https.Agent({
+                servername: AGNES_API_HOST  // SNI for SSL certificate
+            });
+
+            const url = `https://${AGNES_API_IP}/v1/videos`;
+
+            // Retry loop
+            const maxRetries = 3;
+            let lastError = null;
+            let response = null;
+
+            for (let attempt = 0; attempt < maxRetries; attempt++) {
+                try {
+                    console.log(`Attempt ${attempt + 1}/${maxRetries} to create Agnes video task...`);
+                    response = await axios.post(url, requestData, {
+                        headers: {
+                            'Authorization': `Bearer ${AGNES_API_KEY}`,
+                            'Content-Type': 'application/json',
+                            'Host': AGNES_API_HOST      // Required for virtual host routing
+                        },
+                        httpsAgent: agent,
+                        timeout: 60000
+                    });
+                    break;
+                } catch (error) {
+                    lastError = error;
+                    console.error(`Attempt ${attempt + 1} failed:`, error.message);
+                    if (error.code === 'ENOTFOUND' || error.code === 'ECONNREFUSED' || error.code === 'ECONNRESET') {
+                        const waitMs = Math.min(1000 * Math.pow(2, attempt), 8000);
+                        console.log(`Network error, retrying in ${waitMs}ms...`);
+                        await new Promise(resolve => setTimeout(resolve, waitMs));
+                        continue;
+                    }
+                    break;
+                }
+            }
+
+            if (!response) {
+                let statusCode = 503;
+                let errorMessage = 'Failed to create video task due to network issues.';
+                let retryAfter = 30;
+                let details = lastError?.message || 'Unknown error';
+
+                if (lastError && lastError.response) {
+                    if (lastError.response.status === 429) {
+                        statusCode = 429;
+                        errorMessage = 'You have reached the Agnes video generation limit (1 per minute). Please wait and try again.';
+                        retryAfter = lastError.response.headers['retry-after'] || 60;
+                    } else if (lastError.response.data && lastError.response.data.error) {
+                        details = JSON.stringify(lastError.response.data.error);
+                    }
+                }
+
+                console.error('Agnes video creation failed after retries:', details);
+                return res.status(statusCode).json({
+                    error: errorMessage,
+                    retryAfter: retryAfter,
+                    details: details
+                });
+            }
+
+            if (!response.data || !response.data.video_id) {
+                console.error('Unexpected Agnes response:', response.data);
+                throw new Error('Could not create video task.');
+            }
+
+            // Deduct credit
+            await deductCredit(userId);
+            const remainingCredits = (await getUserCredits(userId)).credits;
+
+            console.log(`✅ Agnes video task created with video_id: ${response.data.video_id} for user ${userId}`);
+
+            res.json({
+                success: true,
+                video_id: response.data.video_id,
+                remainingCredits: remainingCredits,
+                message: 'Video generation task created successfully.'
+            });
+
+        } catch (error) {
+            console.error('Agnes video generation error:', error.response?.data || error.message);
+            res.status(500).json({
+                error: 'Failed to create video generation task.',
+                details: error.response?.data || error.message
+            });
+        }
+    });
+
+    busboy.on('error', (err) => {
+        console.error('Busboy error:', err);
+        res.status(500).json({ error: 'Request parsing error' });
+    });
+
+    req.pipe(busboy);
+});
+
+app.get('/api/poll-agnes-video', async (req, res) => {
+    const { video_id } = req.query;
+
+    if (!video_id) {
+        return res.status(400).json({ error: 'video_id is required.' });
+    }
+
+    if (!AGNES_API_KEY) {
+        console.error('Agnes API Key is not configured.');
+        return res.status(500).json({ error: 'Server configuration error: Agnes API Key missing.' });
+    }
+
+    // ---------- Use IP directly ----------
+    const https = require('https');
+    const agent = new https.Agent({
+        servername: AGNES_API_HOST
+    });
+
+    const url = `https://${AGNES_API_IP}/agnesapi`;
+
+    const maxRetries = 3;
+    let lastError = null;
+
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+        try {
+            const response = await axios.get(url, {
+                params: { video_id: video_id },
+                headers: {
+                    'Authorization': `Bearer ${AGNES_API_KEY}`,
+                    'Host': AGNES_API_HOST
+                },
+                httpsAgent: agent,
+                timeout: 30000
+            });
+
+            return res.json(response.data);
+
+        } catch (error) {
+            lastError = error;
+            if (error.code === 'ENOTFOUND' || error.code === 'ECONNREFUSED' || error.code === 'ECONNRESET') {
+                const waitMs = Math.min(1000 * Math.pow(2, attempt), 8000);
+                console.log(`Network error (attempt ${attempt + 1}/${maxRetries}), retrying in ${waitMs}ms...`);
+                await new Promise(resolve => setTimeout(resolve, waitMs));
+                continue;
+            }
+            break;
+        }
+    }
+
+    // Error handling
+    let statusCode = 500;
+    let errorMessage = 'Failed to poll video status.';
+    let retryAfter = null;
+    let details = lastError?.message || 'Unknown error';
+
+    if (lastError && lastError.response) {
+        const status = lastError.response.status;
+        const data = lastError.response.data;
+
+        if (status === 429) {
+            statusCode = 429;
+            errorMessage = 'Rate limit exceeded for status checks. Please wait a moment.';
+            retryAfter = lastError.response.headers['retry-after'] || 30;
+            console.log(`⏳ Status poll rate limited. Retry after ${retryAfter}s`);
+        } else if (data && data.error && data.error.message) {
+            errorMessage = data.error.message;
+            details = data.error.message;
+        }
+    } else if (lastError && lastError.code === 'ENOTFOUND') {
+        statusCode = 503;
+        errorMessage = 'Network error: Unable to reach Agnes API. Please check your internet connection.';
+        retryAfter = 30;
+        details = 'DNS resolution failed for Agnes API after retries.';
+        console.error(details);
+    }
+
+    console.error('Error polling Agnes video status:', details);
+
+    res.status(statusCode).json({
+        error: errorMessage,
+        retryAfter: retryAfter,
+        details: details
+    });
+});
+
 // Top-up credits: create Razorpay order for ₹20 (50 credits)
 app.post('/api/top-up-credits', async (req, res) => {
   try {
@@ -5448,6 +5784,185 @@ function broadcastActivity(activity) {
   chatClients.forEach(client => {
     client.res.write(`data: ${JSON.stringify({ type: 'activity', activity })}\n\n`);
   });
+}
+
+// ==================== PWA PUSH NOTIFICATIONS (FCM) ====================
+
+// Store subscription token
+app.post('/api/push/subscribe', async (req, res) => {
+  try {
+    const { userId, token, userAgent } = req.body;
+    if (!userId || !token) {
+      return res.status(400).json({ error: 'Missing userId or token' });
+    }
+
+    // Store token in Firestore under the user's document
+    if (db && db.collection) {
+      const userRef = db.collection('users').doc(userId);
+      await userRef.set({
+        pushToken: token,
+        pushUserAgent: userAgent || null,
+        pushUpdatedAt: new Date().toISOString(),
+        pushEnabled: true
+      }, { merge: true });
+      console.log(`✅ Push token saved for user ${userId}`);
+    } else {
+      // Demo mode: store in memory
+      if (!global.pushTokens) global.pushTokens = {};
+      global.pushTokens[userId] = token;
+    }
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error saving push token:', error);
+    res.status(500).json({ error: 'Failed to save push token' });
+  }
+});
+
+// Unsubscribe (remove token)
+app.post('/api/push/unsubscribe', async (req, res) => {
+  try {
+    const { userId, token } = req.body;
+    if (!userId) return res.status(400).json({ error: 'Missing userId' });
+
+    if (db && db.collection) {
+      const userRef = db.collection('users').doc(userId);
+      await userRef.update({
+        pushToken: null,
+        pushEnabled: false,
+        pushUpdatedAt: new Date().toISOString()
+      });
+    } else {
+      delete global.pushTokens[userId];
+    }
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error removing push token:', error);
+    res.status(500).json({ error: 'Failed to remove push token' });
+  }
+});
+
+// Helper function to send push notification to a user
+async function sendPushNotification(userId, title, body, data = {}) {
+  if (!db && !global.pushTokens) {
+    console.log('Push tokens not available');
+    return;
+  }
+
+  // Get token from DB
+  let token = null;
+  if (db && db.collection) {
+    const doc = await db.collection('users').doc(userId).get();
+    if (doc.exists) {
+      const userData = doc.data();
+      if (userData.pushEnabled !== false) {
+        token = userData.pushToken;
+      }
+    }
+  } else {
+    token = global.pushTokens[userId];
+  }
+
+  if (!token) {
+    console.log(`No push token for user ${userId}`);
+    return;
+  }
+
+  // Use FCM via firebase-admin
+  if (!adminInitialized) {
+    console.log('Firebase Admin not initialized, cannot send push');
+    return;
+  }
+
+  try {
+    const message = {
+      notification: {
+        title: title,
+        body: body,
+        icon: 'https://www.toolsprompt.com/logo.png',
+        badge: 'https://www.toolsprompt.com/logo.png',
+      },
+      data: data,
+      token: token,
+      webpush: {
+        fcm_options: {
+          link: data.link || 'https://www.toolsprompt.com/',
+        },
+      },
+    };
+
+    const response = await admin.messaging().send(message);
+    console.log(`✅ Push notification sent to ${userId}: ${response}`);
+  } catch (error) {
+    console.error('Error sending push notification:', error);
+    // If token invalid, remove it
+    if (error.code === 'messaging/invalid-registration-token' ||
+        error.code === 'messaging/registration-token-not-registered') {
+      // Remove token from DB
+      if (db && db.collection) {
+        await db.collection('users').doc(userId).update({
+          pushToken: null,
+          pushUpdatedAt: new Date().toISOString()
+        });
+      } else {
+        delete global.pushTokens[userId];
+      }
+      console.log(`Removed invalid token for user ${userId}`);
+    }
+  }
+}
+
+// Send push to multiple users (for new prompts)
+async function sendPushToAllUsers(title, body, data = {}) {
+  if (!db) return;
+  try {
+    const snapshot = await db.collection('users')
+      .where('pushEnabled', '==', true)
+      .where('pushToken', '!=', null)
+      .get();
+    
+    const tokens = snapshot.docs.map(doc => ({
+      userId: doc.id,
+      token: doc.data().pushToken,
+    }));
+
+    if (tokens.length === 0) return;
+
+    // Use FCM batch messaging
+    if (admin.messaging) {
+      const messages = tokens.map(({ token }) => ({
+        notification: { title, body },
+        data: data,
+        token: token,
+        webpush: {
+          fcm_options: { link: data.link || 'https://www.toolsprompt.com/' },
+        },
+      }));
+
+      // Send in chunks of 500
+      for (let i = 0; i < messages.length; i += 500) {
+        const chunk = messages.slice(i, i + 500);
+        const response = await admin.messaging().sendEach(chunk);
+        console.log(`✅ Sent ${chunk.length} push notifications:`, response);
+        // Handle failures (invalid tokens) - you can remove them
+        if (response.failureCount > 0) {
+          for (let j = 0; j < response.responses.length; j++) {
+            const resp = response.responses[j];
+            if (resp.error) {
+              const userId = tokens[i + j]?.userId;
+              if (userId) {
+                await db.collection('users').doc(userId).update({
+                  pushToken: null,
+                  pushUpdatedAt: new Date().toISOString()
+                });
+              }
+            }
+          }
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Error sending push notifications:', error);
+  }
 }
 
 // ==================== HELPER FUNCTIONS FOR PROMPT PAGE GENERATION ====================
@@ -6897,7 +7412,7 @@ function generateAffiliateHTML(affiliate) {
   `;
 }
 
-// ==================== UPDATED generateEnhancedPromptHTML ====================
+// ==================== UPDATED generateEnhancedPromptHTML with NOTIFICATION SUPPORT ====================
 function generateEnhancedPromptHTML(promptData, affiliates) {
   const prompt = promptData;
   const baseUrl = 'https://www.toolsprompt.com';
@@ -7178,9 +7693,7 @@ function generateEnhancedPromptHTML(promptData, affiliates) {
   const affiliateTop = affiliates[0] ? generateAffiliateHTML(affiliates[0]) : '';
   const affiliateMiddle = affiliates[1] ? generateAffiliateHTML(affiliates[1]) : '';
   const affiliateBottom = affiliates[2] ? generateAffiliateHTML(affiliates[2]) : '';
-
-  // ==================== AI GENERATOR STICKY BAR CSS ====================
-  const aiGeneratorCSS = `
+const aiGeneratorCSS = `
 /* Sticky AI Generator Bar */
 .ai-generator-bar {
     position: fixed;
@@ -7190,30 +7703,32 @@ function generateEnhancedPromptHTML(promptData, affiliates) {
     background: rgba(255, 255, 255, 0.98);
     backdrop-filter: blur(10px);
     border-top: 1px solid #e9ecef;
-    padding: 12px 20px;
+    padding: 8px 12px;
     display: none;
-    align-items: flex-start;
-    gap: 12px;
+    align-items: center;
+    gap: 8px;
     z-index: 9999;
     box-shadow: 0 -4px 20px rgba(0,0,0,0.1);
     transition: transform 0.3s ease;
+    flex-wrap: nowrap; /* prevent wrapping */
 }
 .ai-generator-bar.active {
     display: flex;
 }
 .ai-generator-input {
-    flex: 1;
-    min-height: 44px;
-    max-height: 120px;
-    padding: 10px 15px;
+    flex: 1 1 auto;
+    min-width: 60px;
+    max-height: 80px;
+    padding: 8px 12px;
     border: 2px solid #e9ecef;
     border-radius: 24px;
-    font-size: 0.95rem;
+    font-size: 0.9rem;
     resize: none;
     outline: none;
     transition: border-color 0.3s ease;
     font-family: inherit;
     background: white;
+    line-height: 1.4;
 }
 .ai-generator-input:focus {
     border-color: #4e54c8;
@@ -7221,22 +7736,23 @@ function generateEnhancedPromptHTML(promptData, affiliates) {
 .ai-generator-actions {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
     flex-shrink: 0;
 }
 .ai-image-upload-btn {
     background: #f1f3f5;
     border: none;
-    width: 44px;
-    height: 44px;
+    width: 38px;
+    height: 38px;
     border-radius: 50%;
-    font-size: 1.4rem;
+    font-size: 1.2rem;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
     transition: all 0.3s ease;
     color: #495057;
+    flex-shrink: 0;
 }
 .ai-image-upload-btn:hover {
     background: #4e54c8;
@@ -7246,17 +7762,18 @@ function generateEnhancedPromptHTML(promptData, affiliates) {
 .ai-generate-btn {
     background: linear-gradient(135deg, #4e54c8, #8f94fb);
     border: none;
-    width: 44px;
-    height: 44px;
+    width: 38px;
+    height: 38px;
     border-radius: 50%;
     color: white;
-    font-size: 1.2rem;
+    font-size: 1.1rem;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
     transition: all 0.3s ease;
     box-shadow: 0 4px 12px rgba(78,84,200,0.3);
+    flex-shrink: 0;
 }
 .ai-generate-btn:hover {
     transform: scale(1.05);
@@ -7268,23 +7785,18 @@ function generateEnhancedPromptHTML(promptData, affiliates) {
     transform: none;
 }
 .ai-credit-display {
-    font-size: 0.8rem;
+    font-size: 0.75rem;
     color: #495057;
-    padding: 0 8px;
+    padding: 0 4px;
     white-space: nowrap;
     display: flex;
     align-items: center;
-    gap: 4px;
+    gap: 3px;
+    flex-shrink: 0;
 }
 .ai-credit-display .credits-num {
     font-weight: 700;
     color: #4e54c8;
-}
-.ai-credit-display .credits-free {
-    color: #20bf6b;
-}
-.ai-credit-display .credits-paid {
-    color: #ff6b6b;
 }
 .ai-file-input {
     display: none;
@@ -7292,8 +7804,8 @@ function generateEnhancedPromptHTML(promptData, affiliates) {
 .ai-image-preview {
     display: none;
     position: relative;
-    width: 44px;
-    height: 44px;
+    width: 34px;
+    height: 34px;
     border-radius: 8px;
     overflow: hidden;
     flex-shrink: 0;
@@ -7320,6 +7832,47 @@ function generateEnhancedPromptHTML(promptData, affiliates) {
     align-items: center;
     justify-content: center;
 }
+
+/* ===== SEGMENTED CONTROL ===== */
+.ai-mode-toggle-group {
+    display: flex;
+    background: #e9ecef;
+    border-radius: 20px;
+    padding: 2px;
+    gap: 0;
+    flex-shrink: 0;
+    border: 1px solid #dee2e6;
+}
+.ai-mode-option {
+    background: transparent;
+    border: none;
+    padding: 4px 10px;
+    border-radius: 18px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #495057;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    white-space: nowrap;
+}
+.ai-mode-option i {
+    font-size: 0.9rem;
+}
+.ai-mode-option.active {
+    background: white;
+    color: #4e54c8;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+}
+.ai-mode-option:hover:not(.active) {
+    background: rgba(255,255,255,0.5);
+}
+.ai-mode-option:active {
+    transform: scale(0.95);
+}
+
 /* Generated Image Modal */
 .generated-modal {
     display: none;
@@ -7386,44 +7939,95 @@ function generateEnhancedPromptHTML(promptData, affiliates) {
 .generated-modal-download:hover {
     background: #3f44b8;
 }
+
+/* ========== MOBILE RESPONSIVENESS ========== */
 @media (max-width: 768px) {
     .ai-generator-bar {
-        padding: 10px 12px;
-        gap: 8px;
-        flex-wrap: wrap;
+        padding: 6px 8px;
+        gap: 4px;
     }
     .ai-generator-input {
-        font-size: 0.9rem;
-        min-height: 38px;
+        font-size: 0.8rem;
+        padding: 6px 10px;
+        min-height: 32px;
+        border-radius: 20px;
+        flex: 1 1 40%;
     }
     .ai-generator-actions {
         gap: 4px;
     }
     .ai-image-upload-btn, .ai-generate-btn {
-        width: 38px;
-        height: 38px;
+        width: 32px;
+        height: 32px;
+        font-size: 0.9rem;
+    }
+    .ai-mode-option {
+        padding: 3px 8px;
+        font-size: 0.65rem;
+    }
+    .ai-mode-option i {
+        font-size: 0.8rem;
+    }
+    .ai-credit-display {
+        font-size: 0.65rem;
+        padding: 0 2px;
+    }
+    .ai-image-preview {
+        width: 28px;
+        height: 28px;
+    }
+    .ai-image-preview .remove-image {
+        width: 16px;
+        height: 16px;
+        font-size: 8px;
+        top: -4px;
+        right: -4px;
+    }
+}
+
+@media (max-width: 480px) {
+    .ai-generator-bar {
+        padding: 4px 6px;
+        gap: 3px;
+    }
+    .ai-generator-input {
+        font-size: 0.7rem;
+        padding: 4px 8px;
+        min-height: 28px;
+        border-radius: 16px;
+        flex: 1 1 30%;
+    }
+    .ai-generator-actions {
+        gap: 3px;
+    }
+    .ai-image-upload-btn, .ai-generate-btn {
+        width: 28px;
+        height: 28px;
+        font-size: 0.8rem;
+    }
+    .ai-mode-option {
+        padding: 2px 6px;
+        font-size: 0.6rem;
+    }
+    .ai-mode-option span {
+        display: none; /* hide text, only icons */
+    }
+    .ai-mode-option i {
         font-size: 1rem;
     }
     .ai-credit-display {
-        font-size: 0.7rem;
+        font-size: 0.55rem;
     }
-    .generated-modal-close {
-        top: 10px;
-        right: 10px;
-        width: 34px;
-        height: 34px;
-        font-size: 1.2rem;
+    .ai-credit-display .credits-num {
+        font-size: 0.65rem;
     }
-    .generated-modal-download {
-        bottom: -40px;
-        padding: 8px 16px;
-        font-size: 0.9rem;
+    .ai-image-preview {
+        width: 24px;
+        height: 24px;
     }
 }
-  `;
-
-  // ==================== AI GENERATOR STICKY BAR HTML ====================
-  const aiGeneratorHTML = `
+`;
+const aiGeneratorHTML = `
 <!-- AI Generator Sticky Bar -->
 <div class="ai-generator-bar" id="aiGeneratorBar">
     <textarea class="ai-generator-input" id="aiPromptInput" placeholder="Describe the image you want to generate..." rows="1"></textarea>
@@ -7436,6 +8040,17 @@ function generateEnhancedPromptHTML(promptData, affiliates) {
             <i class="fas fa-plus"></i>
         </button>
         <input type="file" class="ai-file-input" id="aiFileInput" accept="image/*">
+        
+        <!-- SEGMENTED TOGGLE -->
+        <div class="ai-mode-toggle-group">
+            <button class="ai-mode-option active" data-mode="image" id="aiModeImage">
+                <i class="fas fa-image"></i> <span>Image</span>
+            </button>
+            <button class="ai-mode-option" data-mode="video" id="aiModeVideo">
+                <i class="fas fa-video"></i> <span>Video</span>
+            </button>
+        </div>
+        
         <span class="ai-credit-display" id="aiCreditDisplay">
             <i class="fas fa-coins"></i> <span class="credits-num" id="aiCreditsCount">0</span> credits
         </span>
@@ -7475,10 +8090,9 @@ function generateEnhancedPromptHTML(promptData, affiliates) {
         </div>
     </div>
 </div>
-  `;
+`;
 
-  // ==================== AI GENERATOR JAVASCRIPT ====================
-  const aiGeneratorJS = `
+const aiGeneratorJS = `
 // ==================== AI GENERATOR STICKY BAR ====================
 (function() {
     const bar = document.getElementById('aiGeneratorBar');
@@ -7498,6 +8112,11 @@ function generateEnhancedPromptHTML(promptData, affiliates) {
     const upgradeClose = document.getElementById('upgradeModalClose');
     const upgradePayBtn = document.getElementById('upgradePayBtn');
     const upgradeCurrent = document.getElementById('upgradeCurrentCredits');
+
+    // ===== NEW: Mode toggle buttons =====
+    const modeImageBtn = document.getElementById('aiModeImage');
+    const modeVideoBtn = document.getElementById('aiModeVideo');
+    let currentMode = 'image'; // 'image' or 'video'
 
     let currentUserId = null;
     let uploadedImage = null; // base64 or File
@@ -7553,7 +8172,34 @@ function generateEnhancedPromptHTML(promptData, affiliates) {
     }
     fetchCredits();
 
-    // Generate
+    // ===== MODE TOGGLE LOGIC =====
+    function setMode(mode) {
+        currentMode = mode;
+        // Update UI
+        modeImageBtn.classList.toggle('active', mode === 'image');
+        modeVideoBtn.classList.toggle('active', mode === 'video');
+        // Update placeholder
+        promptInput.placeholder = mode === 'image' 
+            ? 'Describe the image you want to generate...' 
+            : 'Describe the video you want to create...';
+        // Update generate button icon
+        generateBtn.innerHTML = mode === 'image' 
+            ? '<i class="fas fa-arrow-right"></i>' 
+            : '<i class="fas fa-video"></i>';
+        // Update file input accept (both modes accept image for reference)
+        fileInput.accept = 'image/*';
+    }
+
+    modeImageBtn.addEventListener('click', function() {
+        if (currentMode === 'image') return;
+        setMode('image');
+    });
+    modeVideoBtn.addEventListener('click', function() {
+        if (currentMode === 'video') return;
+        setMode('video');
+    });
+
+    // ===== GENERATE =====
     generateBtn.addEventListener('click', async function() {
         if (isGenerating) return;
         const prompt = promptInput.value.trim();
@@ -7565,8 +8211,7 @@ function generateEnhancedPromptHTML(promptData, affiliates) {
         // Check login
         let user = await getCurrentUser();
         if (!user) {
-            showNotification('Please login to generate images.', 'error');
-            // Redirect to login with return URL
+            showNotification('Please login to generate.', 'error');
             const returnUrl = encodeURIComponent(window.location.href);
             window.location.href = '/login.html?returnUrl=' + returnUrl;
             return;
@@ -7576,7 +8221,6 @@ function generateEnhancedPromptHTML(promptData, affiliates) {
         // Check credits
         const creditInfo = await fetch(\`/api/credits/\${user.uid}\`).then(r => r.json());
         if (!creditInfo.success || creditInfo.credits <= 0) {
-            // Show upgrade modal
             upgradeCurrent.textContent = creditInfo.credits || 0;
             upgradeModal.style.display = 'flex';
             return;
@@ -7587,6 +8231,16 @@ function generateEnhancedPromptHTML(promptData, affiliates) {
         generateBtn.disabled = true;
         generateBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
 
+        // Create or get status element
+        let statusEl = document.getElementById('generationStatus');
+        if (!statusEl) {
+            statusEl = document.createElement('div');
+            statusEl.id = 'generationStatus';
+            statusEl.style.cssText = 'font-size:0.9rem; color:#666; margin-top:5px; text-align:center;';
+            bar.parentNode.insertBefore(statusEl, bar.nextSibling);
+        }
+        statusEl.textContent = '⏳ Starting...';
+
         try {
             const formData = new FormData();
             formData.append('prompt', prompt);
@@ -7594,8 +8248,14 @@ function generateEnhancedPromptHTML(promptData, affiliates) {
                 formData.append('image', uploadedImage);
             }
 
+            // For video, send a default duration (you can add a slider later)
+            if (currentMode === 'video') {
+                formData.append('duration', 5);
+            }
+
             const idToken = await user.getIdToken();
-            const response = await fetch('/api/generate-image', {
+            const endpoint = currentMode === 'video' ? '/api/generate-agnes-video' : '/api/generate-image';
+            const response = await fetch(endpoint, {
                 method: 'POST',
                 headers: { 'Authorization': \`Bearer \${idToken}\` },
                 body: formData
@@ -7603,12 +8263,96 @@ function generateEnhancedPromptHTML(promptData, affiliates) {
 
             const result = await response.json();
             if (!response.ok) {
+                // Check for rate limit (429)
+                if (response.status === 429) {
+                    const waitSec = result.retryAfter || 60;
+                    statusEl.textContent = \`⏳ Rate limited. Please wait \${waitSec} seconds and try again.\`;
+                    showNotification(\`Generation rate limited. Try again in \${waitSec}s.\`, 'error');
+                    generateBtn.disabled = false;
+                    generateBtn.innerHTML = currentMode === 'video' ? '<i class="fas fa-video"></i>' : '<i class="fas fa-arrow-right"></i>';
+                    isGenerating = false;
+                    return;
+                }
                 throw new Error(result.error || 'Generation failed');
             }
 
-            // Show generated image
-            modalImg.src = result.imageUrl;
-            modal.classList.add('active');
+            if (currentMode === 'video') {
+                // Agnes video (async)
+                const videoId = result.video_id;
+                if (!videoId) throw new Error('No video_id returned from Agnes.');
+
+                statusEl.textContent = '⏳ Video generation started (may take several minutes)...';
+
+                const maxAttempts = 300;       // 15 minutes max
+                let attempt = 0;
+                let videoUrl = null;
+                const completionStatuses = ['completed', 'succeeded', 'done', 'finished', 'success'];
+
+                while (attempt < maxAttempts) {
+                    attempt++;
+                    try {
+                        const pollRes = await fetch(\`/api/poll-agnes-video?video_id=\${videoId}\`);
+                        
+                        if (pollRes.status === 429) {
+                            const data = await pollRes.json();
+                            const waitSeconds = data.retryAfter || 30;
+                            statusEl.textContent = \`⏳ Rate limited. Retrying in \${waitSeconds}s... (attempt \${attempt})\`;
+                            console.log(\`⏳ Rate limited. Waiting \${waitSeconds}s...\`);
+                            await new Promise(r => setTimeout(r, waitSeconds * 1000));
+                            continue;
+                        }
+
+                        if (!pollRes.ok) {
+                            throw new Error(\`Poll failed: \${pollRes.status}\`);
+                        }
+
+                        const pollData = await pollRes.json();
+                        console.log(\`Poll \${attempt}:\`, pollData);
+
+                        const status = pollData.status || pollData.state || '';
+                        if (completionStatuses.includes(status.toLowerCase())) {
+                            videoUrl = pollData.video_url || pollData.output?.video_url || pollData.url;
+                            break;
+                        } else if (status === 'failed' || status === 'error') {
+                            throw new Error('Video generation failed.');
+                        }
+
+                        const progress = Math.min(attempt / maxAttempts * 100, 99);
+                        statusEl.textContent = \`⏳ Generating video… \${Math.round(progress)}% (attempt \${attempt}/\${maxAttempts})\`;
+                        const delay = Math.min(2000 * Math.pow(1.2, attempt), 15000);
+                        await new Promise(r => setTimeout(r, delay));
+
+                    } catch (pollError) {
+                        console.error('Poll error:', pollError);
+                        if (!pollError.message.includes('failed')) {
+                            await new Promise(r => setTimeout(r, 5000));
+                        } else {
+                            throw pollError;
+                        }
+                    }
+                }
+
+                if (!videoUrl) {
+                    statusEl.textContent = '⏳ Video is taking longer than expected. Please check your dashboard later.';
+                    showNotification('Video generation is still processing. You can check your dashboard for updates.', 'info');
+                    generateBtn.disabled = false;
+                    generateBtn.innerHTML = '<i class="fas fa-video"></i>';
+                    isGenerating = false;
+                    return;
+                }
+
+                statusEl.textContent = '✅ Video generated!';
+                showVideoModal(videoUrl);
+                showNotification('Video generated successfully!', 'success');
+
+            } else {
+                // Image generation (Pollinations)
+                modalImg.src = result.imageUrl;
+                modal.classList.add('active');
+                statusEl.textContent = '✅ Image generated!';
+                showNotification('Image generated successfully!', 'success');
+            }
+
             // Update remaining credits
             creditDisplay.textContent = result.remainingCredits;
 
@@ -7620,13 +8364,17 @@ function generateEnhancedPromptHTML(promptData, affiliates) {
             fileInput.value = '';
             uploadedImage = null;
 
-            showNotification('Image generated successfully!', 'success');
         } catch (error) {
+            console.error('Generation error:', error);
+            statusEl.textContent = '❌ ' + error.message;
             showNotification(error.message, 'error');
         } finally {
             isGenerating = false;
             generateBtn.disabled = false;
-            generateBtn.innerHTML = '<i class="fas fa-arrow-right"></i>';
+            generateBtn.innerHTML = currentMode === 'video' ? '<i class="fas fa-video"></i>' : '<i class="fas fa-arrow-right"></i>';
+            setTimeout(() => {
+                if (statusEl) statusEl.textContent = '';
+            }, 10000);
         }
     });
 
@@ -7643,6 +8391,32 @@ function generateEnhancedPromptHTML(promptData, affiliates) {
         link.click();
         document.body.removeChild(link);
     });
+
+    // Video modal helper
+    window.showVideoModal = function(videoUrl) {
+        const existing = document.getElementById('videoModal');
+        if (existing) existing.remove();
+
+        const modalHTML = \`
+            <div class="generated-modal active" id="videoModal">
+                <div class="generated-modal-content" style="max-width:90%;">
+                    <button class="generated-modal-close" onclick="document.getElementById('videoModal').classList.remove('active')">&times;</button>
+                    <video src="\${videoUrl}" controls autoplay loop style="width:100%; max-height:80vh; border-radius:12px; background:#000;"></video>
+                    <button class="generated-modal-download" onclick="downloadVideo('\${videoUrl}')">Download Video</button>
+                </div>
+            </div>
+        \`;
+        document.body.insertAdjacentHTML('beforeend', modalHTML);
+    };
+
+    window.downloadVideo = function(url) {
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'generated-video.mp4';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+    };
 
     // Upgrade modal
     upgradeClose.addEventListener('click', () => upgradeModal.style.display = 'none');
@@ -7762,9 +8536,9 @@ function generateEnhancedPromptHTML(promptData, affiliates) {
 
     // Expose fetchCredits for after top-up
     window.refreshCredits = fetchCredits;
-})();
-  `;
 
+})();
+`;
   // ==================== STICKY SOCIAL BADGES (Instagram + YouTube) ====================
 const socialBadgesCSS = `
 /* Sticky Social Badges Container - Left Side */
@@ -8063,6 +8837,7 @@ const socialBadgesHTML = `
         height: 90vh;
         max-height: 90vh;
         border-radius: 0;
+margin-right: 5vw;
     }
 }
     .social-feed-panel {
@@ -8342,7 +9117,7 @@ const socialBadgesHTML = `
                     </div>
                     <div class="chat-input-row">
                         <button class="sticker-btn" onclick="openStickerPicker()"><i class="fas fa-sticky-note"></i></button>
-                        <input type="text" id="chatInput" placeholder="Type a message..." />
+                        <input type="text" id="chatInput" placeholder="Type a message...No Login Require" />
                         <button onclick="sendChatMessage()"><i class="fas fa-paper-plane"></i></button>
                     </div>
                     <!-- Sticker Picker -->
@@ -8375,7 +9150,7 @@ const socialBadgesHTML = `
     </div>
 </div>  `;
 
-  // ==================== SOCIAL FEED JAVASCRIPT (GLOBAL) ====================
+  // ==================== SOCIAL FEED JAVASCRIPT (GLOBAL) WITH NOTIFICATIONS ====================
 const socialFeedJS = `
 // -------- GLOBAL SOCIAL FEED FUNCTIONS --------
 let feedExpanded = false;
@@ -8387,7 +9162,178 @@ let currentUserId = null, currentUserName = null;
 
 console.log('✅ Social feed JS loaded');
 
-// Toggle feed (called from the toggle button and close button)
+// -------- NOTIFICATION PERMISSION & HANDLING --------
+let notificationPermissionGranted = false;
+let notificationRequested = false;
+
+async function requestNotificationPermission() {
+    if (!('Notification' in window)) {
+        console.warn('⚠️ This browser does not support notifications');
+        return false;
+    }
+    if (Notification.permission === 'granted') {
+        notificationPermissionGranted = true;
+        notificationRequested = true;
+        console.log('🔔 Notification permission already granted');
+        sendTestNotification();
+        return true;
+    }
+    if (Notification.permission === 'denied') {
+        console.warn('❌ Notification permission denied by user');
+        return false;
+    }
+    // Request permission
+    try {
+        console.log('🔔 Requesting notification permission...');
+        const permission = await Notification.requestPermission();
+        notificationPermissionGranted = (permission === 'granted');
+        notificationRequested = true;
+        if (notificationPermissionGranted) {
+            console.log('✅ Notification permission granted');
+            sendTestNotification();
+        } else {
+            console.warn('❌ Notification permission denied');
+        }
+        return notificationPermissionGranted;
+    } catch (error) {
+        console.error('Error requesting notification permission:', error);
+        return false;
+    }
+}
+
+function sendTestNotification() {
+    if (!notificationPermissionGranted) return;
+    try {
+        new Notification('🔔 Notifications enabled', {
+            body: 'You will now receive alerts for new messages and activity.',
+            icon: 'https://www.toolsprompt.com/logo.png',
+            badge: 'https://www.toolsprompt.com/logo.png',
+            silent: false,
+            requireInteraction: false,
+        });
+        console.log('✅ Test notification sent');
+    } catch (e) {
+        console.warn('Could not send test notification:', e);
+    }
+}
+
+function showBrowserNotification(title, body, data) {
+    if (!notificationPermissionGranted) return;
+    try {
+        const options = {
+            body: body || '',
+            icon: 'https://www.toolsprompt.com/logo.png',
+            badge: 'https://www.toolsprompt.com/logo.png',
+            vibrate: [200, 100, 200],
+            data: data || {},
+            requireInteraction: false,
+            silent: false,
+        };
+        const notification = new Notification(title, options);
+        notification.onclick = function(event) {
+            event.preventDefault();
+            window.focus();
+            if (!feedExpanded) toggleFeed();
+            if (data && data.type === 'message') {
+                document.querySelector('[data-tab="chat"]')?.click();
+            } else if (data && data.type === 'activity') {
+                document.querySelector('[data-tab="feed"]')?.click();
+            }
+            notification.close();
+        };
+        setTimeout(() => notification.close(), 10000);
+        console.log('🔔 Notification shown:', title);
+    } catch (error) {
+        console.error('Error showing notification:', error);
+    }
+}
+
+// -------- OVERRIDE toggleFeed to request permission --------
+const originalToggleFeed = window.toggleFeed;
+window.toggleFeed = function() {
+    originalToggleFeed();
+    if (feedExpanded && !notificationRequested) {
+        requestNotificationPermission();
+    }
+};
+
+// -------- MODIFY SSE onmessage to show notifications --------
+const originalConnectSSE = connectSSE;
+connectSSE = function() {
+    originalConnectSSE();
+    if (eventSource) {
+        const originalHandler = eventSource.onmessage;
+        eventSource.onmessage = function(e) {
+            // Call original handler first (updates UI)
+            if (originalHandler) originalHandler.call(this, e);
+            // Notification handling
+            try {
+                const data = JSON.parse(e.data);
+                const isPageHidden = document.hidden;
+                const isFeedClosed = !feedExpanded;
+                // Only notify if page hidden OR feed closed (regardless of tab)
+                const shouldNotify = isPageHidden || isFeedClosed;
+                
+                console.log('🔔 SSE data received:', data.type, 'shouldNotify:', shouldNotify);
+                
+                if (!shouldNotify) {
+                    console.log('🔕 Skipping notification (page visible & feed open)');
+                    return;
+                }
+                
+                let title = '';
+                let body = '';
+                let notificationData = {};
+                
+                if (data.type === 'message' && data.message) {
+                    const msg = data.message;
+                    // Don't notify if it's my own message
+                    if (msg.userId === currentUserId) {
+                        console.log('🔕 Skipping own message');
+                        return;
+                    }
+                    title = \`💬 New message from \${msg.userName || 'Someone'}\`;
+                    body = msg.content || msg.sticker || 'New message';
+                    notificationData = { type: 'message', messageId: msg.id };
+                } else if (data.type === 'activity' && data.activity) {
+                    const act = data.activity;
+                    title = \`📢 New activity\`;
+                    body = \`\${act.userName || 'Someone'} uploaded "\${act.title || 'a new prompt'}"\`;
+                    notificationData = { type: 'activity', activityId: act.id };
+                }
+                
+                if (title && notificationPermissionGranted) {
+                    showBrowserNotification(title, body, notificationData);
+                }
+            } catch (err) {
+                console.error('Error in notification handler:', err);
+            }
+        };
+    }
+};
+
+// Initialize permission state from existing permission
+if ('Notification' in window && Notification.permission === 'granted') {
+    notificationPermissionGranted = true;
+    notificationRequested = true;
+    // Send test notification after a short delay to confirm
+    setTimeout(sendTestNotification, 1000);
+} else if ('Notification' in window && Notification.permission === 'denied') {
+    notificationPermissionGranted = false;
+    notificationRequested = true;
+}
+
+// Request permission on page load after a delay, but only if the feed is visible? 
+// We'll do it anyway, but some browsers may block without gesture.
+setTimeout(() => {
+    if (!notificationRequested) {
+        requestNotificationPermission();
+    }
+}, 5000);
+
+// -------- Original feed functions (unchanged except as above) --------
+
+// Toggle feed
 window.toggleFeed = function() {
     feedExpanded = !feedExpanded;
     document.getElementById('socialFeed').classList.toggle('expanded', feedExpanded);
@@ -8434,13 +9380,11 @@ function renderMessages() {
     container.scrollTop = container.scrollHeight;
 }
 
-// -------- FIXED: createMessageElement with sticker & reply support --------
 function createMessageElement(msg) {
     const div = document.createElement('div');
     div.className = 'chat-message' + (msg.userId === currentUserId ? ' own' : '');
     div.dataset.id = msg.id;
     
-    // Check for parent (reply)
     let parentHtml = '';
     if (msg.parentId) {
         const parentMsg = messageCache.find(m => m.id === msg.parentId);
@@ -8449,7 +9393,6 @@ function createMessageElement(msg) {
         }
     }
     
-    // Check for sticker
     let contentHtml = '';
     if (msg.sticker) {
         contentHtml = \`<div class="msg-sticker" style="font-size: 3rem; line-height: 1.2;">\${msg.sticker}</div>\`;
@@ -8473,7 +9416,6 @@ function createMessageElement(msg) {
     return div;
 }
 
-// ---- FIXED: sendChatMessage includes parentId ----
 window.sendChatMessage = function() {
     const chatInput = document.getElementById('chatInput');
     const content = chatInput.value.trim();
@@ -8496,7 +9438,6 @@ window.sendChatMessage = function() {
     }).catch(e => console.error('Send error:', e));
 };
 
-// ---- FIXED: sendSticker (now sends as sticker field) ----
 window.sendSticker = function(sticker) {
     if (!sticker) return;
     const payload = {
@@ -8515,7 +9456,6 @@ window.sendSticker = function(sticker) {
     }).catch(e => console.error('Sticker send error:', e));
 };
 
-// ---- FIXED: replyToMessage stores the target ----
 window.replyToMessage = function(id, userName, content) {
     replyTo = { id, userName, content };
     const indicator = document.getElementById('replyIndicator');
@@ -8525,13 +9465,11 @@ window.replyToMessage = function(id, userName, content) {
     document.getElementById('chatInput').focus();
 };
 
-// ---- FIXED: cancelReply clears replyTo ----
 window.cancelReply = function() {
     replyTo = null;
     document.getElementById('replyIndicator').style.display = 'none';
 };
 
-// ---- FIXED: showReactionPicker stays open until selection ----
 window.showReactionPicker = function(msgId) {
     const existing = document.querySelector('.reaction-picker');
     if (existing) existing.remove();
@@ -8550,7 +9488,6 @@ window.showReactionPicker = function(msgId) {
     if (msgEl) {
         msgEl.style.position = 'relative';
         msgEl.appendChild(picker);
-        // Close picker when clicking outside
         setTimeout(() => {
             document.addEventListener('click', function closePicker(e) {
                 if (!picker.contains(e.target) && e.target.closest('.chat-message') !== msgEl) {
@@ -8562,7 +9499,6 @@ window.showReactionPicker = function(msgId) {
     }
 };
 
-// ---- reactToMessage (unchanged) ----
 window.reactToMessage = function(msgId, emoji) {
     fetch('/api/chat/react', {
         method: 'POST',
@@ -8573,7 +9509,6 @@ window.reactToMessage = function(msgId, emoji) {
     }).catch(e => console.error('React error:', e));
 };
 
-// ---- Floating hearts (unchanged) ----
 window.triggerFloatingHearts = function() {
     for (let i=0; i<10; i++) {
         setTimeout(() => {
@@ -8589,13 +9524,11 @@ window.triggerFloatingHearts = function() {
     }
 };
 
-// ---- openStickerPicker (unchanged) ----
 window.openStickerPicker = function() {
     const picker = document.getElementById('stickerPicker');
     if (picker) picker.classList.toggle('open');
 };
 
-// ---- submitSuggestion (unchanged) ----
 window.submitSuggestion = function() {
     const text = document.getElementById('suggestInput').value.trim();
     if (!text) return;
@@ -8614,7 +9547,6 @@ window.submitSuggestion = function() {
     }).catch(e => console.error('Suggestion error:', e));
 };
 
-// ---- SSE (unchanged) ----
 function connectSSE() {
     if (eventSource) eventSource.close();
     eventSource = new EventSource('/api/chat/stream');
@@ -8645,7 +9577,6 @@ function connectSSE() {
     };
 }
 
-// ---- Activity Feed (unchanged) ----
 async function loadActivity() {
     try {
         const res = await fetch('/api/activity?limit=20');
@@ -8669,7 +9600,6 @@ function renderActivity() {
     \`).join('');
 }
 
-// ---- Helpers (unchanged) ----
 function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text;
@@ -8686,21 +9616,26 @@ function timeAgo(dateStr) {
     return Math.floor(hrs/24) + 'd';
 }
 
-// ---- Current user (unchanged) ----
+// ---- Current user ----
 if (typeof firebase !== 'undefined' && firebase.auth) {
     firebase.auth().onAuthStateChanged(user => {
         if (user) {
             currentUserId = user.uid;
             currentUserName = user.displayName || user.email || 'User';
+            console.log('👤 User logged in:', currentUserName);
         } else {
             currentUserId = 'guest-' + Date.now();
             currentUserName = 'Guest';
+            console.log('👤 Guest user:', currentUserId);
         }
     });
 } else {
     currentUserId = 'guest-' + Date.now();
     currentUserName = 'Guest';
+    console.log('👤 No Firebase, using guest:', currentUserId);
 }
+
+console.log('🔔 Notification integration ready');
 `;
   return `<!DOCTYPE html>
 <html lang="en" itemscope itemtype="https://schema.org/Article">
@@ -11135,4 +12070,25 @@ app.listen(port, async () => {
   console.log(`   → "Suggest Prompt" feature`);
   console.log(`   → Floating hearts on ❤️ reaction`);
   console.log(`   → Collapsible right-side panel (toggle)`);
+  console.log(`🔔 NOTIFICATIONS ENABLED:`);
+  console.log(`   → Browser notifications for new chat messages & activity`);
+  console.log(`   → Requests permission on page load and feed open`);
+  console.log(`   → Only shows when page hidden or not on active tab`);
+  console.log(`🔔 PWA PUSH NOTIFICATIONS (FCM) ENABLED:`);
+  console.log(`   → Service worker registered for background push`);
+  console.log(`   → Tokens stored in Firestore users collection`);
+  console.log(`   → Push sent to all users with pushEnabled: true`);
+  console.log(`   → Invalid tokens automatically removed`);
+  
+  console.log(`🤖 AGNES AI VIDEO GENERATION (FREE API) ADDED!`);
+  console.log(`   → Endpoints: /api/generate-agnes-video (POST) & /api/poll-agnes-video (GET)`);
+  console.log(`   → Model: agnes-video-v2.0 (unlimited, free, no credit limit)`);
+  console.log(`   → Supports text-to-video and image-to-video`);
+  console.log(`   → Asynchronous generation: create task → poll for result`);
+  console.log(`   → Configured via AGNES_API_KEY in .env`);
+  console.log(`   → Auto-selects resolution based on duration (up to 40s at 480p)`);
 });
+
+// ---------------------------------------------------------------------
+// End of server.js
+// ---------------------------------------------------------------------

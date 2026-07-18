@@ -1,0 +1,13 @@
+{
+  "name": "Tools Prompt",
+  "short_name": "ToolsPrompt",
+  "description": "AI Prompt Marketplace - Buy and Sell Prompts",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#4e54c8",
+  "theme_color": "#4e54c8",
+  "icons": [
+    { "src": "/logo.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/logo.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}
