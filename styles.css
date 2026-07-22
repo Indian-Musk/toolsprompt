@@ -21,6 +21,409 @@ body {
     line-height: 1.6;
     overflow-x: hidden;
 }
+/* ===== AI GENERATOR STICKY BAR ===== */
+.ai-generator-bar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: rgba(255, 255, 255, 0.98);
+    backdrop-filter: blur(10px);
+    border-top: 1px solid #e9ecef;
+    padding: 8px 12px;
+    display: none;
+    align-items: center;
+    gap: 8px;
+    z-index: 9999;
+    box-shadow: 0 -4px 20px rgba(0,0,0,0.1);
+    transition: transform 0.3s ease;
+    flex-wrap: nowrap;
+}
+.ai-generator-bar.active {
+    display: flex;
+}
+.ai-generator-input {
+    flex: 1 1 auto;
+    min-width: 60px;
+    max-height: 80px;
+    padding: 8px 12px;
+    border: 2px solid #e9ecef;
+    border-radius: 24px;
+    font-size: 0.9rem;
+    resize: none;
+    outline: none;
+    transition: border-color 0.3s ease;
+    font-family: inherit;
+    background: white;
+    line-height: 1.4;
+}
+.ai-generator-input:focus {
+    border-color: #4e54c8;
+}
+.ai-generator-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+}
+.ai-image-upload-btn {
+    background: #f1f3f5;
+    border: none;
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    font-size: 1.2rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s ease;
+    color: #495057;
+    flex-shrink: 0;
+}
+.ai-image-upload-btn:hover {
+    background: #4e54c8;
+    color: white;
+    transform: scale(1.05);
+}
+.ai-generate-btn {
+    background: linear-gradient(135deg, #4e54c8, #8f94fb);
+    border: none;
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    color: white;
+    font-size: 1.1rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 12px rgba(78,84,200,0.3);
+    flex-shrink: 0;
+}
+.ai-generate-btn:hover {
+    transform: scale(1.05);
+    box-shadow: 0 6px 20px rgba(78,84,200,0.5);
+}
+.ai-generate-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+}
+.ai-credit-display {
+    font-size: 0.75rem;
+    color: #495057;
+    padding: 0 4px;
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    flex-shrink: 0;
+}
+.ai-credit-display .credits-num {
+    font-weight: 700;
+    color: #4e54c8;
+}
+.ai-file-input {
+    display: none;
+}
+.ai-image-preview {
+    display: none;
+    position: relative;
+    width: 34px;
+    height: 34px;
+    border-radius: 8px;
+    overflow: hidden;
+    flex-shrink: 0;
+    border: 2px solid #4e54c8;
+}
+.ai-image-preview img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+.ai-image-preview .remove-image {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    background: #ff6b6b;
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 18px;
+    height: 18px;
+    font-size: 10px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.ai-mode-toggle-group {
+    display: flex;
+    background: #e9ecef;
+    border-radius: 20px;
+    padding: 2px;
+    gap: 0;
+    flex-shrink: 0;
+    border: 1px solid #dee2e6;
+}
+.ai-mode-option {
+    background: transparent;
+    border: none;
+    padding: 4px 10px;
+    border-radius: 18px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #495057;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    white-space: nowrap;
+}
+.ai-mode-option i {
+    font-size: 0.9rem;
+}
+.ai-mode-option.active {
+    background: white;
+    color: #4e54c8;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+}
+.ai-mode-option:hover:not(.active) {
+    background: rgba(255,255,255,0.5);
+}
+.ai-mode-option:active {
+    transform: scale(0.95);
+}
+.generated-modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0,0,0,0.85);
+    z-index: 99999;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+}
+.generated-modal.active {
+    display: flex;
+}
+.generated-modal-content {
+    max-width: 90%;
+    max-height: 90%;
+    position: relative;
+}
+.generated-modal-content img {
+    max-width: 100%;
+    max-height: 90vh;
+    border-radius: 12px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+}
+.generated-modal-close {
+    position: absolute;
+    top: -40px;
+    right: -40px;
+    background: white;
+    border: none;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    font-size: 1.5rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #333;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+}
+.generated-modal-close:hover {
+    background: #ff6b6b;
+    color: white;
+}
+.generated-modal-download {
+    position: absolute;
+    bottom: -50px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #4e54c8;
+    color: white;
+    border: none;
+    padding: 10px 24px;
+    border-radius: 30px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.3s ease;
+}
+.generated-modal-download:hover {
+    background: #3f44b8;
+}
+.buy-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0,0,0,0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10002;
+    animation: fadeIn 0.3s ease;
+}
+.buy-modal {
+    background: white;
+    border-radius: 15px;
+    width: 90%;
+    max-width: 500px;
+    max-height: 90vh;
+    overflow-y: auto;
+    animation: slideUp 0.3s ease;
+}
+.modal-header {
+    padding: 20px;
+    border-bottom: 1px solid #e9ecef;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.modal-header h2 {
+    color: #4e54c8;
+    font-size: 1.3rem;
+}
+.close-modal {
+    background: none;
+    border: none;
+    font-size: 1.8rem;
+    cursor: pointer;
+    color: #666;
+    transition: color 0.3s ease;
+}
+.close-modal:hover {
+    color: #ff6b6b;
+}
+.buy-modal-content {
+    padding: 20px;
+    text-align: center;
+}
+.buy-now-btn {
+    background: linear-gradient(135deg, #4e54c8, #8f94fb);
+    color: white;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: bold;
+    cursor: pointer;
+    margin-top: 15px;
+    transition: all 0.3s ease;
+}
+.buy-now-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(78,84,200,0.3);
+}
+.secure-payment {
+    text-align: center;
+    margin-top: 15px;
+    font-size: 0.8rem;
+    color: #666;
+}
+.secure-payment i {
+    color: #20bf6b;
+    margin-right: 5px;
+}
+
+/* ===== RESPONSIVE ===== */
+@media (max-width: 768px) {
+    .ai-generator-bar {
+        padding: 6px 8px;
+        gap: 4px;
+        bottom: 60px; /* avoid overlapping with mobile nav */
+    }
+    .ai-generator-input {
+        font-size: 0.8rem;
+        padding: 6px 10px;
+        min-height: 32px;
+        border-radius: 20px;
+        flex: 1 1 40%;
+    }
+    .ai-generator-actions {
+        gap: 4px;
+    }
+    .ai-image-upload-btn, .ai-generate-btn {
+        width: 32px;
+        height: 32px;
+        font-size: 0.9rem;
+    }
+    .ai-mode-option {
+        padding: 3px 8px;
+        font-size: 0.65rem;
+    }
+    .ai-mode-option i {
+        font-size: 0.8rem;
+    }
+    .ai-credit-display {
+        font-size: 0.65rem;
+        padding: 0 2px;
+    }
+    .ai-image-preview {
+        width: 28px;
+        height: 28px;
+    }
+    .ai-image-preview .remove-image {
+        width: 16px;
+        height: 16px;
+        font-size: 8px;
+        top: -4px;
+        right: -4px;
+    }
+}
+@media (max-width: 480px) {
+    .ai-generator-bar {
+        padding: 4px 6px;
+        gap: 3px;
+        bottom: 56px;
+    }
+    .ai-generator-input {
+        font-size: 0.7rem;
+        padding: 4px 8px;
+        min-height: 28px;
+        border-radius: 16px;
+        flex: 1 1 30%;
+    }
+    .ai-generator-actions {
+        gap: 3px;
+    }
+    .ai-image-upload-btn, .ai-generate-btn {
+        width: 28px;
+        height: 28px;
+        font-size: 0.8rem;
+    }
+    .ai-mode-option {
+        padding: 2px 6px;
+        font-size: 0.6rem;
+    }
+    .ai-mode-option span {
+        display: none;
+    }
+    .ai-mode-option i {
+        font-size: 1rem;
+    }
+    .ai-credit-display {
+        font-size: 0.55rem;
+    }
+    .ai-credit-display .credits-num {
+        font-size: 0.65rem;
+    }
+    .ai-image-preview {
+        width: 24px;
+        height: 24px;
+    }
+}
 
 .card-element {
     padding: 12px;

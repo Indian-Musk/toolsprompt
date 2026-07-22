@@ -494,37 +494,130 @@ nav {
     line-height: 1.5;
 }
 
-/* ===== NEW: EARNING HERO & STEPS SECTION ===== */
-.earn-hero-section {
+/* ===== NEW HERO SECTION ===== */
+.hero-section {
     background: linear-gradient(135deg, #4e54c8 0%, #8f94fb 100%);
     color: white;
-    padding: 50px 20px;
+    padding: 60px 20px 40px;
     border-radius: 20px;
-    margin: 40px 0;
+    margin: 20px 0 40px;
     box-shadow: 0 10px 30px rgba(78,84,200,0.3);
     position: relative;
     overflow: hidden;
 }
-.earn-hero-section::before {
-    content: "💰";
+.hero-section::before {
+    content: "✨";
     position: absolute;
-    font-size: 8rem;
-    opacity: 0.1;
-    right: -20px;
-    top: -30px;
+    font-size: 10rem;
+    opacity: 0.05;
+    right: -30px;
+    top: -50px;
     transform: rotate(15deg);
 }
-.earn-hero-section h2 {
-    font-size: 2.2rem;
+.hero-title {
+    font-size: 2.5rem;
+    font-weight: 800;
     margin-bottom: 15px;
-    color: white;
+    line-height: 1.2;
+    text-align: center;
 }
-.earn-hero-section p {
+.hero-highlight {
+    background: rgba(255,255,255,0.2);
+    padding: 0 12px;
+    border-radius: 30px;
+    display: inline-block;
+}
+.hero-subtitle {
     font-size: 1.2rem;
     opacity: 0.95;
-    max-width: 700px;
-    margin: 0 auto 25px;
+    max-width: 800px;
+    margin: 0 auto 30px;
+    text-align: center;
+    line-height: 1.6;
 }
+.hero-features {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 20px;
+    max-width: 900px;
+    margin: 30px auto;
+}
+.hero-feature-card {
+    background: rgba(255,255,255,0.1);
+    backdrop-filter: blur(10px);
+    border-radius: 16px;
+    padding: 25px 20px;
+    text-align: center;
+    border: 1px solid rgba(255,255,255,0.2);
+    transition: all 0.3s ease;
+}
+.hero-feature-card:hover {
+    transform: translateY(-5px);
+    background: rgba(255,255,255,0.2);
+    box-shadow: 0 8px 30px rgba(0,0,0,0.2);
+}
+.feature-icon {
+    font-size: 2.5rem;
+    margin-bottom: 12px;
+}
+.hero-feature-card h3 {
+    font-size: 1.3rem;
+    margin-bottom: 8px;
+    color: white;
+}
+.hero-feature-card p {
+    font-size: 0.95rem;
+    opacity: 0.9;
+    margin-bottom: 15px;
+    line-height: 1.4;
+}
+.hero-feature-btn {
+    background: white;
+    color: #4e54c8;
+    border: none;
+    padding: 8px 20px;
+    border-radius: 30px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-size: 0.9rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+.hero-feature-btn:hover {
+    transform: scale(1.05);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+}
+.hero-cta {
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+    flex-wrap: wrap;
+    margin-top: 20px;
+}
+.hero-secondary-btn {
+    background: rgba(255,255,255,0.2);
+    color: white;
+    border: 2px solid rgba(255,255,255,0.4);
+    padding: 14px 30px;
+    border-radius: 50px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-size: 1rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+.hero-secondary-btn:hover {
+    background: white;
+    color: #4e54c8;
+    border-color: white;
+    transform: translateY(-2px);
+}
+
+/* Keep existing earn-stats and earn-cta-btn styles (they are already defined) */
 .earn-stats {
     display: flex;
     justify-content: center;
@@ -542,7 +635,6 @@ nav {
     opacity: 0.8;
     font-weight: normal;
 }
-
 .earn-cta-btn {
     background: white;
     color: #4e54c8;
@@ -560,57 +652,420 @@ nav {
     box-shadow: 0 8px 25px rgba(0,0,0,0.3);
 }
 
-.steps-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 25px;
-    margin: 30px 0;
+/* Responsive */
+@media (max-width: 768px) {
+    .hero-title { font-size: 1.8rem; }
+    .hero-subtitle { font-size: 1rem; }
+    .hero-features { grid-template-columns: 1fr; }
+    .hero-feature-card { padding: 20px; }
+    .hero-cta { flex-direction: column; align-items: center; }
 }
-.step-card {
+@media (max-width: 480px) {
+    .hero-title { font-size: 1.5rem; }
+    .hero-highlight { font-size: 0.9rem; padding: 0 8px; }
+}
+/* ===== AI GENERATOR STICKY BAR ===== */
+.ai-generator-bar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: rgba(255, 255, 255, 0.98);
+    backdrop-filter: blur(10px);
+    border-top: 1px solid #e9ecef;
+    padding: 8px 12px;
+    display: none;
+    align-items: center;
+    gap: 8px;
+    z-index: 9999;
+    box-shadow: 0 -4px 20px rgba(0,0,0,0.1);
+    transition: transform 0.3s ease;
+    flex-wrap: nowrap;
+}
+.ai-generator-bar.active {
+    display: flex;
+}
+.ai-generator-input {
+    flex: 1 1 auto;
+    min-width: 60px;
+    max-height: 80px;
+    padding: 8px 12px;
+    border: 2px solid #e9ecef;
+    border-radius: 24px;
+    font-size: 0.9rem;
+    resize: none;
+    outline: none;
+    transition: border-color 0.3s ease;
+    font-family: inherit;
     background: white;
-    color: #2d334a;
-    padding: 25px;
-    border-radius: 15px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-    text-align: center;
-    border-top: 4px solid #4e54c8;
+    line-height: 1.4;
 }
-.step-number {
-    background: #4e54c8;
-    color: white;
-    width: 40px;
-    height: 40px;
+.ai-generator-input:focus {
+    border-color: #4e54c8;
+}
+.ai-generator-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+}
+.ai-image-upload-btn {
+    background: #f1f3f5;
+    border: none;
+    width: 38px;
+    height: 38px;
     border-radius: 50%;
+    font-size: 1.2rem;
+    cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-weight: bold;
-    margin: 0 auto 15px;
+    transition: all 0.3s ease;
+    color: #495057;
+    flex-shrink: 0;
 }
-.step-card h3 {
-    color: #2d334a;
-    margin-bottom: 8px;
+.ai-image-upload-btn:hover {
+    background: #4e54c8;
+    color: white;
+    transform: scale(1.05);
 }
-.step-card p {
-    color: #555;
+.ai-generate-btn {
+    background: linear-gradient(135deg, #4e54c8, #8f94fb);
+    border: none;
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    color: white;
+    font-size: 1.1rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 12px rgba(78,84,200,0.3);
+    flex-shrink: 0;
 }
-
-@media (max-width: 768px) {
-    .earn-hero-section h2 { font-size: 1.8rem; }
-    .earn-stats { gap: 20px; }
-    .earn-stat { font-size: 1.3rem; }
-    .steps-grid { grid-template-columns: 1fr; }
+.ai-generate-btn:hover {
+    transform: scale(1.05);
+    box-shadow: 0 6px 20px rgba(78,84,200,0.5);
 }
-
-/* Desktop Title */
-.desktop-only {
-    margin: 20px 0;
+.ai-generate-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
 }
-
-.desktop-title {
-    text-align: center;
-    color: #2d334a;
+.ai-credit-display {
+    font-size: 0.75rem;
+    color: #495057;
+    padding: 0 4px;
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    flex-shrink: 0;
+}
+.ai-credit-display .credits-num {
+    font-weight: 700;
+    color: #4e54c8;
+}
+.ai-file-input {
+    display: none;
+}
+.ai-image-preview {
+    display: none;
+    position: relative;
+    width: 34px;
+    height: 34px;
+    border-radius: 8px;
+    overflow: hidden;
+    flex-shrink: 0;
+    border: 2px solid #4e54c8;
+}
+.ai-image-preview img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+.ai-image-preview .remove-image {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    background: #ff6b6b;
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 18px;
+    height: 18px;
+    font-size: 10px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.ai-mode-toggle-group {
+    display: flex;
+    background: #e9ecef;
+    border-radius: 20px;
+    padding: 2px;
+    gap: 0;
+    flex-shrink: 0;
+    border: 1px solid #dee2e6;
+}
+.ai-mode-option {
+    background: transparent;
+    border: none;
+    padding: 4px 10px;
+    border-radius: 18px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #495057;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    white-space: nowrap;
+}
+.ai-mode-option i {
+    font-size: 0.9rem;
+}
+.ai-mode-option.active {
+    background: white;
+    color: #4e54c8;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+}
+.ai-mode-option:hover:not(.active) {
+    background: rgba(255,255,255,0.5);
+}
+.ai-mode-option:active {
+    transform: scale(0.95);
+}
+.generated-modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0,0,0,0.85);
+    z-index: 99999;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+}
+.generated-modal.active {
+    display: flex;
+}
+.generated-modal-content {
+    max-width: 90%;
+    max-height: 90%;
+    position: relative;
+}
+.generated-modal-content img {
+    max-width: 100%;
+    max-height: 90vh;
+    border-radius: 12px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+}
+.generated-modal-close {
+    position: absolute;
+    top: -40px;
+    right: -40px;
+    background: white;
+    border: none;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    font-size: 1.5rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #333;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+}
+.generated-modal-close:hover {
+    background: #ff6b6b;
+    color: white;
+}
+.generated-modal-download {
+    position: absolute;
+    bottom: -50px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #4e54c8;
+    color: white;
+    border: none;
+    padding: 10px 24px;
+    border-radius: 30px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.3s ease;
+}
+.generated-modal-download:hover {
+    background: #3f44b8;
+}
+.buy-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0,0,0,0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10002;
+    animation: fadeIn 0.3s ease;
+}
+.buy-modal {
+    background: white;
+    border-radius: 15px;
+    width: 90%;
+    max-width: 500px;
+    max-height: 90vh;
+    overflow-y: auto;
+    animation: slideUp 0.3s ease;
+}
+.modal-header {
+    padding: 20px;
+    border-bottom: 1px solid #e9ecef;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.modal-header h2 {
+    color: #4e54c8;
+    font-size: 1.3rem;
+}
+.close-modal {
+    background: none;
+    border: none;
     font-size: 1.8rem;
+    cursor: pointer;
+    color: #666;
+    transition: color 0.3s ease;
+}
+.close-modal:hover {
+    color: #ff6b6b;
+}
+.buy-modal-content {
+    padding: 20px;
+    text-align: center;
+}
+.buy-now-btn {
+    background: linear-gradient(135deg, #4e54c8, #8f94fb);
+    color: white;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: bold;
+    cursor: pointer;
+    margin-top: 15px;
+    transition: all 0.3s ease;
+}
+.buy-now-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(78,84,200,0.3);
+}
+.secure-payment {
+    text-align: center;
+    margin-top: 15px;
+    font-size: 0.8rem;
+    color: #666;
+}
+.secure-payment i {
+    color: #20bf6b;
+    margin-right: 5px;
+}
+
+/* ===== RESPONSIVE ===== */
+@media (max-width: 768px) {
+    .ai-generator-bar {
+        padding: 6px 8px;
+        gap: 4px;
+        bottom: 60px; /* avoid overlapping with mobile nav */
+    }
+    .ai-generator-input {
+        font-size: 0.8rem;
+        padding: 6px 10px;
+        min-height: 32px;
+        border-radius: 20px;
+        flex: 1 1 40%;
+    }
+    .ai-generator-actions {
+        gap: 4px;
+    }
+    .ai-image-upload-btn, .ai-generate-btn {
+        width: 32px;
+        height: 32px;
+        font-size: 0.9rem;
+    }
+    .ai-mode-option {
+        padding: 3px 8px;
+        font-size: 0.65rem;
+    }
+    .ai-mode-option i {
+        font-size: 0.8rem;
+    }
+    .ai-credit-display {
+        font-size: 0.65rem;
+        padding: 0 2px;
+    }
+    .ai-image-preview {
+        width: 28px;
+        height: 28px;
+    }
+    .ai-image-preview .remove-image {
+        width: 16px;
+        height: 16px;
+        font-size: 8px;
+        top: -4px;
+        right: -4px;
+    }
+}
+@media (max-width: 480px) {
+    .ai-generator-bar {
+        padding: 4px 6px;
+        gap: 3px;
+        bottom: 56px;
+    }
+    .ai-generator-input {
+        font-size: 0.7rem;
+        padding: 4px 8px;
+        min-height: 28px;
+        border-radius: 16px;
+        flex: 1 1 30%;
+    }
+    .ai-generator-actions {
+        gap: 3px;
+    }
+    .ai-image-upload-btn, .ai-generate-btn {
+        width: 28px;
+        height: 28px;
+        font-size: 0.8rem;
+    }
+    .ai-mode-option {
+        padding: 2px 6px;
+        font-size: 0.6rem;
+    }
+    .ai-mode-option span {
+        display: none;
+    }
+    .ai-mode-option i {
+        font-size: 1rem;
+    }
+    .ai-credit-display {
+        font-size: 0.55rem;
+    }
+    .ai-credit-display .credits-num {
+        font-size: 0.65rem;
+    }
+    .ai-image-preview {
+        width: 24px;
+        height: 24px;
+    }
 }
 
 /* Showcase Section */
@@ -2034,55 +2489,72 @@ nav {
     </header>
 
    
-    <!-- ===== NEW: EARNING HERO + 3-STEP SECTION ===== -->
-    <section class="earn-hero-section">
+    <!-- ===== NEW HERO SECTION ===== -->
+    <section class="hero-section">
         <div class="container">
-            <h2><i class="fas fa-rocket"></i> Turn Your AI Prompts into Passive Income</h2>
-            <p>Join <strong>5,000+ creators</strong> already earning from their prompts. Set your own price and keep <strong>80%</strong> of every sale.</p>
-            
-            <!-- ===== PSYCHOLOGICAL SLOGAN - NO UPLOAD WASTED ===== -->
-            <div style="background: rgba(255,255,255,0.15); backdrop-filter: blur(10px); border-radius: 16px; padding: 18px 25px; margin: 20px auto 25px; max-width: 800px; border: 1px solid rgba(255,255,255,0.25);">
-                <p style="font-size: 1.25rem; font-weight: 600; margin: 0; display: flex; align-items: center; justify-content: center; gap: 12px; flex-wrap: wrap;">
-                    <span style="background: #ffd700; color: #2d334a; padding: 4px 14px; border-radius: 50px; font-size: 0.85rem; font-weight: 800; text-transform: uppercase;">🔥 New</span>
-                    <span>Even <strong style="color: #ffd700;">FREE</strong> prompts earn!</span>
-                    <span style="color: rgba(255,255,255,0.7); font-weight: 300;">|</span>
-                    <span style="font-size: 1.05rem;">💎 <strong>No upload is ever wasted</strong> — earn via <span style="color: #ffd700;">affiliate commissions</span> too!</span>
-                </p>
-                <p style="font-size: 0.9rem; opacity: 0.85; margin: 8px 0 0; text-align: center;">
-                    <i class="fas fa-link"></i> Add your affiliate links → every view earns you money, even if your prompt is free!
-                </p>
+            <!-- Main Headline -->
+            <h1 class="hero-title">
+                <i class="fas fa-rocket"></i> AI Prompt Marketplace 
+                <span class="hero-highlight">+ Create Free AI Videos and Images</span>
+            </h1>
+            <p class="hero-subtitle">
+                Buy & sell proven prompts, or generate stunning images and videos instantly with our built‑in AI tools.
+                <br><strong>Earn 80%</strong> from every prompt sale – your creativity pays off!
+            </p>
+
+            <!-- Three Feature Cards -->
+            <div class="hero-features">
+  <div class="hero-feature-card">
+                    <div class="feature-icon"><i class="fas fa-video"></i></div>
+                    <h3>AI Video Gen</h3>
+                    <p>Turn your ideas into short, cinematic videos.Login and get 5 Free credits Daily</p>
+                    <button class="hero-feature-btn" onclick="openAIGenerator('video')">
+                        <i class="fas fa-arrow-right"></i> Generate Video
+                    </button>
+                </div>
+     <div class="hero-feature-card">
+                    <div class="feature-icon"><i class="fas fa-image"></i></div>
+                    <h3>AI Image Gen</h3>
+                    <p>Describe what you want – our AI creates high‑quality images in seconds. Free credits daily!</p>
+                    <button class="hero-feature-btn" onclick="openAIGenerator('image')">
+                        <i class="fas fa-arrow-right"></i> Generate Image
+                    </button>
+                </div>
+                <div class="hero-feature-card">
+                    <div class="feature-icon"><i class="fas fa-store"></i></div>
+                    <h3>Marketplace</h3>
+                    <p>Browse thousands of AI prompts for photo, video, and design. Buy or sell – you keep 80%.</p>
+                    <button class="hero-feature-btn" onclick="scrollToPrompts()">
+                        <i class="fas fa-arrow-right"></i> Explore
+                    </button>
+                </div>
+           
+              
             </div>
-            
+
+            <!-- Earning Statistics (kept) -->
             <div class="earn-stats">
                 <div class="earn-stat">₹50,000+ <small>Earned this month</small></div>
                 <div class="earn-stat">1,200+ <small>Prompts sold</small></div>
                 <div class="earn-stat">4.9★ <small>Average rating</small></div>
             </div>
-            <button class="earn-cta-btn" id="startEarningBtn"><i class="fas fa-plus-circle"></i> Start Earning Now</button>
-            <p style="margin-top: 15px; font-size: 0.9rem; opacity: 0.8;">⚡ First 100 uploads get a FREE promotion boost!</p>
+
+            <!-- CTA Buttons -->
+            <div class="hero-cta">
+                <button class="earn-cta-btn" id="startEarningBtn">
+                    <i class="fas fa-plus-circle"></i> Start Earning Now
+                </button>
+                <button class="hero-secondary-btn" onclick="scrollToPrompts()">
+                    <i class="fas fa-th-large"></i> Browse Prompts
+                </button>
+            </div>
+            <p style="margin-top: 15px; font-size: 0.9rem; opacity: 0.8;">
+                ⚡ First 100 uploads get a FREE promotion boost!
+            </p>
         </div>
     </section>
 
-    <!-- 3‑Step Guide -->
-    <section class="container" style="margin-top: -10px;">
-        <h2 style="text-align: center; margin-bottom: 20px;">How to Start Selling in 3 Simple Steps</h2>
-        <div class="steps-grid">
-            <div class="step-card">
-                <div class="step-number">1</div>
-                <h3>Create Your Prompt</h3>
-                <p>Write a detailed, high‑quality prompt that solves a specific need.</p>
-            </div>
-            <div class="step-card">
-                <div class="step-number">2</div>
-                <h3>Set Your Price</h3>
-                <p>Choose to offer it <strong>free</strong> (to build reputation) or <strong>paid</strong> (earn 80% per sale).</p>
-            </div>
-            <div class="step-card">
-                <div class="step-number">3</div>
-                <h3>Get Paid Instantly</h3>
-                <p>Track sales in your dashboard and withdraw earnings via UPI/Bank.</p>
-            </div>
-        </div>
+  
         
         <!-- ===== PSYCHOLOGICAL SLOGAN - NO UPLOAD WASTED (SECOND PLACEMENT) ===== -->
         <div style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); border-radius: 16px; padding: 20px 25px; margin: 15px 0 30px; text-align: center; border: 2px solid #4e54c8; position: relative; overflow: hidden;">
@@ -2260,7 +2732,67 @@ nav {
                     }
                 }, 2000);
             </script>
+        </div>
+    </section>
 
+    <!-- AI Generator Sticky Bar -->
+    <div class="ai-generator-bar" id="aiGeneratorBar">
+        <textarea class="ai-generator-input" id="aiPromptInput" placeholder="Describe the image you want to generate..." rows="1"></textarea>
+        <div class="ai-generator-actions">
+            <div class="ai-image-preview" id="aiImagePreview">
+                <img id="aiPreviewImg" src="" alt="Uploaded preview">
+                <button class="remove-image" id="aiRemoveImage">&times;</button>
+            </div>
+            <button class="ai-image-upload-btn" id="aiImageUploadBtn" title="Upload an image for reference">
+                <i class="fas fa-plus"></i>
+            </button>
+            <input type="file" class="ai-file-input" id="aiFileInput" accept="image/*">
+            
+            <!-- Mode Toggle -->
+            <div class="ai-mode-toggle-group">
+                <button class="ai-mode-option active" data-mode="image" id="aiModeImage">
+                    <i class="fas fa-image"></i> <span>Image</span>
+                </button>
+                <button class="ai-mode-option" data-mode="video" id="aiModeVideo">
+                    <i class="fas fa-video"></i> <span>Video</span>
+                </button>
+            </div>
+            
+            <span class="ai-credit-display" id="aiCreditDisplay">
+                <i class="fas fa-coins"></i> <span class="credits-num" id="aiCreditsCount">0</span> credits
+            </span>
+            <button class="ai-generate-btn" id="aiGenerateBtn" title="Generate Image">
+                <i class="fas fa-arrow-right"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- Generated Image Modal -->
+    <div class="generated-modal" id="generatedModal">
+        <div class="generated-modal-content">
+            <button class="generated-modal-close" id="generatedModalClose">&times;</button>
+            <img id="generatedImage" src="" alt="Generated Image">
+            <button class="generated-modal-download" id="generatedDownloadBtn">Download Image</button>
+        </div>
+    </div>
+
+    <!-- Upgrade Modal (Credits) -->
+    <div class="buy-modal-overlay" id="upgradeModal" style="display:none;">
+        <div class="buy-modal">
+            <div class="modal-header">
+                <h2><i class="fas fa-gem"></i> Upgrade Credits</h2>
+                <button class="close-modal" id="upgradeModalClose">&times;</button>
+            </div>
+            <div class="buy-modal-content">
+                <p>You have <strong id="upgradeCurrentCredits">0</strong> credits left.</p>
+                <p>Get <strong>50 credits</strong> for just <strong>₹20</strong>!</p>
+                <button class="buy-now-btn" id="upgradePayBtn">
+                    <i class="fas fa-rupee-sign"></i> Pay ₹20 for 50 credits
+                </button>
+                <p class="secure-payment"><i class="fas fa-lock"></i> Secure payment via Razorpay</p>
+            </div>
+        </div>
+    </div>
 
     <!-- Footer -->
     <footer class="site-footer">
@@ -2477,6 +3009,467 @@ nav {
             
             // Show the popup
             showPopup();
+        })();
+
+        // ===== HERO AI GENERATOR TRIGGERS =====
+        function openAIGenerator(mode) {
+            const bar = document.getElementById('aiGeneratorBar');
+            const input = document.getElementById('aiPromptInput');
+            const modeImage = document.getElementById('aiModeImage');
+            const modeVideo = document.getElementById('aiModeVideo');
+
+            if (!bar) {
+                showNotification('AI Generator is loading...', 'info');
+                return;
+            }
+
+            // Show the bar (it should already be active, but ensure)
+            bar.classList.add('active');
+
+            // Set the mode
+            if (mode === 'video') {
+                modeVideo.click(); // triggers the mode toggle logic
+            } else {
+                modeImage.click();
+            }
+
+            // Focus the input after a short delay
+            setTimeout(() => {
+                input.focus();
+                input.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }, 300);
+
+            // Optionally highlight the bar
+            bar.style.boxShadow = '0 -4px 30px rgba(78,84,200,0.4)';
+            setTimeout(() => {
+                bar.style.boxShadow = '0 -4px 20px rgba(0,0,0,0.1)';
+            }, 2000);
+        }
+
+        function scrollToPrompts() {
+            const container = document.getElementById('promptsContainer');
+            if (container) {
+                container.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            } else {
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+                showNotification('Prompts are loading...', 'info');
+            }
+        }
+
+        // ==================== AI GENERATOR STICKY BAR ====================
+        (function() {
+            const bar = document.getElementById('aiGeneratorBar');
+            const promptInput = document.getElementById('aiPromptInput');
+            const generateBtn = document.getElementById('aiGenerateBtn');
+            const uploadBtn = document.getElementById('aiImageUploadBtn');
+            const fileInput = document.getElementById('aiFileInput');
+            const previewContainer = document.getElementById('aiImagePreview');
+            const previewImg = document.getElementById('aiPreviewImg');
+            const removeImageBtn = document.getElementById('aiRemoveImage');
+            const creditDisplay = document.getElementById('aiCreditsCount');
+            const modal = document.getElementById('generatedModal');
+            const modalImg = document.getElementById('generatedImage');
+            const modalClose = document.getElementById('generatedModalClose');
+            const downloadBtn = document.getElementById('generatedDownloadBtn');
+            const upgradeModal = document.getElementById('upgradeModal');
+            const upgradeClose = document.getElementById('upgradeModalClose');
+            const upgradePayBtn = document.getElementById('upgradePayBtn');
+            const upgradeCurrent = document.getElementById('upgradeCurrentCredits');
+
+            const modeImageBtn = document.getElementById('aiModeImage');
+            const modeVideoBtn = document.getElementById('aiModeVideo');
+            let currentMode = 'image';
+            let currentUserId = null;
+            let uploadedImage = null;
+            let isGenerating = false;
+
+            // Show bar on homepage
+            bar.classList.add('active');
+
+            // Auto-resize textarea
+            promptInput.addEventListener('input', function() {
+                this.style.height = 'auto';
+                this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+            });
+
+            // Image upload
+            uploadBtn.addEventListener('click', () => fileInput.click());
+            fileInput.addEventListener('change', function(e) {
+                const file = this.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = function(ev) {
+                        previewImg.src = ev.target.result;
+                        previewContainer.style.display = 'block';
+                        uploadedImage = file;
+                    };
+                    reader.readAsDataURL(file);
+                }
+            });
+            removeImageBtn.addEventListener('click', function() {
+                previewContainer.style.display = 'none';
+                previewImg.src = '';
+                fileInput.value = '';
+                uploadedImage = null;
+            });
+
+            // Fetch credits on load
+            async function fetchCredits() {
+                const user = await getCurrentUser();
+                if (!user) {
+                    creditDisplay.textContent = '0';
+                    return;
+                }
+                currentUserId = user.uid;
+                try {
+                    const res = await fetch(`/api/credits/${user.uid}`);
+                    const data = await res.json();
+                    if (data.success) {
+                        creditDisplay.textContent = data.credits;
+                    }
+                } catch(e) {
+                    console.error('Credit fetch error', e);
+                }
+            }
+            fetchCredits();
+
+            // Mode toggle
+            function setMode(mode) {
+                currentMode = mode;
+                modeImageBtn.classList.toggle('active', mode === 'image');
+                modeVideoBtn.classList.toggle('active', mode === 'video');
+                promptInput.placeholder = mode === 'image' 
+                    ? 'Describe the image you want to generate...' 
+                    : 'Describe the video you want to create...';
+                generateBtn.innerHTML = mode === 'image' 
+                    ? '<i class="fas fa-arrow-right"></i>' 
+                    : '<i class="fas fa-video"></i>';
+                fileInput.accept = 'image/*';
+            }
+            modeImageBtn.addEventListener('click', function() {
+                if (currentMode === 'image') return;
+                setMode('image');
+            });
+            modeVideoBtn.addEventListener('click', function() {
+                if (currentMode === 'video') return;
+                setMode('video');
+            });
+
+            // Generate
+            generateBtn.addEventListener('click', async function() {
+                if (isGenerating) return;
+                const prompt = promptInput.value.trim();
+                if (!prompt) {
+                    showNotification('Please enter a prompt.', 'error');
+                    return;
+                }
+
+                let user = await getCurrentUser();
+                if (!user) {
+                    showNotification('Please login to generate.', 'error');
+                    const returnUrl = encodeURIComponent(window.location.href);
+                    window.location.href = '/login.html?returnUrl=' + returnUrl;
+                    return;
+                }
+                currentUserId = user.uid;
+
+                const creditInfo = await fetch(`/api/credits/${user.uid}`).then(r => r.json());
+                if (!creditInfo.success || creditInfo.credits <= 0) {
+                    upgradeCurrent.textContent = creditInfo.credits || 0;
+                    upgradeModal.style.display = 'flex';
+                    return;
+                }
+
+                isGenerating = true;
+                generateBtn.disabled = true;
+                generateBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+
+                let statusEl = document.getElementById('generationStatus');
+                if (!statusEl) {
+                    statusEl = document.createElement('div');
+                    statusEl.id = 'generationStatus';
+                    statusEl.style.cssText = 'font-size:0.9rem; color:#666; margin-top:5px; text-align:center;';
+                    bar.parentNode.insertBefore(statusEl, bar.nextSibling);
+                }
+                statusEl.textContent = '⏳ Starting...';
+
+                try {
+                    const formData = new FormData();
+                    formData.append('prompt', prompt);
+                    if (uploadedImage) {
+                        formData.append('image', uploadedImage);
+                    }
+                    if (currentMode === 'video') {
+                        formData.append('duration', 5);
+                    }
+
+                    const idToken = await user.getIdToken();
+                    const endpoint = currentMode === 'video' ? '/api/generate-agnes-video' : '/api/generate-image';
+                    const response = await fetch(endpoint, {
+                        method: 'POST',
+                        headers: { 'Authorization': `Bearer ${idToken}` },
+                        body: formData
+                    });
+
+                    const result = await response.json();
+                    if (!response.ok) {
+                        if (response.status === 429) {
+                            const waitSec = result.retryAfter || 60;
+                            statusEl.textContent = `⏳ Rate limited. Please wait ${waitSec} seconds and try again.`;
+                            showNotification(`Generation rate limited. Try again in ${waitSec}s.`, 'error');
+                            generateBtn.disabled = false;
+                            generateBtn.innerHTML = currentMode === 'video' ? '<i class="fas fa-video"></i>' : '<i class="fas fa-arrow-right"></i>';
+                            isGenerating = false;
+                            return;
+                        }
+                        throw new Error(result.error || 'Generation failed');
+                    }
+
+                    if (currentMode === 'video') {
+                        // Agnes video (async)
+                        const videoId = result.video_id;
+                        if (!videoId) throw new Error('No video_id returned from Agnes.');
+
+                        statusEl.textContent = '⏳ Video generation started (may take several minutes)...';
+
+                        const maxAttempts = 300;
+                        let attempt = 0;
+                        let videoUrl = null;
+                        const completionStatuses = ['completed', 'succeeded', 'done', 'finished', 'success'];
+
+                        while (attempt < maxAttempts) {
+                            attempt++;
+                            try {
+                                const pollRes = await fetch(`/api/poll-agnes-video?video_id=${videoId}`);
+                                if (pollRes.status === 429) {
+                                    const data = await pollRes.json();
+                                    const waitSeconds = data.retryAfter || 30;
+                                    statusEl.textContent = `⏳ Rate limited. Retrying in ${waitSeconds}s... (attempt ${attempt})`;
+                                    await new Promise(r => setTimeout(r, waitSeconds * 1000));
+                                    continue;
+                                }
+                                if (!pollRes.ok) throw new Error(`Poll failed: ${pollRes.status}`);
+                                const pollData = await pollRes.json();
+                                const status = pollData.status || pollData.state || '';
+                                if (completionStatuses.includes(status.toLowerCase())) {
+                                    videoUrl = pollData.video_url || pollData.output?.video_url || pollData.url;
+                                    break;
+                                } else if (status === 'failed' || status === 'error') {
+                                    throw new Error('Video generation failed.');
+                                }
+                                const progress = Math.min(attempt / maxAttempts * 100, 99);
+                                statusEl.textContent = `⏳ Generating video… ${Math.round(progress)}% (attempt ${attempt}/${maxAttempts})`;
+                                const delay = Math.min(2000 * Math.pow(1.2, attempt), 15000);
+                                await new Promise(r => setTimeout(r, delay));
+                            } catch (pollError) {
+                                console.error('Poll error:', pollError);
+                                if (!pollError.message.includes('failed')) {
+                                    await new Promise(r => setTimeout(r, 5000));
+                                } else {
+                                    throw pollError;
+                                }
+                            }
+                        }
+
+                        if (!videoUrl) {
+                            statusEl.textContent = '⏳ Video is taking longer than expected. Please check your dashboard later.';
+                            showNotification('Video generation is still processing. You can check your dashboard for updates.', 'info');
+                            generateBtn.disabled = false;
+                            generateBtn.innerHTML = '<i class="fas fa-video"></i>';
+                            isGenerating = false;
+                            return;
+                        }
+
+                        statusEl.textContent = '✅ Video generated!';
+                        showVideoModal(videoUrl);
+                        showNotification('Video generated successfully!', 'success');
+                    } else {
+                        // Image generation (Pollinations)
+                        modalImg.src = result.imageUrl;
+                        modal.classList.add('active');
+                        statusEl.textContent = '✅ Image generated!';
+                        showNotification('Image generated successfully!', 'success');
+                    }
+
+                    creditDisplay.textContent = result.remainingCredits;
+
+                    promptInput.value = '';
+                    promptInput.style.height = 'auto';
+                    previewContainer.style.display = 'none';
+                    previewImg.src = '';
+                    fileInput.value = '';
+                    uploadedImage = null;
+
+                } catch (error) {
+                    console.error('Generation error:', error);
+                    statusEl.textContent = '❌ ' + error.message;
+                    showNotification(error.message, 'error');
+                } finally {
+                    isGenerating = false;
+                    generateBtn.disabled = false;
+                    generateBtn.innerHTML = currentMode === 'video' ? '<i class="fas fa-video"></i>' : '<i class="fas fa-arrow-right"></i>';
+                    setTimeout(() => {
+                        if (statusEl) statusEl.textContent = '';
+                    }, 10000);
+                }
+            });
+
+            // Modal controls
+            modalClose.addEventListener('click', () => modal.classList.remove('active'));
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) modal.classList.remove('active');
+            });
+            downloadBtn.addEventListener('click', function() {
+                const link = document.createElement('a');
+                link.href = modalImg.src;
+                link.download = 'generated-image.png';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            });
+
+            // Video modal helper
+            window.showVideoModal = function(videoUrl) {
+                const existing = document.getElementById('videoModal');
+                if (existing) existing.remove();
+
+                const modalHTML = `
+                    <div class="generated-modal active" id="videoModal">
+                        <div class="generated-modal-content" style="max-width:90%;">
+                            <button class="generated-modal-close" onclick="document.getElementById('videoModal').classList.remove('active')">&times;</button>
+                            <video src="${videoUrl}" controls autoplay loop style="width:100%; max-height:80vh; border-radius:12px; background:#000;"></video>
+                            <button class="generated-modal-download" onclick="downloadVideo('${videoUrl}')">Download Video</button>
+                        </div>
+                    </div>
+                `;
+                document.body.insertAdjacentHTML('beforeend', modalHTML);
+            };
+
+            window.downloadVideo = function(url) {
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'generated-video.mp4';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+            };
+
+            // Upgrade modal
+            upgradeClose.addEventListener('click', () => upgradeModal.style.display = 'none');
+            upgradeModal.addEventListener('click', (e) => {
+                if (e.target === upgradeModal) upgradeModal.style.display = 'none';
+            });
+
+            upgradePayBtn.addEventListener('click', async function() {
+                const user = await getCurrentUser();
+                if (!user) {
+                    showNotification('Please login first.', 'error');
+                    return;
+                }
+                this.disabled = true;
+                this.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating order...';
+
+                try {
+                    const idToken = await user.getIdToken();
+                    const res = await fetch('/api/top-up-credits', {
+                        method: 'POST',
+                        headers: { 'Authorization': `Bearer ${idToken}` }
+                    });
+                    const data = await res.json();
+                    if (!data.success) throw new Error('Failed to create order');
+
+                    if (data.isDemo) {
+                        const verifyRes = await fetch('/api/verify-topup', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                orderId: data.orderId,
+                                paymentId: 'demo_pay_' + Date.now(),
+                                signature: 'demo_signature',
+                                userId: user.uid
+                            })
+                        });
+                        const verifyData = await verifyRes.json();
+                        if (verifyData.success) {
+                            showNotification('Added 50 credits (demo)!', 'success');
+                            upgradeModal.style.display = 'none';
+                            fetchCredits();
+                        } else {
+                            throw new Error('Demo verification failed');
+                        }
+                    } else {
+                        if (typeof Razorpay === 'undefined') {
+                            await new Promise((resolve, reject) => {
+                                const script = document.createElement('script');
+                                script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+                                script.onload = resolve;
+                                script.onerror = reject;
+                                document.head.appendChild(script);
+                            });
+                        }
+                        const options = {
+                            key: data.keyId,
+                            amount: data.amount,
+                            currency: data.currency,
+                            name: 'Tools Prompt',
+                            description: 'Top-up 50 credits',
+                            order_id: data.orderId,
+                            handler: async function(response) {
+                                try {
+                                    const verifyRes = await fetch('/api/verify-topup', {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({
+                                            orderId: response.razorpay_order_id,
+                                            paymentId: response.razorpay_payment_id,
+                                            signature: response.razorpay_signature,
+                                            userId: user.uid
+                                        })
+                                    });
+                                    const verifyData = await verifyRes.json();
+                                    if (verifyData.success) {
+                                        showNotification('Credits added!', 'success');
+                                        upgradeModal.style.display = 'none';
+                                        fetchCredits();
+                                    } else {
+                                        throw new Error('Verification failed');
+                                    }
+                                } catch (e) {
+                                    showNotification('Top-up failed: ' + e.message, 'error');
+                                }
+                            },
+                            modal: {
+                                ondismiss: function() {
+                                    showNotification('Payment cancelled', 'info');
+                                }
+                            },
+                            theme: { color: '#4e54c8' },
+                            prefill: {
+                                email: user.email,
+                                name: user.displayName || user.email
+                            }
+                        };
+                        const rzp = new Razorpay(options);
+                        rzp.open();
+                    }
+                } catch (error) {
+                    showNotification('Upgrade error: ' + error.message, 'error');
+                } finally {
+                    this.disabled = false;
+                    this.innerHTML = '<i class="fas fa-rupee-sign"></i> Pay ₹20 for 50 credits';
+                }
+            });
+
+            // Keyboard shortcut: Ctrl+Enter
+            promptInput.addEventListener('keydown', function(e) {
+                if (e.ctrlKey && e.key === 'Enter') {
+                    e.preventDefault();
+                    generateBtn.click();
+                }
+            });
+
+            // Expose fetchCredits for after top-up
+            window.refreshCredits = fetchCredits;
         })();
     </script>
 </body>
