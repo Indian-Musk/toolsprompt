@@ -680,7 +680,6 @@ nav {
     z-index: 9999;
     box-shadow: 0 -4px 20px rgba(0,0,0,0.1);
     transition: transform 0.3s ease;
-    flex-wrap: nowrap;
 }
 .ai-generator-bar.active {
     display: flex;
@@ -983,34 +982,53 @@ nav {
 /* ===== RESPONSIVE ===== */
 @media (max-width: 768px) {
     .ai-generator-bar {
+        flex-wrap: wrap;
         padding: 6px 8px;
-        gap: 4px;
+        gap: 6px;
         bottom: 60px; /* avoid overlapping with mobile nav */
     }
     .ai-generator-input {
-        font-size: 0.8rem;
-        padding: 6px 10px;
-        min-height: 32px;
+        flex: 1 1 100%;
+        min-height: 38px;
+        font-size: 0.85rem;
+        padding: 8px 12px;
         border-radius: 20px;
-        flex: 1 1 40%;
     }
     .ai-generator-actions {
+        flex-wrap: wrap;
+        justify-content: flex-end;
         gap: 4px;
+        width: 100%;
+    }
+    .duration-option {
+        padding: 2px 6px !important;
+        gap: 3px !important;
+    }
+    .duration-option input[type="range"] {
+        width: 40px !important;
+        height: 4px !important;
+    }
+    .duration-option span {
+        font-size: 0.6rem !important;
+        min-width: 20px !important;
     }
     .ai-image-upload-btn, .ai-generate-btn {
-        width: 32px;
-        height: 32px;
-        font-size: 0.9rem;
+        width: 30px !important;
+        height: 30px !important;
+        font-size: 0.8rem !important;
     }
     .ai-mode-option {
-        padding: 3px 8px;
-        font-size: 0.65rem;
+        padding: 2px 6px !important;
+        font-size: 0.6rem !important;
+    }
+    .ai-mode-option span {
+        display: none;
     }
     .ai-mode-option i {
-        font-size: 0.8rem;
+        font-size: 0.9rem !important;
     }
     .ai-credit-display {
-        font-size: 0.65rem;
+        font-size: 0.6rem !important;
         padding: 0 2px;
     }
     .ai-image-preview {
@@ -1028,33 +1046,31 @@ nav {
 @media (max-width: 480px) {
     .ai-generator-bar {
         padding: 4px 6px;
-        gap: 3px;
+        gap: 4px;
         bottom: 56px;
     }
     .ai-generator-input {
-        font-size: 0.7rem;
-        padding: 4px 8px;
-        min-height: 28px;
+        min-height: 32px;
+        font-size: 0.75rem;
+        padding: 4px 10px;
         border-radius: 16px;
-        flex: 1 1 30%;
     }
     .ai-generator-actions {
         gap: 3px;
     }
-    .ai-image-upload-btn, .ai-generate-btn {
-        width: 28px;
-        height: 28px;
-        font-size: 0.8rem;
+    .duration-option input[type="range"] {
+        width: 32px !important;
     }
-    .ai-mode-option {
-        padding: 2px 6px;
-        font-size: 0.6rem;
+    .ai-image-upload-btn, .ai-generate-btn {
+        width: 26px !important;
+        height: 26px !important;
+        font-size: 0.7rem !important;
     }
     .ai-mode-option span {
         display: none;
     }
     .ai-mode-option i {
-        font-size: 1rem;
+        font-size: 1rem !important;
     }
     .ai-credit-display {
         font-size: 0.55rem;
@@ -2449,6 +2465,112 @@ nav {
         max-width: 300px;
     }
 }
+
+/* ===== REFERRAL SECTION ===== */
+.referral-section {
+    background: linear-gradient(135deg, #ffd700 0%, #ffb300 100%);
+    color: #1a1a2e;
+    padding: 30px 20px;
+    border-radius: 20px;
+    margin: 20px 0 30px;
+    text-align: center;
+    box-shadow: 0 10px 30px rgba(255, 215, 0, 0.3);
+    position: relative;
+    overflow: hidden;
+}
+.referral-section::before {
+    content: "🎁";
+    position: absolute;
+    font-size: 8rem;
+    opacity: 0.1;
+    right: -20px;
+    top: -30px;
+    transform: rotate(15deg);
+}
+.referral-section h2 {
+    font-size: 2rem;
+    font-weight: 800;
+    margin-bottom: 10px;
+    color: #1a1a2e;
+}
+.referral-section p {
+    font-size: 1.1rem;
+    line-height: 1.6;
+    max-width: 700px;
+    margin: 0 auto 20px;
+    color: #2d2d44;
+}
+.referral-link-box {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    background: rgba(255,255,255,0.8);
+    padding: 12px 20px;
+    border-radius: 40px;
+    max-width: 600px;
+    margin: 0 auto;
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255,255,255,0.3);
+}
+.referral-link-box input {
+    flex: 1;
+    min-width: 200px;
+    padding: 8px 12px;
+    border: none;
+    background: transparent;
+    font-size: 1rem;
+    color: #1a1a2e;
+    outline: none;
+    font-weight: 500;
+}
+.referral-link-box button {
+    background: #4e54c8;
+    color: white;
+    border: none;
+    padding: 8px 20px;
+    border-radius: 30px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+.referral-link-box button:hover {
+    background: #3f44b8;
+    transform: scale(1.05);
+}
+.referral-stats {
+    display: flex;
+    justify-content: center;
+    gap: 30px;
+    margin-top: 15px;
+    font-weight: 600;
+}
+.referral-stats span {
+    background: rgba(255,255,255,0.5);
+    padding: 6px 16px;
+    border-radius: 30px;
+}
+.referral-login-btn {
+    background: #4e54c8;
+    color: white;
+    padding: 12px 30px;
+    border-radius: 30px;
+    text-decoration: none;
+    font-weight: 600;
+    display: inline-block;
+    transition: all 0.3s ease;
+}
+.referral-login-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(78,84,200,0.4);
+}
+@media (max-width: 768px) {
+    .referral-section h2 { font-size: 1.5rem; }
+    .referral-link-box { flex-direction: column; padding: 15px; }
+    .referral-link-box input { width: 100%; text-align: center; }
+    .referral-stats { flex-direction: column; gap: 10px; }
+}
     </style>
 </head>
 <body>
@@ -2507,7 +2629,7 @@ nav {
   <div class="hero-feature-card">
                     <div class="feature-icon"><i class="fas fa-video"></i></div>
                     <h3>AI Video Gen</h3>
-                    <p>Turn your ideas into short, cinematic videos.Login and get 5 Free credits Daily</p>
+                    <p>Turn your ideas into short, cinematic videos upto 40 Second Long.Login and get 5 Free credits Daily</p>
                     <button class="hero-feature-btn" onclick="openAIGenerator('video')">
                         <i class="fas fa-arrow-right"></i> Generate Video
                     </button>
@@ -2554,31 +2676,43 @@ nav {
         </div>
     </section>
 
-  
+    <!-- ===== REFERRAL & EARN SECTION ===== -->
+    <section class="referral-section" id="referralSection">
+        <h2>🎁 Refer & Earn Free Credits</h2>
+        <p>Invite friends to Tools Prompt and earn <strong>10 free credits</strong> for each successful referral! Your friend also gets <strong>5 credits</strong> to start creating AI videos and images.</p>
         
-        <!-- ===== PSYCHOLOGICAL SLOGAN - NO UPLOAD WASTED (SECOND PLACEMENT) ===== -->
-        <div style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); border-radius: 16px; padding: 20px 25px; margin: 15px 0 30px; text-align: center; border: 2px solid #4e54c8; position: relative; overflow: hidden;">
-            <div style="position: absolute; top: -30px; right: -30px; font-size: 6rem; opacity: 0.08; transform: rotate(15deg);">💎</div>
-            <p style="font-size: 1.2rem; font-weight: 600; color: #2d334a; margin: 0;">
-                <i class="fas fa-gem" style="color: #4e54c8; margin-right: 10px;"></i>
-                <span style="background: #4e54c8; color: white; padding: 2px 12px; border-radius: 20px; font-size: 0.8rem; margin-right: 8px;">NEW</span>
-                <span>Every prompt you upload — <strong>free or paid</strong> — becomes a <strong style="color: #4e54c8;">money-making machine</strong>.</span>
-            </p>
-            <p style="font-size: 0.95rem; color: #555; margin: 8px 0 0;">
-                <i class="fas fa-link" style="color: #4e54c8;"></i> 
-                Add affiliate products to your prompt page → earn commissions from <strong>every visitor</strong>!
-            </p>
-            <p style="font-size: 0.85rem; color: #888; margin: 5px 0 0;">
-                ⚡ Your creativity never goes to waste. <strong>Every upload is an asset.</strong>
-            </p>
-        </div>
-        
-        <div style="text-align: center; margin: 20px 0 40px;">
-            <button class="upload-btn" id="stepUploadBtn" style="display: inline-flex; margin: 0 auto; background: linear-gradient(135deg, #4e54c8, #8f94fb);">
-                <i class="fas fa-upload"></i> Upload Your First Prompt
-            </button>
+        <div id="referralContent">
+            <!-- Dynamically filled by JavaScript -->
+            <div style="text-align: center;">
+                <a href="/login.html" class="referral-login-btn" id="referralLoginBtn">
+                    <i class="fas fa-sign-in-alt"></i> Login to get your referral link
+                </a>
+            </div>
         </div>
     </section>
+    
+    <!-- ===== PSYCHOLOGICAL SLOGAN - NO UPLOAD WASTED (SECOND PLACEMENT) ===== -->
+    <div style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); border-radius: 16px; padding: 20px 25px; margin: 15px 0 30px; text-align: center; border: 2px solid #4e54c8; position: relative; overflow: hidden;">
+        <div style="position: absolute; top: -30px; right: -30px; font-size: 6rem; opacity: 0.08; transform: rotate(15deg);">💎</div>
+        <p style="font-size: 1.2rem; font-weight: 600; color: #2d334a; margin: 0;">
+            <i class="fas fa-gem" style="color: #4e54c8; margin-right: 10px;"></i>
+            <span style="background: #4e54c8; color: white; padding: 2px 12px; border-radius: 20px; font-size: 0.8rem; margin-right: 8px;">NEW</span>
+            <span>Every prompt you upload — <strong>free or paid</strong> — becomes a <strong style="color: #4e54c8;">money-making machine</strong>.</span>
+        </p>
+        <p style="font-size: 0.95rem; color: #555; margin: 8px 0 0;">
+            <i class="fas fa-link" style="color: #4e54c8;"></i> 
+            Add affiliate products to your prompt page → earn commissions from <strong>every visitor</strong>!
+        </p>
+        <p style="font-size: 0.85rem; color: #888; margin: 5px 0 0;">
+            ⚡ Your creativity never goes to waste. <strong>Every upload is an asset.</strong>
+        </p>
+    </div>
+    
+    <div style="text-align: center; margin: 20px 0 40px;">
+        <button class="upload-btn" id="stepUploadBtn" style="display: inline-flex; margin: 0 auto; background: linear-gradient(135deg, #4e54c8, #8f94fb);">
+            <i class="fas fa-upload"></i> Upload Your First Prompt
+        </button>
+    </div>
 
     <!-- Upload Modal -->
     <div class="modal-overlay" id="uploadModal">
@@ -2706,7 +2840,7 @@ nav {
                 <i class="fas fa-cloud-upload-alt"></i> Sell Your Prompts
             </button>
             <marquee width="100%" direction="left" height="100px">
-                <p style="color: blue;">🎉 Welcome to Tools prompt Marketplace! 🎉 Buy premium AI prompts or sell your own and earn 80% commission! Join thousands of prompt engineers and start earning today! 🚀</p>
+                <p style="color: blue;">🎉 Welcome to Toolsprompt Marketplace! 🎉 Buy premium AI prompts or sell your own and earn 80% commission! Create Free Ai videos and Images! 🚀</p>
             </marquee>
             
             <div class="seo-intro" style="margin: 30px 0; padding: 20px; background: #f8f9fa; border-radius: 10px;">
@@ -2747,6 +2881,14 @@ nav {
                 <i class="fas fa-plus"></i>
             </button>
             <input type="file" class="ai-file-input" id="aiFileInput" accept="image/*">
+            
+            <!-- NEW: Duration slider -->
+            <div class="duration-option" style="display:flex; align-items:center; gap:6px; background:#f8f9fa; padding:4px 10px; border-radius:20px; flex-shrink:0;">
+                <i class="fas fa-clock" style="color:#666; font-size:0.8rem;"></i>
+                <input type="range" id="aiDurationSlider" min="3" max="40" value="5" step="1" 
+                       style="width:60px; height:4px; background:#4e54c8; border-radius:2px; outline:none; cursor:pointer;">
+                <span id="aiDurationDisplay" style="font-size:0.7rem; font-weight:600; color:#4e54c8; min-width:28px; text-align:center;">5s</span>
+            </div>
             
             <!-- Mode Toggle -->
             <div class="ai-mode-toggle-group">
@@ -3092,6 +3234,15 @@ nav {
                 this.style.height = Math.min(this.scrollHeight, 120) + 'px';
             });
 
+            // Sync duration slider display
+            const durSlider = document.getElementById('aiDurationSlider');
+            const durDisplay = document.getElementById('aiDurationDisplay');
+            if (durSlider && durDisplay) {
+                durSlider.addEventListener('input', function() {
+                    durDisplay.textContent = this.value + 's';
+                });
+            }
+
             // Image upload
             uploadBtn.addEventListener('click', () => fileInput.click());
             fileInput.addEventListener('change', function(e) {
@@ -3200,7 +3351,8 @@ nav {
                         formData.append('image', uploadedImage);
                     }
                     if (currentMode === 'video') {
-                        formData.append('duration', 5);
+                        const durationVal = document.getElementById('aiDurationSlider')?.value || 5;
+                        formData.append('duration', durationVal);
                     }
 
                     const idToken = await user.getIdToken();
@@ -3471,6 +3623,64 @@ nav {
             // Expose fetchCredits for after top-up
             window.refreshCredits = fetchCredits;
         })();
+
+        // ===== REFERRAL SYSTEM HOMEPAGE DISPLAY =====
+        (async function loadReferralHomepage() {
+            try {
+                const user = await getCurrentUser();
+                const container = document.getElementById('referralContent');
+                if (!container) return;
+
+                if (user) {
+                    const idToken = await user.getIdToken();
+                    const response = await fetch('/api/referral-link', {
+                        headers: { 'Authorization': `Bearer ${idToken}` }
+                    });
+                    const data = await response.json();
+                    if (data.success) {
+                        container.innerHTML = `
+                            <div class="referral-link-box">
+                                <input type="text" value="${data.referralLink}" id="referralLinkInput" readonly>
+                                <button onclick="copyReferralLink()"><i class="fas fa-copy"></i> Copy</button>
+                            </div>
+                            <div class="referral-stats">
+                                <span>👥 Referrals: ${data.referralCount}</span>
+                                <span>💰 Credits earned: ${data.credits}</span>
+                            </div>
+                        `;
+                        // Store the link for copy function
+                        window.referralLink = data.referralLink;
+                    } else {
+                        container.innerHTML = `<p style="color: #1a1a2e;">Unable to load referral link. Please refresh.</p>`;
+                    }
+                } else {
+                    // User not logged in – show login button
+                    container.innerHTML = `
+                        <div style="text-align: center;">
+                            <a href="/login.html?returnUrl=${encodeURIComponent(window.location.href)}" class="referral-login-btn">
+                                <i class="fas fa-sign-in-alt"></i> Login to get your referral link
+                            </a>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                console.error('Referral load error:', error);
+                const container = document.getElementById('referralContent');
+                if (container) {
+                    container.innerHTML = `<p style="color: #1a1a2e;">Error loading referral data.</p>`;
+                }
+            }
+        })();
+
+        // Copy referral link function
+        function copyReferralLink() {
+            const input = document.getElementById('referralLinkInput');
+            if (input) {
+                input.select();
+                document.execCommand('copy');
+                showNotification('Referral link copied!', 'success');
+            }
+        }
     </script>
 </body>
 </html>

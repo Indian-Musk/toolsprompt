@@ -5679,6 +5679,17 @@ function initScrollEffects() {
     });
 }
 
+// ==================== REFERRAL CODE CAPTURE ON EVERY PAGE ====================
+// This stores the referral code from URL so it can be used after login
+document.addEventListener('DOMContentLoaded', function() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const refCode = urlParams.get('ref');
+    if (refCode) {
+        localStorage.setItem('pendingReferral', refCode);
+        console.log('Referral code stored:', refCode);
+    }
+});
+
 // ==================== INITIALIZATION ====================
 
 document.addEventListener('DOMContentLoaded', async () => {

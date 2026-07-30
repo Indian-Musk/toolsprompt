@@ -238,8 +238,33 @@ const firebaseConfig = {
                     // Store user in localStorage
                     localStorage.setItem('user', JSON.stringify(userData));
                     
-                    // Get the return URL from query params or default to index.html
+                    // --- NEW: Check for referral code from URL ---
                     const urlParams = new URLSearchParams(window.location.search);
+                    const refCode = urlParams.get('ref');
+                    if (refCode) {
+                        localStorage.setItem('pendingReferral', refCode);
+                    }
+
+                    // Process referral if pending
+                    const pendingRef = localStorage.getItem('pendingReferral');
+                    if (pendingRef) {
+                        try {
+                            await fetch('/api/process-referral', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    userId: user.uid,
+                                    referralCode: pendingRef
+                                })
+                            });
+                            localStorage.removeItem('pendingReferral');
+                        } catch (err) {
+                            console.error('Referral processing failed:', err);
+                        }
+                    }
+                    // --- END NEW ---
+
+                    // Get the return URL from query params or default to index.html
                     const returnUrl = urlParams.get('returnUrl') || 'index.html';
                     
                     // Redirect to the return URL

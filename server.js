@@ -1,4 +1,4 @@
-﻿﻿// ========== AGNES AI CONFIGURATION ==========
+﻿// ========== AGNES AI CONFIGURATION ==========
 const AGNES_API_IP = '104.18.18.62';               // Hardcoded IP from nslookup
 const AGNES_API_HOST = 'apihub.agnes-ai.com';       // Host header for SSL
 const express = require('express');
@@ -83,6 +83,8 @@ async function getUserCredits(userId) {
       totalUsed: 0,
       updatedAt: new Date().toISOString()
     });
+    // Also ensure referral code exists
+    await ensureUserReferralCode(userId);
     return { credits: 5, freeLimit: 5, isFree: true };
   }
   const data = doc.data();
@@ -173,9 +175,6 @@ const AGNES_API_KEY = process.env.AGNES_API_KEY; // Set this in your .env file
 
 // ========== ROBUST DNS RESOLVER FOR AGNES ==========
 const { Agent } = require('https');
-
-// ========== NEW: Auto-resolution based on duration ==========
-// We'll use hardcoded IP and Host from top
 
 // Initialize Firebase Admin (Auth + Firestore ONLY, NO Storage)
 let adminInitialized = false;
@@ -2218,6 +2217,34 @@ class AIPlatformContentGenerator {
       };
     }
   }
+
+  // ===== ADDED MISSING METHODS =====
+  static getPhotoParameterTips(platformId) {
+    const tips = {
+      'midjourney-v6': 'Use --ar for aspect ratios, --style for artistic approaches, --chaos for variation, --stylize for artistic interpretation',
+      'dalle-3': 'Use natural language, specify style and quality, include artistic references',
+      'stable-diffusion-3': 'Adjust CFG scale (7-12), steps (20-50), use negative prompts, try different samplers',
+      'google-imagen': 'Use detailed descriptions, include lighting and composition terms',
+      'adobe-firefly-image': 'Use content type filters, style presets, commercial-safe prompts',
+      'leonardo-creative': 'Adjust guidance scale, use element weights, select appropriate model',
+      'default': 'Adjust quality settings, aspect ratio, and style parameters based on your needs'
+    };
+    return tips[platformId] || tips.default;
+  }
+
+  static getVideoParameterTips(platformId) {
+    const tips = {
+      'google-veo-2': 'Adjust resolution, duration, and aspect ratio. Use negative prompts to avoid unwanted elements.',
+      'openai-sora': 'Specify camera angles, lighting, and motion style. Use detailed scene descriptions.',
+      'runway-gen-3': 'Use motion brush for specific movements, adjust frame consistency for smoother results.',
+      'pika-2-0': 'Use -neg for negative prompts, -ar for aspect ratio, -seed for consistency, -motion for intensity.',
+      'adobe-firefly-video': 'Use generative extend for longer videos, apply style presets for consistent look.',
+      'capcut-pro-ai': 'Use auto-captions, smart cut, and AI effects. Adjust speed and transitions.',
+      'default': 'Adjust quality settings, duration, and style parameters based on your needs.'
+    };
+    return tips[platformId] || tips.default;
+  }
+  // ===== END ADDED METHODS =====
   
   static getPhotoAccessMethod(platformId) {
     const methods = {
@@ -2327,7 +2354,6 @@ class AIPlatformContentGenerator {
       'leonardo-creative': 'Adjust guidance scale, use element weights, select appropriate model',
       'default': 'Adjust quality settings, aspect ratio, and style parameters based on your needs'
     };
-    
     return tips[platformId] || tips.default;
   }
   
@@ -2341,7 +2367,6 @@ class AIPlatformContentGenerator {
       'capcut-pro-ai': 'Use auto-captions, smart cut, and AI effects. Adjust speed and transitions.',
       'default': 'Adjust quality settings, duration, and style parameters based on your needs.'
     };
-    
     return tips[platformId] || tips.default;
   }
   
@@ -5336,10 +5361,9 @@ app.post('/api/generate-agnes-video', async (req, res) => {
                 maxFrames = 961;
             }
 
-            // Calculate required frames for the given duration at ~24fps
-            // Agnes requires num_frames to satisfy 8n + 1
-            const targetFrames = Math.floor(duration * 24);
-            let num_frames = Math.floor((targetFrames - 1) / 8) * 8 + 1;
+            // 🔧 FIX: Round to nearest frame, not floor, to match requested duration
+            const targetFrames = Math.round(duration * 24);
+            let num_frames = Math.round((targetFrames - 1) / 8) * 8 + 1;
             // Ensure at least 9 frames (minimum)
             num_frames = Math.max(9, num_frames);
             // Cap to the max allowed by the resolution
@@ -5965,6 +5989,128 @@ async function sendPushToAllUsers(title, body, data = {}) {
   }
 }
 
+// ==================== REFERRAL SYSTEM HELPER FUNCTIONS ====================
+
+// Generate a random 6-character alphanumeric referral code
+function generateReferralCode() {
+  return Math.random().toString(36).substring(2, 8).toUpperCase();
+}
+
+// Ensure every user has a referral code on first sign‑up
+async function ensureUserReferralCode(userId) {
+  if (!db) return 'DEMO123'; // fallback for demo mode
+  const userRef = db.collection('users').doc(userId);
+  const doc = await userRef.get();
+  if (!doc.exists) {
+    const code = generateReferralCode();
+    await userRef.set({
+      referralCode: code,
+      referralProcessed: false,
+      referralCount: 0,
+      createdAt: new Date().toISOString()
+    });
+    return code;
+  } else {
+    const data = doc.data();
+    if (!data.referralCode) {
+      const code = generateReferralCode();
+      await userRef.update({ referralCode: code });
+      return code;
+    }
+    return data.referralCode;
+  }
+}
+
+// ==================== REFERRAL API ENDPOINTS ====================
+
+// Process referral after sign-up
+app.post('/api/process-referral', async (req, res) => {
+  try {
+ console.log('📌 /api/process-referral called with:', req.body);
+    const { userId, referralCode } = req.body;
+    if (!userId || !referralCode) {
+      return res.status(400).json({ error: 'Missing userId or referralCode' });
+    }
+
+    // 1. Check the new user's document
+    const userRef = db.collection('users').doc(userId);
+    const userDoc = await userRef.get();
+    if (!userDoc.exists) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    const userData = userDoc.data();
+    if (userData.referralProcessed === true) {
+      return res.json({ success: false, message: 'Referral already processed' });
+    }
+
+    // 2. Find the referrer by referralCode
+    const referrerSnapshot = await db.collection('users')
+      .where('referralCode', '==', referralCode)
+      .get();
+    if (referrerSnapshot.empty) {
+      return res.status(400).json({ error: 'Invalid referral code' });
+    }
+    const referrerDoc = referrerSnapshot.docs[0];
+    const referrerId = referrerDoc.id;
+
+    // 3. Prevent self‑referral
+    if (referrerId === userId) {
+      return res.status(400).json({ error: 'Cannot refer yourself' });
+    }
+
+    // 4. Give credits
+    await addCredits(referrerId, 10);   // referrer gets 10 credits
+    await addCredits(userId, 5);        // referee gets 5 credits
+
+    // 5. Mark as processed and increment referrer's count
+    await userRef.update({
+      referralProcessed: true,
+      referredBy: referrerId,
+      referralProcessedAt: new Date().toISOString()
+    });
+    await db.collection('users').doc(referrerId).update({
+      referralCount: admin.firestore.FieldValue.increment(1)
+    });
+
+    res.json({ success: true, message: 'Referral credits awarded' });
+  } catch (error) {
+    console.error('Referral processing error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Get current user's referral link and stats
+app.get('/api/referral-link', async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+    const idToken = authHeader.split('Bearer ')[1];
+    const decoded = await admin.auth().verifyIdToken(idToken);
+    const userId = decoded.uid;
+
+    // Ensure user has a referral code
+    const code = await ensureUserReferralCode(userId);
+
+    // Also get referral count and credits
+    const userDoc = await db.collection('users').doc(userId).get();
+    const data = userDoc.data();
+    const credits = await getUserCredits(userId);
+
+    res.json({
+      success: true,
+      referralCode: code,
+      referralLink: `${process.env.BASE_URL || 'http://localhost:3000'}/login.html?ref=${code}`,
+      referralCount: data?.referralCount || 0,
+      credits: credits.credits
+    });
+  } catch (error) {
+    console.error('Referral link error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // ==================== HELPER FUNCTIONS FOR PROMPT PAGE GENERATION ====================
 
 function createNewsData(news, id) {
@@ -6028,7 +6174,7 @@ function createPromptData(prompt, id, hasPurchased = false) {
     promptText: promptText,
     fullPromptText: fullPromptText,
     userName: safePrompt.userName || 'Anonymous',
-userId: safePrompt.userId || 'anonymous', 
+    userId: safePrompt.userId || 'anonymous', 
     likes: safePrompt.likes || 0,
     views: safePrompt.views || 0,
     uses: safePrompt.uses || 0,
@@ -7693,7 +7839,9 @@ function generateEnhancedPromptHTML(promptData, affiliates) {
   const affiliateTop = affiliates[0] ? generateAffiliateHTML(affiliates[0]) : '';
   const affiliateMiddle = affiliates[1] ? generateAffiliateHTML(affiliates[1]) : '';
   const affiliateBottom = affiliates[2] ? generateAffiliateHTML(affiliates[2]) : '';
-const aiGeneratorCSS = `
+
+  // ==================== AI GENERATOR CSS, HTML, JS ====================
+  const aiGeneratorCSS = `
 /* Sticky AI Generator Bar */
 .ai-generator-bar {
     position: fixed;
@@ -7943,33 +8091,53 @@ const aiGeneratorCSS = `
 /* ========== MOBILE RESPONSIVENESS ========== */
 @media (max-width: 768px) {
     .ai-generator-bar {
+        flex-wrap: wrap;
         padding: 6px 8px;
-        gap: 4px;
+        gap: 6px;
+        bottom: 0 !important;
     }
     .ai-generator-input {
-        font-size: 0.8rem;
-        padding: 6px 10px;
-        min-height: 32px;
+        flex: 1 1 100%;
+        min-height: 38px;
+        font-size: 0.85rem;
+        padding: 8px 12px;
         border-radius: 20px;
-        flex: 1 1 40%;
     }
     .ai-generator-actions {
+        flex-wrap: wrap;
+        justify-content: flex-end;
         gap: 4px;
+        width: 100%;
+    }
+    .duration-option {
+        padding: 2px 6px !important;
+        gap: 3px !important;
+    }
+    .duration-option input[type="range"] {
+        width: 40px !important;
+        height: 4px !important;
+    }
+    .duration-option span {
+        font-size: 0.6rem !important;
+        min-width: 20px !important;
     }
     .ai-image-upload-btn, .ai-generate-btn {
-        width: 32px;
-        height: 32px;
-        font-size: 0.9rem;
+        width: 30px !important;
+        height: 30px !important;
+        font-size: 0.8rem !important;
     }
     .ai-mode-option {
-        padding: 3px 8px;
-        font-size: 0.65rem;
+        padding: 2px 6px !important;
+        font-size: 0.6rem !important;
+    }
+    .ai-mode-option span {
+        display: none; /* hide text, only icons */
     }
     .ai-mode-option i {
-        font-size: 0.8rem;
+        font-size: 0.9rem !important;
     }
     .ai-credit-display {
-        font-size: 0.65rem;
+        font-size: 0.6rem !important;
         padding: 0 2px;
     }
     .ai-image-preview {
@@ -7988,32 +8156,32 @@ const aiGeneratorCSS = `
 @media (max-width: 480px) {
     .ai-generator-bar {
         padding: 4px 6px;
-        gap: 3px;
+        gap: 4px;
+        bottom: 56px;
     }
     .ai-generator-input {
-        font-size: 0.7rem;
-        padding: 4px 8px;
-        min-height: 28px;
+        min-height: 32px;
+        font-size: 0.75rem;
+        padding: 4px 10px;
         border-radius: 16px;
-        flex: 1 1 30%;
+        flex: 1 1 100%;
     }
     .ai-generator-actions {
         gap: 3px;
     }
-    .ai-image-upload-btn, .ai-generate-btn {
-        width: 28px;
-        height: 28px;
-        font-size: 0.8rem;
+    .duration-option input[type="range"] {
+        width: 32px !important;
     }
-    .ai-mode-option {
-        padding: 2px 6px;
-        font-size: 0.6rem;
+    .ai-image-upload-btn, .ai-generate-btn {
+        width: 26px !important;
+        height: 26px !important;
+        font-size: 0.7rem !important;
     }
     .ai-mode-option span {
-        display: none; /* hide text, only icons */
+        display: none;
     }
     .ai-mode-option i {
-        font-size: 1rem;
+        font-size: 1rem !important;
     }
     .ai-credit-display {
         font-size: 0.55rem;
@@ -8041,7 +8209,15 @@ const aiGeneratorHTML = `
         </button>
         <input type="file" class="ai-file-input" id="aiFileInput" accept="image/*">
         
-        <!-- SEGMENTED TOGGLE -->
+        <!-- NEW: Duration slider -->
+        <div class="duration-option" style="display:flex; align-items:center; gap:6px; background:#f8f9fa; padding:4px 10px; border-radius:20px; flex-shrink:0;">
+            <i class="fas fa-clock" style="color:#666; font-size:0.8rem;"></i>
+            <input type="range" id="aiDurationSlider" min="3" max="40" value="5" step="1" 
+                   style="width:60px; height:4px; background:#4e54c8; border-radius:2px; outline:none; cursor:pointer;">
+            <span id="aiDurationDisplay" style="font-size:0.7rem; font-weight:600; color:#4e54c8; min-width:28px; text-align:center;">5s</span>
+        </div>
+        
+        <!-- Mode Toggle -->
         <div class="ai-mode-toggle-group">
             <button class="ai-mode-option active" data-mode="image" id="aiModeImage">
                 <i class="fas fa-image"></i> <span>Image</span>
@@ -8130,6 +8306,15 @@ const aiGeneratorJS = `
         this.style.height = 'auto';
         this.style.height = Math.min(this.scrollHeight, 120) + 'px';
     });
+
+    // Sync duration slider display
+    const durSlider = document.getElementById('aiDurationSlider');
+    const durDisplay = document.getElementById('aiDurationDisplay');
+    if (durSlider && durDisplay) {
+        durSlider.addEventListener('input', function() {
+            durDisplay.textContent = this.value + 's';
+        });
+    }
 
     // Image upload
     uploadBtn.addEventListener('click', () => fileInput.click());
@@ -8247,10 +8432,9 @@ const aiGeneratorJS = `
             if (uploadedImage) {
                 formData.append('image', uploadedImage);
             }
-
-            // For video, send a default duration (you can add a slider later)
             if (currentMode === 'video') {
-                formData.append('duration', 5);
+                const durationVal = document.getElementById('aiDurationSlider')?.value || 5;
+                formData.append('duration', durationVal);
             }
 
             const idToken = await user.getIdToken();
@@ -8539,6 +8723,7 @@ const aiGeneratorJS = `
 
 })();
 `;
+
   // ==================== STICKY SOCIAL BADGES (Instagram + YouTube) ====================
 const socialBadgesCSS = `
 /* Sticky Social Badges Container - Left Side */
@@ -9637,6 +9822,7 @@ if (typeof firebase !== 'undefined' && firebase.auth) {
 
 console.log('🔔 Notification integration ready');
 `;
+
   return `<!DOCTYPE html>
 <html lang="en" itemscope itemtype="https://schema.org/Article">
 <head>
@@ -12087,8 +12273,11 @@ app.listen(port, async () => {
   console.log(`   → Asynchronous generation: create task → poll for result`);
   console.log(`   → Configured via AGNES_API_KEY in .env`);
   console.log(`   → Auto-selects resolution based on duration (up to 40s at 480p)`);
+  console.log(`   → 🔧 FIX: Now uses Math.round() for accurate duration matching`);
+  
+  console.log(`🎉 REFERRAL SYSTEM ENABLED:`);
+  console.log(`   → Referral code generated for each user`);
+  console.log(`   → Referrer gets 10 credits, referee gets 5 credits`);
+  console.log(`   → /api/process-referral and /api/referral-link endpoints`);
+  console.log(`   → Referral count displayed in dashboard`);
 });
-
-// ---------------------------------------------------------------------
-// End of server.js
-// ---------------------------------------------------------------------

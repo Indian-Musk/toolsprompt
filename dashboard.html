@@ -157,6 +157,21 @@
             margin-top: 8px;
         }
 
+        /* Referral Card (NEW) */
+        #referralCard .referral-link-box {
+            background: #f1f5f9;
+            padding: 8px;
+            border-radius: 8px;
+            margin: 8px 0;
+            word-break: break-all;
+            font-size: 0.85rem;
+        }
+
+        #referralCard .action-btn {
+            margin-top: 8px;
+            width: auto;
+        }
+
         /* Payout Action Buttons */
         .action-buttons {
             display: flex;
@@ -445,9 +460,20 @@
             <div class="stat-number" id="totalListingsCount">0</div>
             <div class="stat-sub">Active prompts</div>
         </div>
+        <!-- NEW: Referral Card -->
+        <div class="stat-card" id="referralCard">
+            <div class="stat-title"><i class="fas fa-link"></i> Your Referral Link</div>
+            <div class="referral-link-box">
+                <span id="referralLinkDisplay">Loading...</span>
+            </div>
+            <button class="action-btn" id="copyReferralBtn"><i class="fas fa-copy"></i> Copy Link</button>
+            <div class="stat-sub" style="margin-top: 8px;">
+                Referrals: <span id="referralCount">0</span> | Credits: <span id="referralCredits">0</span>
+            </div>
+        </div>
     </div>
 
-    <!-- New Payout Section -->
+    <!-- Payout Section -->
     <div class="payout-section" style="margin-bottom: 30px;">
         <div class="stats-grid" style="margin-bottom: 20px;">
             <div class="stat-card">
@@ -801,6 +827,40 @@
         document.getElementById('totalListingsCount').innerText = earningsData.totalPrompts || 0;
     }
 
+    // ===== NEW: Load referral data =====
+    async function loadReferralData() {
+        const user = await getCurrentUser();
+        if (!user) return;
+        try {
+            const idToken = await user.getIdToken();
+            const res = await fetch('/api/referral-link', {
+                headers: { 'Authorization': `Bearer ${idToken}` }
+            });
+            const data = await res.json();
+            if (data.success) {
+                document.getElementById('referralLinkDisplay').textContent = data.referralLink;
+                document.getElementById('referralCount').textContent = data.referralCount;
+                document.getElementById('referralCredits').textContent = data.credits;
+            }
+        } catch (e) {
+            console.error('Referral load error:', e);
+        }
+    }
+
+    // Copy referral link
+    document.addEventListener('DOMContentLoaded', function() {
+        const copyBtn = document.getElementById('copyReferralBtn');
+        if (copyBtn) {
+            copyBtn.addEventListener('click', function() {
+                const link = document.getElementById('referralLinkDisplay').textContent;
+                navigator.clipboard.writeText(link).then(() => {
+                    showNotification('Referral link copied!', 'success');
+                });
+            });
+        }
+    });
+    // ===== END NEW =====
+
     // Main load dashboard data
     async function loadDashboardData(user) {
         if (!user) return;
@@ -817,6 +877,8 @@
             renderSales(sales);
             renderListings(userPrompts);
             await updatePayoutUI(userId, earningsData.totalEarnings);
+            // Load referral data
+            await loadReferralData();
         } catch (err) {
             console.error('Dashboard data error', err);
             document.getElementById('purchasesContainer').innerHTML = `<div class="empty-state"><i class="fas fa-exclamation-triangle"></i><p>Error loading data. Please refresh.</p></div>`;
