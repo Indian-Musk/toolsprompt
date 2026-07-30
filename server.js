@@ -6101,7 +6101,7 @@ app.get('/api/referral-link', async (req, res) => {
     res.json({
       success: true,
       referralCode: code,
-      referralLink: `${process.env.BASE_URL || 'http://localhost:3000'}/login.html?ref=${code}`,
+      referralLink: `${process.env.BASE_URL || 'https://www.toolsprompt.com'}/login.html?ref=${code}`,
       referralCount: data?.referralCount || 0,
       credits: credits.credits
     });
