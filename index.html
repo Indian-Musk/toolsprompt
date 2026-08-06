@@ -498,9 +498,9 @@ nav {
 .hero-section {
     background: linear-gradient(135deg, #4e54c8 0%, #8f94fb 100%);
     color: white;
-    padding: 60px 20px 40px;
+    padding: 40px 20px 30px;
     border-radius: 20px;
-    margin: 20px 0 40px;
+    margin: 20px 0 30px;
     box-shadow: 0 10px 30px rgba(78,84,200,0.3);
     position: relative;
     overflow: hidden;
@@ -515,9 +515,9 @@ nav {
     transform: rotate(15deg);
 }
 .hero-title {
-    font-size: 2.5rem;
+    font-size: 2.2rem;
     font-weight: 800;
-    margin-bottom: 15px;
+    margin-bottom: 10px;
     line-height: 1.2;
     text-align: center;
 }
@@ -528,142 +528,167 @@ nav {
     display: inline-block;
 }
 .hero-subtitle {
-    font-size: 1.2rem;
+    font-size: 1.1rem;
     opacity: 0.95;
-    max-width: 800px;
-    margin: 0 auto 30px;
+    max-width: 700px;
+    margin: 0 auto 25px;
     text-align: center;
     line-height: 1.6;
 }
-.hero-features {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 20px;
-    max-width: 900px;
-    margin: 30px auto;
+.hero-subtitle strong {
+    color: #ffd700;
 }
-.hero-feature-card {
-    background: rgba(255,255,255,0.1);
-    backdrop-filter: blur(10px);
+
+/* Hero Mode Cards Grid */
+.hero-mode-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 16px;
+    max-width: 900px;
+    margin: 0 auto 25px;
+}
+.hero-mode-card {
+    background: rgba(255,255,255,0.12);
+    backdrop-filter: blur(8px);
     border-radius: 16px;
-    padding: 25px 20px;
+    padding: 20px 16px;
     text-align: center;
     border: 1px solid rgba(255,255,255,0.2);
     transition: all 0.3s ease;
-}
-.hero-feature-card:hover {
-    transform: translateY(-5px);
-    background: rgba(255,255,255,0.2);
-    box-shadow: 0 8px 30px rgba(0,0,0,0.2);
-}
-.feature-icon {
-    font-size: 2.5rem;
-    margin-bottom: 12px;
-}
-.hero-feature-card h3 {
-    font-size: 1.3rem;
-    margin-bottom: 8px;
-    color: white;
-}
-.hero-feature-card p {
-    font-size: 0.95rem;
-    opacity: 0.9;
-    margin-bottom: 15px;
-    line-height: 1.4;
-}
-.hero-feature-btn {
-    background: white;
-    color: #4e54c8;
-    border: none;
-    padding: 8px 20px;
-    border-radius: 30px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    font-size: 0.9rem;
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-}
-.hero-feature-btn:hover {
-    transform: scale(1.05);
-    box-shadow: 0 4px 15px rgba(0,0,0,0.2);
-}
-.hero-cta {
     display: flex;
-    justify-content: center;
-    gap: 20px;
-    flex-wrap: wrap;
-    margin-top: 20px;
-}
-.hero-secondary-btn {
-    background: rgba(255,255,255,0.2);
-    color: white;
-    border: 2px solid rgba(255,255,255,0.4);
-    padding: 14px 30px;
-    border-radius: 50px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    font-size: 1rem;
-    display: inline-flex;
+    flex-direction: column;
     align-items: center;
     gap: 8px;
 }
-.hero-secondary-btn:hover {
-    background: white;
-    color: #4e54c8;
-    border-color: white;
-    transform: translateY(-2px);
+.hero-mode-card:hover {
+    transform: translateY(-6px);
+    background: rgba(255,255,255,0.22);
+    box-shadow: 0 8px 30px rgba(0,0,0,0.2);
 }
-
-/* Keep existing earn-stats and earn-cta-btn styles (they are already defined) */
-.earn-stats {
-    display: flex;
-    justify-content: center;
-    gap: 40px;
-    flex-wrap: wrap;
-    margin: 25px 0;
+.hero-mode-card .mode-icon {
+    font-size: 2.2rem;
+    margin-bottom: 4px;
 }
-.earn-stat {
-    font-weight: bold;
-    font-size: 1.6rem;
+.hero-mode-card h4 {
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: #fff;
+    margin: 0;
 }
-.earn-stat small {
-    display: block;
-    font-size: 0.9rem;
-    opacity: 0.8;
-    font-weight: normal;
+.hero-mode-card p {
+    font-size: 0.85rem;
+    opacity: 0.85;
+    margin: 0 0 6px;
+    line-height: 1.3;
 }
-.earn-cta-btn {
+.hero-mode-card .mode-badge {
+    background: rgba(255,215,0,0.25);
+    color: #ffd700;
+    font-size: 0.6rem;
+    font-weight: 700;
+    padding: 2px 10px;
+    border-radius: 20px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+.hero-mode-btn {
     background: white;
     color: #4e54c8;
     border: none;
-    padding: 16px 40px;
-    border-radius: 50px;
-    font-size: 1.2rem;
-    font-weight: 700;
+    padding: 8px 18px;
+    border-radius: 30px;
+    font-weight: 600;
+    font-size: 0.85rem;
     cursor: pointer;
     transition: all 0.3s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 4px;
+}
+.hero-mode-btn:hover {
+    transform: scale(1.05);
     box-shadow: 0 4px 15px rgba(0,0,0,0.2);
 }
-.earn-cta-btn:hover {
-    transform: scale(1.05) translateY(-3px);
-    box-shadow: 0 8px 25px rgba(0,0,0,0.3);
+
+/* Hero Filter Bar */
+.hero-filter-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding-top: 18px;
+    border-top: 1px solid rgba(255,255,255,0.15);
+    margin-top: 6px;
+}
+.hero-filter-label {
+    font-size: 0.9rem;
+    font-weight: 600;
+    opacity: 0.85;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.hero-filter-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+.hero-filter-chip {
+    padding: 6px 16px;
+    border-radius: 30px;
+    border: 2px solid rgba(255,255,255,0.25);
+    background: rgba(255,255,255,0.08);
+    color: rgba(255,255,255,0.8);
+    font-weight: 600;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    backdrop-filter: blur(4px);
+}
+.hero-filter-chip:hover {
+    background: rgba(255,255,255,0.2);
+}
+.hero-filter-chip.active {
+    background: #fff;
+    color: #4e54c8;
+    border-color: #fff;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+}
+.hero-filter-chip .count-badge {
+    background: rgba(0,0,0,0.1);
+    border-radius: 20px;
+    padding: 0 8px;
+    font-size: 0.7rem;
+    margin-left: 4px;
+}
+.hero-filter-chip.active .count-badge {
+    background: rgba(78,84,200,0.12);
 }
 
 /* Responsive */
 @media (max-width: 768px) {
     .hero-title { font-size: 1.8rem; }
     .hero-subtitle { font-size: 1rem; }
-    .hero-features { grid-template-columns: 1fr; }
-    .hero-feature-card { padding: 20px; }
-    .hero-cta { flex-direction: column; align-items: center; }
+    .hero-mode-grid { grid-template-columns: 1fr 1fr; gap: 12px; }
+    .hero-mode-card { padding: 16px 12px; }
+    .hero-mode-card .mode-icon { font-size: 1.8rem; }
+    .hero-mode-card h4 { font-size: 0.95rem; }
+    .hero-mode-btn { font-size: 0.75rem; padding: 6px 14px; }
 }
 @media (max-width: 480px) {
-    .hero-title { font-size: 1.5rem; }
+    .hero-title { font-size: 1.4rem; }
     .hero-highlight { font-size: 0.9rem; padding: 0 8px; }
+    .hero-mode-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
+    .hero-mode-card { padding: 12px 8px; }
+    .hero-mode-card .mode-icon { font-size: 1.5rem; }
+    .hero-mode-card h4 { font-size: 0.8rem; }
+    .hero-mode-card p { font-size: 0.7rem; }
+    .hero-mode-btn { font-size: 0.65rem; padding: 4px 10px; }
+    .hero-filter-chip { font-size: 0.7rem; padding: 4px 12px; }
 }
+
 /* ===== AI GENERATOR STICKY BAR ===== */
 .ai-generator-bar {
     position: fixed;
@@ -2571,6 +2596,45 @@ nav {
     .referral-link-box input { width: 100%; text-align: center; }
     .referral-stats { flex-direction: column; gap: 10px; }
 }
+
+/* ===== LOAD MORE BUTTON ===== */
+.load-more-container {
+    text-align: center;
+    margin: 30px 0 20px;
+}
+.load-more-btn {
+    background: linear-gradient(135deg, #4e54c8, #8f94fb);
+    color: white;
+    border: none;
+    padding: 14px 40px;
+    border-radius: 50px;
+    font-size: 1.1rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 15px rgba(78,84,200,0.3);
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+}
+.load-more-btn:hover {
+    transform: translateY(-2px) scale(1.02);
+    box-shadow: 0 8px 25px rgba(78,84,200,0.4);
+}
+.load-more-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none !important;
+}
+.load-more-btn .spinner {
+    display: inline-block;
+    width: 18px;
+    height: 18px;
+    border: 2px solid rgba(255,255,255,0.3);
+    border-top: 2px solid #fff;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+}
     </style>
 </head>
 <body>
@@ -2600,7 +2664,6 @@ nav {
                 </div>
 
                 <div class="nav-right">
-                    <!-- NEW AFFILIATE LINK -->
                     <a href="/affiliate.html" class="affiliate-link" style="margin-right: 15px; color: #4e54c8; text-decoration: none; font-weight: 500; display: inline-flex; align-items: center; gap: 5px;">
                         <i class="fas fa-link"></i> Affiliate
                     </a>
@@ -2610,109 +2673,62 @@ nav {
         </div>
     </header>
 
-   
     <!-- ===== NEW HERO SECTION ===== -->
     <section class="hero-section">
         <div class="container">
-            <!-- Main Headline -->
             <h1 class="hero-title">
-                <i class="fas fa-rocket"></i> AI Prompt Marketplace 
-                <span class="hero-highlight">+ Create Free AI Videos and Images</span>
+                <i class="fas fa-rocket"></i> AI Video & Image Generator 
+                <span class="hero-highlight">+ AI Prompt MarketPlace</span>
             </h1>
             <p class="hero-subtitle">
-                Buy & sell proven prompts, or generate stunning images and videos instantly with our built‑in AI tools.
-                <br><strong>Earn 80%</strong> from every prompt sale – your creativity pays off!
+                Generate stunning visuals or videos with our built‑in AI tools. <br>
+                <strong>5 free credits daily</strong> – <strong>Earn 80%</strong> from every prompt sale!
             </p>
 
-            <!-- Three Feature Cards -->
-            <div class="hero-features">
-  <div class="hero-feature-card">
-                    <div class="feature-icon"><i class="fas fa-video"></i></div>
-                    <h3>AI Video Gen</h3>
-                    <p>Turn your ideas into short, cinematic videos upto 40 Second Long.Login and get 5 Free credits Daily</p>
-                    <button class="hero-feature-btn" onclick="openAIGenerator('video')">
-                        <i class="fas fa-arrow-right"></i> Generate Video
+            <!-- Four Mode Cards -->
+            <div class="hero-mode-grid">
+                <!-- Image → Video (Most Popular) -->
+                <div class="hero-mode-card">
+                    <div class="mode-icon"><i class="fas fa-film"></i></div>
+                    <h4>Image → Video</h4>
+                    <p>Create upto 40 second reel</p>
+                    <span class="mode-badge">⭐ Most Popular</span>
+                    <button class="hero-mode-btn" onclick="openAIGenerator('video'); setTimeout(() => document.getElementById('aiImageUploadBtn').click(), 500);">
+                        <i class="fas fa-upload"></i> Upload & Generate
                     </button>
                 </div>
-     <div class="hero-feature-card">
-                    <div class="feature-icon"><i class="fas fa-image"></i></div>
-                    <h3>AI Image Gen</h3>
-                    <p>Describe what you want – our AI creates high‑quality images in seconds. Free credits daily!</p>
-                    <button class="hero-feature-btn" onclick="openAIGenerator('image')">
-                        <i class="fas fa-arrow-right"></i> Generate Image
+                <!-- Text → Video -->
+                <div class="hero-mode-card">
+                    <div class="mode-icon"><i class="fas fa-video"></i></div>
+                    <h4>Text → Video</h4>
+                    <p>Turn ideas into motion</p>
+                    <button class="hero-mode-btn" onclick="openAIGenerator('video')">
+                        <i class="fas fa-arrow-right"></i> Generate
                     </button>
                 </div>
-                <div class="hero-feature-card">
-                    <div class="feature-icon"><i class="fas fa-store"></i></div>
-                    <h3>Marketplace</h3>
-                    <p>Browse thousands of AI prompts for photo, video, and design. Buy or sell – you keep 80%.</p>
-                    <button class="hero-feature-btn" onclick="scrollToPrompts()">
-                        <i class="fas fa-arrow-right"></i> Explore
+                <!-- Text → Image -->
+                <div class="hero-mode-card">
+                    <div class="mode-icon"><i class="fas fa-image"></i></div>
+                    <h4>Text → Image</h4>
+                    <p>Describe and generate</p>
+                    <button class="hero-mode-btn" onclick="openAIGenerator('image')">
+                        <i class="fas fa-arrow-right"></i> Generate
                     </button>
                 </div>
-           
-              
+                <!-- Image → Image -->
+                <div class="hero-mode-card">
+                    <div class="mode-icon"><i class="fas fa-arrows-alt-h"></i></div>
+                    <h4>Image → Image</h4>
+                    <p>Transform your photo</p>
+                    <button class="hero-mode-btn" onclick="openAIGenerator('image'); setTimeout(() => document.getElementById('aiImageUploadBtn').click(), 500);">
+                        <i class="fas fa-upload"></i> Upload & Generate
+                    </button>
+                </div>
             </div>
 
-            <!-- Earning Statistics (kept) -->
-            <div class="earn-stats">
-                <div class="earn-stat">₹50,000+ <small>Earned this month</small></div>
-                <div class="earn-stat">1,200+ <small>Prompts sold</small></div>
-                <div class="earn-stat">4.9★ <small>Average rating</small></div>
-            </div>
-
-            <!-- CTA Buttons -->
-            <div class="hero-cta">
-                <button class="earn-cta-btn" id="startEarningBtn">
-                    <i class="fas fa-plus-circle"></i> Start Earning Now
-                </button>
-                <button class="hero-secondary-btn" onclick="scrollToPrompts()">
-                    <i class="fas fa-th-large"></i> Browse Prompts
-                </button>
-            </div>
-            <p style="margin-top: 15px; font-size: 0.9rem; opacity: 0.8;">
-                ⚡ First 100 uploads get a FREE promotion boost!
-            </p>
+         
         </div>
     </section>
-
-    <!-- ===== REFERRAL & EARN SECTION ===== -->
-    <section class="referral-section" id="referralSection">
-        <h2>🎁 Refer & Earn Free Credits</h2>
-        <p>Invite friends to Tools Prompt and earn <strong>10 free credits</strong> for each successful referral! Your friend also gets <strong>5 credits</strong> to start creating AI videos and images.</p>
-        
-        <div id="referralContent">
-            <!-- Dynamically filled by JavaScript -->
-            <div style="text-align: center;">
-                <a href="/login.html" class="referral-login-btn" id="referralLoginBtn">
-                    <i class="fas fa-sign-in-alt"></i> Login to get your referral link
-                </a>
-            </div>
-        </div>
-    </section>
-    
-    <!-- ===== PSYCHOLOGICAL SLOGAN - NO UPLOAD WASTED (SECOND PLACEMENT) ===== -->
-    <div style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); border-radius: 16px; padding: 20px 25px; margin: 15px 0 30px; text-align: center; border: 2px solid #4e54c8; position: relative; overflow: hidden;">
-        <div style="position: absolute; top: -30px; right: -30px; font-size: 6rem; opacity: 0.08; transform: rotate(15deg);">💎</div>
-        <p style="font-size: 1.2rem; font-weight: 600; color: #2d334a; margin: 0;">
-            <i class="fas fa-gem" style="color: #4e54c8; margin-right: 10px;"></i>
-            <span style="background: #4e54c8; color: white; padding: 2px 12px; border-radius: 20px; font-size: 0.8rem; margin-right: 8px;">NEW</span>
-            <span>Every prompt you upload — <strong>free or paid</strong> — becomes a <strong style="color: #4e54c8;">money-making machine</strong>.</span>
-        </p>
-        <p style="font-size: 0.95rem; color: #555; margin: 8px 0 0;">
-            <i class="fas fa-link" style="color: #4e54c8;"></i> 
-            Add affiliate products to your prompt page → earn commissions from <strong>every visitor</strong>!
-        </p>
-        <p style="font-size: 0.85rem; color: #888; margin: 5px 0 0;">
-            ⚡ Your creativity never goes to waste. <strong>Every upload is an asset.</strong>
-        </p>
-    </div>
-    
-    <div style="text-align: center; margin: 20px 0 40px;">
-        <button class="upload-btn" id="stepUploadBtn" style="display: inline-flex; margin: 0 auto; background: linear-gradient(135deg, #4e54c8, #8f94fb);">
-            <i class="fas fa-upload"></i> Upload Your First Prompt
-        </button>
-    </div>
 
     <!-- Upload Modal -->
     <div class="modal-overlay" id="uploadModal">
@@ -2722,24 +2738,22 @@ nav {
                 <button class="close-modal" id="closeModal">&times;</button>
             </div>
             <form class="upload-form" id="uploadForm">
+                <!-- ... (unchanged) ... -->
                 <div class="form-group">
                     <label for="promptTitle">Prompt Title *</label>
                     <input type="text" id="promptTitle" placeholder="Give your AI prompt a descriptive title" required>
                     <small>A great title helps your prompt get discovered!</small>
                 </div>
-                
                 <div class="form-group">
                     <label for="promptText">Prompt Text *</label>
                     <textarea id="promptText" placeholder="Enter the exact prompt text buyers will receive" required></textarea>
                     <small>This is what buyers will get after purchase. Be detailed!</small>
                 </div>
-
                 <div class="form-group">
                     <label for="aboutDescription">About this AI Prompt (optional)</label>
                     <textarea id="aboutDescription" rows="3" placeholder="Describe what this prompt does, its use cases, and any special instructions..."></textarea>
                     <small>This will appear in the "About this AI prompt" section. If left blank, an AI-generated description will be used.</small>
                 </div>
-                
                 <div class="form-group">
                     <label for="imageUpload">Upload Demo Image or Video Reel *</label>
                     <div class="file-upload">
@@ -2751,7 +2765,6 @@ nav {
                         <img id="imagePreview" class="preview-image" alt="Media preview">
                     </div>
                 </div>
-                
                 <div class="form-group" id="videoThumbnailSection" style="display: none;">
                     <label for="videoThumbnailUpload">Video Thumbnail (Optional)</label>
                     <div class="file-upload thumbnail-upload">
@@ -2763,7 +2776,6 @@ nav {
                     </div>
                     <small>A good thumbnail increases views by up to 30%!</small>
                 </div>
-                
                 <div class="form-group">
                     <label for="category">Category</label>
                     <select id="category" name="category">
@@ -2776,7 +2788,6 @@ nav {
                         <option value="other">Other</option>
                     </select>
                 </div>
-                
                 <div class="form-group">
                     <label>Pricing Option</label>
                     <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 10px;">
@@ -2793,8 +2804,6 @@ nav {
                         <small>You'll earn 80% of each sale. Recommended price: ₹10 - ₹500</small>
                     </div>
                 </div>
-                
-                <!-- ===== PSYCHOLOGICAL SLOGAN - INSIDE UPLOAD MODAL (STRONGEST PLACEMENT) ===== -->
                 <div style="background: linear-gradient(135deg, #1a1a2e 0%, #2d334a 100%); border-radius: 16px; padding: 20px 22px; margin: 20px 0 25px; border-left: 5px solid #ffd700; position: relative; overflow: hidden;">
                     <div style="position: absolute; top: -20px; right: -10px; font-size: 5rem; opacity: 0.06; transform: rotate(10deg);">💰</div>
                     <p style="font-size: 1.15rem; font-weight: 700; color: #fff; margin: 0 0 6px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
@@ -2813,11 +2822,9 @@ nav {
                         </span>
                     </p>
                 </div>
-                
                 <button type="submit" class="submit-btn">
                     <i class="fas fa-upload"></i> List Your Prompt for Sale
                 </button>
-                
                 <div class="seo-notice" style="text-align: center; margin-top: 15px; font-size: 0.9rem; color: #666;">
                     <p>By listing on <strong>Tools Prompt Marketplace</strong>, you agree to our seller terms. You'll earn 80% commission on every sale!</p>
                 </div>
@@ -2828,7 +2835,7 @@ nav {
     <!-- Desktop-only heading -->
     <section class="desktop-only">
         <div class="container">
-            <h2 class="desktop-title">Tools prompt - The #1 AI Prompt Marketplace</h2>
+            <h2 class="desktop-title">Toolsprompt - The #1  AI Prompt Marketplace</h2>
             <p style="text-align: center; color: #666; margin-top: 10px;">Buy and sell the best AI prompts for photo editing, video creation, and more!</p>
         </div>
     </section>
@@ -2842,12 +2849,6 @@ nav {
             <marquee width="100%" direction="left" height="100px">
                 <p style="color: blue;">🎉 Welcome to Toolsprompt Marketplace! 🎉 Buy premium AI prompts or sell your own and earn 80% commission! Create Free Ai videos and Images! 🚀</p>
             </marquee>
-            
-            <div class="seo-intro" style="margin: 30px 0; padding: 20px; background: #f8f9fa; border-radius: 10px;">
-                <h3 style="color: #4e54c8; margin-bottom: 15px;">Discover the Power of Tools prompt Marketplace</h3>
-                <p>Welcome to <strong>Tools prompt</strong>, the ultimate AI Prompt Marketplace where you can <strong>buy and sell AI prompts</strong> for photo editing, video creation, and more. Our platform connects prompt creators with users looking for high-quality, effective prompts. <strong>Sell your prompts</strong> and earn 80% commission on every sale!</p>
-                <p>Whether you're looking for <strong>AI photo prompts</strong>, <strong>AI video prompts</strong>, or <strong>viral AI reels</strong>, you'll find the best prompts right here. Start exploring our marketplace today!</p>
-            </div>
             
             <div class="shorts-container" id="promptsContainer">
                 <!-- Prompts will be loaded here automatically -->
@@ -2869,6 +2870,13 @@ nav {
         </div>
     </section>
 
+    <!-- ===== LOAD MORE BUTTON ===== -->
+    <div class="load-more-container">
+        <button class="load-more-btn" id="loadMoreBtn" style="display: none;">
+            <i class="fas fa-chevron-down"></i> Load More
+        </button>
+    </div>
+
     <!-- AI Generator Sticky Bar -->
     <div class="ai-generator-bar" id="aiGeneratorBar">
         <textarea class="ai-generator-input" id="aiPromptInput" placeholder="Describe the image you want to generate..." rows="1"></textarea>
@@ -2881,16 +2889,12 @@ nav {
                 <i class="fas fa-plus"></i>
             </button>
             <input type="file" class="ai-file-input" id="aiFileInput" accept="image/*">
-            
-            <!-- NEW: Duration slider -->
             <div class="duration-option" style="display:flex; align-items:center; gap:6px; background:#f8f9fa; padding:4px 10px; border-radius:20px; flex-shrink:0;">
                 <i class="fas fa-clock" style="color:#666; font-size:0.8rem;"></i>
                 <input type="range" id="aiDurationSlider" min="3" max="40" value="5" step="1" 
                        style="width:60px; height:4px; background:#4e54c8; border-radius:2px; outline:none; cursor:pointer;">
                 <span id="aiDurationDisplay" style="font-size:0.7rem; font-weight:600; color:#4e54c8; min-width:28px; text-align:center;">5s</span>
             </div>
-            
-            <!-- Mode Toggle -->
             <div class="ai-mode-toggle-group">
                 <button class="ai-mode-option active" data-mode="image" id="aiModeImage">
                     <i class="fas fa-image"></i> <span>Image</span>
@@ -2899,7 +2903,6 @@ nav {
                     <i class="fas fa-video"></i> <span>Video</span>
                 </button>
             </div>
-            
             <span class="ai-credit-display" id="aiCreditDisplay">
                 <i class="fas fa-coins"></i> <span class="credits-num" id="aiCreditsCount">0</span> credits
             </span>
@@ -2936,6 +2939,42 @@ nav {
         </div>
     </div>
 
+    <!-- ===== REFERRAL & EARN SECTION ===== -->
+    <section class="referral-section" id="referralSection">
+        <h2>🎁 Refer & Earn Free Credits</h2>
+        <p>Invite friends to Tools Prompt and earn <strong>10 free credits</strong> for each successful referral! Your friend also gets <strong>5 credits</strong> to start creating AI videos and images.</p>
+        <div id="referralContent">
+            <div style="text-align: center;">
+                <a href="/login.html" class="referral-login-btn" id="referralLoginBtn">
+                    <i class="fas fa-sign-in-alt"></i> Login to get your referral link
+                </a>
+            </div>
+        </div>
+    </section>
+    
+    <!-- ===== PSYCHOLOGICAL SLOGAN ===== -->
+    <div style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); border-radius: 16px; padding: 20px 25px; margin: 15px 0 30px; text-align: center; border: 2px solid #4e54c8; position: relative; overflow: hidden;">
+        <div style="position: absolute; top: -30px; right: -30px; font-size: 6rem; opacity: 0.08; transform: rotate(15deg);">💎</div>
+        <p style="font-size: 1.2rem; font-weight: 600; color: #2d334a; margin: 0;">
+            <i class="fas fa-gem" style="color: #4e54c8; margin-right: 10px;"></i>
+            <span style="background: #4e54c8; color: white; padding: 2px 12px; border-radius: 20px; font-size: 0.8rem; margin-right: 8px;">NEW</span>
+            <span>Every prompt you upload — <strong>free or paid</strong> — becomes a <strong style="color: #4e54c8;">money-making machine</strong>.</span>
+        </p>
+        <p style="font-size: 0.95rem; color: #555; margin: 8px 0 0;">
+            <i class="fas fa-link" style="color: #4e54c8;"></i> 
+            Add affiliate products to your prompt page → earn commissions from <strong>every visitor</strong>!
+        </p>
+        <p style="font-size: 0.85rem; color: #888; margin: 5px 0 0;">
+            ⚡ Your creativity never goes to waste. <strong>Every upload is an asset.</strong>
+        </p>
+    </div>
+    
+    <div style="text-align: center; margin: 20px 0 40px;">
+        <button class="upload-btn" id="stepUploadBtn" style="display: inline-flex; margin: 0 auto; background: linear-gradient(135deg, #4e54c8, #8f94fb);">
+            <i class="fas fa-upload"></i> Upload Your First Prompt
+        </button>
+    </div>
+
     <!-- Footer -->
     <footer class="site-footer">
         <div class="footer-container">
@@ -2965,11 +3004,11 @@ nav {
             <p>&copy; 2026 Toolsprompt Marketplace. All rights reserved. | Buy & Sell AI Prompts</p>
         </div>
     </footer>
-  
 
     <script src="script.js"></script>
     
     <script>
+        // ===== SCROLL HEADER =====
         window.addEventListener('scroll', function() {
             const header = document.getElementById('mainHeader');
             if (window.scrollY > 10) {
@@ -2990,6 +3029,7 @@ nav {
         window.addEventListener('load', checkMobileLayout);
         window.addEventListener('resize', checkMobileLayout);
         
+        // ===== PRICING TOGGLE IN UPLOAD FORM =====
         document.addEventListener('DOMContentLoaded', function() {
             const freeRadio = document.querySelector('input[name="pricingType"][value="free"]');
             const paidRadio = document.querySelector('input[name="pricingType"][value="paid"]');
@@ -3004,12 +3044,8 @@ nav {
                 });
             }
 
-            // Hook the new "Start Earning Now" and step upload button to open the upload modal
-            const startBtn = document.getElementById('startEarningBtn');
             const stepBtn = document.getElementById('stepUploadBtn');
             const uploadModal = document.getElementById('uploadModal');
-            const openUploadBtn = document.getElementById('openUploadModal');
-
             function openModal(e) {
                 e.preventDefault();
                 if (uploadModal) {
@@ -3017,21 +3053,17 @@ nav {
                     document.body.style.overflow = 'hidden';
                 }
             }
-
-            if (startBtn) startBtn.addEventListener('click', openModal);
             if (stepBtn) stepBtn.addEventListener('click', openModal);
-            // The existing openUploadBtn already has its own handler from script.js,
-            // but we keep it as is.
         });
 
-        // ===== PROMOTIONAL POPUP BANNER - Displays on every visit, 5 min cooldowns =====
+        // ===== PROMOTIONAL POPUP (unchanged) =====
         (function() {
             const promoPopup = document.getElementById('promoPopup');
             const closeBtn = document.getElementById('closePromoPopup');
             const remindBtn = document.getElementById('remindLaterBtn');
-            const popupDelay = 1500; // Show after 1.5 seconds
-            const closeCooldown = 5 * 60 * 1000; // 5 minutes after closing
-            const remindDelay = 5 * 60 * 1000; // 5 minutes for "Remind Later"
+            const popupDelay = 1500;
+            const closeCooldown = 5 * 60 * 1000;
+            const remindDelay = 5 * 60 * 1000;
             const sessionKey = 'promoPopupClosed';
             const remindKey = 'promoPopupRemindAt';
             
@@ -3040,7 +3072,6 @@ nav {
                 const remindAt = localStorage.getItem(remindKey);
                 const now = Date.now();
                 
-                // Check "Remind Later" timer first
                 if (remindAt) {
                     const remindTime = parseInt(remindAt);
                     if (now < remindTime) {
@@ -3053,7 +3084,6 @@ nav {
                     return true;
                 }
                 
-                // Check "Close" cooldown
                 if (closedAt) {
                     const closedTime = parseInt(closedAt);
                     if (now - closedTime < closeCooldown) {
@@ -3065,16 +3095,12 @@ nav {
                     console.log('✅ Close cooldown expired. Popup will show.');
                 }
                 
-                // Show on every visit by default
                 return true;
             }
             
             function showPopup() {
                 if (!promoPopup) return;
-                
-                if (!shouldShowPopup()) {
-                    return;
-                }
+                if (!shouldShowPopup()) return;
                 
                 setTimeout(() => {
                     promoPopup.classList.add('active');
@@ -3085,7 +3111,6 @@ nav {
             
             function closePopup() {
                 if (!promoPopup) return;
-                
                 promoPopup.classList.remove('active');
                 document.body.style.overflow = '';
                 localStorage.setItem(sessionKey, Date.now().toString());
@@ -3094,7 +3119,6 @@ nav {
             
             function remindLater() {
                 if (!promoPopup) return;
-                
                 promoPopup.classList.remove('active');
                 document.body.style.overflow = '';
                 const remindAt = Date.now() + remindDelay;
@@ -3102,14 +3126,12 @@ nav {
                 console.log('⏰ Remind later set. Will show again in 5 minutes.');
             }
             
-            // Test helper - Clear all timers (type in console: clearPromoTimers())
             window.clearPromoTimers = function() {
                 localStorage.removeItem(sessionKey);
                 localStorage.removeItem(remindKey);
                 console.log('🧹 All promo popup timers cleared. Popup will show on next load.');
             };
             
-            // Event listeners
             if (closeBtn) closeBtn.addEventListener('click', closePopup);
             if (remindBtn) remindBtn.addEventListener('click', remindLater);
             
@@ -3125,7 +3147,6 @@ nav {
                 }
             });
             
-            // Log status on page load
             console.log('🔍 Promo Popup Status Check:');
             const now = Date.now();
             const closedAt = localStorage.getItem(sessionKey);
@@ -3149,7 +3170,6 @@ nav {
                 console.log('  ✅ No remind timer active');
             }
             
-            // Show the popup
             showPopup();
         })();
 
@@ -3165,23 +3185,18 @@ nav {
                 return;
             }
 
-            // Show the bar (it should already be active, but ensure)
             bar.classList.add('active');
-
-            // Set the mode
             if (mode === 'video') {
-                modeVideo.click(); // triggers the mode toggle logic
+                modeVideo.click();
             } else {
                 modeImage.click();
             }
 
-            // Focus the input after a short delay
             setTimeout(() => {
                 input.focus();
                 input.scrollIntoView({ behavior: 'smooth', block: 'center' });
             }, 300);
 
-            // Optionally highlight the bar
             bar.style.boxShadow = '0 -4px 30px rgba(78,84,200,0.4)';
             setTimeout(() => {
                 bar.style.boxShadow = '0 -4px 20px rgba(0,0,0,0.1)';
@@ -3198,7 +3213,200 @@ nav {
             }
         }
 
-        // ==================== AI GENERATOR STICKY BAR ====================
+        // ================================================================
+        //  FILTER FUNCTIONS (unchanged, kept for completeness)
+        // ================================================================
+        function updateFilterCounts(prompts) {
+            const total = prompts ? prompts.length : 0;
+            const free = prompts ? prompts.filter(p => !p.price || p.price === 0).length : 0;
+            const paid = prompts ? prompts.filter(p => p.price && p.price > 0).length : 0;
+            document.getElementById('filterCountAll').textContent = total;
+            document.getElementById('filterCountFree').textContent = free;
+            document.getElementById('filterCountPaid').textContent = paid;
+        }
+
+        function filterPrompts(filter) {
+            document.querySelectorAll('.hero-filter-chip').forEach(chip => {
+                chip.classList.toggle('active', chip.dataset.filter === filter);
+            });
+
+            if (window.allPrompts && window.allPrompts.length > 0) {
+                let filtered = window.allPrompts;
+                if (filter === 'free') {
+                    filtered = filtered.filter(p => !p.price || p.price === 0);
+                } else if (filter === 'paid') {
+                    filtered = filtered.filter(p => p.price && p.price > 0);
+                }
+                if (window.youtubePrompts && typeof window.youtubePrompts.displayFilteredPrompts === 'function') {
+                    window.youtubePrompts.displayFilteredPrompts(filtered);
+                } else {
+                    renderPromptsFallback(filtered, document.getElementById('promptsContainer'));
+                }
+                updateFilterCounts(filtered);
+                // Update load more button visibility after filtering
+                setTimeout(updateLoadMoreButton, 100);
+            } else {
+                loadPromptsWithFilter(filter);
+            }
+        }
+
+        async function loadPromptsWithFilter(filter) {
+            const container = document.getElementById('promptsContainer');
+            if (!container) return;
+            container.innerHTML = '<div class="loading-shorts" style="grid-column:1/-1; text-align:center; padding:40px; color:#666;"><div class="spinner" style="display:inline-block; width:24px; height:24px; border:3px solid #f3f3f3; border-top:3px solid #4e54c8; border-radius:50%; animation:spin 0.8s linear infinite; margin-right:12px;"></div>Loading prompts…</div>';
+            try {
+                const params = new URLSearchParams({ limit: 100 });
+                const res = await fetch('/api/uploads?' + params);
+                const data = await res.json();
+                let prompts = data.uploads || [];
+                if (filter === 'free') prompts = prompts.filter(p => !p.price || p.price === 0);
+                else if (filter === 'paid') prompts = prompts.filter(p => p.price && p.price > 0);
+                if (window.youtubePrompts && typeof window.youtubePrompts.displayFilteredPrompts === 'function') {
+                    window.youtubePrompts.displayFilteredPrompts(prompts);
+                } else {
+                    renderPromptsFallback(prompts, container);
+                }
+                updateFilterCounts(prompts);
+                setTimeout(updateLoadMoreButton, 100);
+            } catch (e) {
+                console.error('Filter load error:', e);
+                container.innerHTML = '<div style="grid-column:1/-1; text-align:center; padding:40px; color:#666;">Error loading prompts.</div>';
+            }
+        }
+
+        function renderPromptsFallback(prompts, container) {
+            container.innerHTML = '';
+            if (!prompts || prompts.length === 0) {
+                container.innerHTML = '<div style="grid-column:1/-1; text-align:center; padding:40px; color:#666;">No prompts found.</div>';
+                return;
+            }
+            prompts.forEach((p, i) => {
+                const card = document.createElement('div');
+                card.className = 'shorts-prompt-card';
+                const isVideo = p.fileType === 'video' || p.videoUrl;
+                const img = p.thumbnailUrl || p.imageUrl || 'https://via.placeholder.com/300x400/4e54c8/white?text=AI+Image';
+                const price = p.price || 0;
+                const isFree = price === 0;
+                card.innerHTML = `
+                    <div class="shorts-video-container">
+                        <img src="${img}" class="shorts-image" loading="lazy">
+                        <div class="price-badge ${isFree ? 'free' : ''}">${isFree ? '<i class="fas fa-gift"></i> Free' : '<i class="fas fa-rupee-sign"></i> '+price}</div>
+                        ${isVideo ? '<div class="video-reel-badge"><i class="fas fa-play"></i> Reel</div>' : '<div class="image-badge"><i class="fas fa-image"></i> Prompt</div>'}
+                    </div>
+                    <div class="shorts-info">
+                        <div class="shorts-prompt-text">${(p.promptText || '').substring(0,120)}</div>
+                        <div class="shorts-meta"><span>@${p.userName || 'Anonymous'}</span><span>${p.views || 0} views</span></div>
+                        <div class="prompt-actions">
+                            <button class="copy-prompt-btn" onclick="event.stopPropagation(); alert('View prompt details at /prompt/${p.id}')"><i class="fas fa-copy"></i> ${isFree ? 'Copy' : 'Buy ₹'+price}</button>
+                        </div>
+                    </div>
+                `;
+                card.addEventListener('click', () => { window.location.href = '/prompt/' + p.id; });
+                container.appendChild(card);
+            });
+        }
+
+        function setupCountObserver() {
+            const container = document.getElementById('promptsContainer');
+            if (!container) return;
+            const observer = new MutationObserver(() => {
+                if (window.allPrompts && window.allPrompts.length > 0) {
+                    updateFilterCounts(window.allPrompts);
+                } else {
+                    const cards = container.querySelectorAll('.shorts-prompt-card');
+                    let free = 0, paid = 0;
+                    cards.forEach(c => {
+                        const badge = c.querySelector('.price-badge');
+                        if (badge && badge.classList.contains('free')) free++;
+                        else if (badge && !badge.classList.contains('free')) paid++;
+                    });
+                    document.getElementById('filterCountAll').textContent = cards.length;
+                    document.getElementById('filterCountFree').textContent = free;
+                    document.getElementById('filterCountPaid').textContent = paid;
+                }
+                // Update load more button after DOM changes
+                setTimeout(updateLoadMoreButton, 100);
+            });
+            observer.observe(container, { childList: true, subtree: true });
+        }
+
+        setTimeout(() => {
+            if (window.allPrompts && window.allPrompts.length > 0) {
+                updateFilterCounts(window.allPrompts);
+            }
+            setupCountObserver();
+        }, 2000);
+
+        window.filterPromptsGlobal = filterPrompts;
+
+        // ================================================================
+        //  LOAD MORE BUTTON LOGIC
+        // ================================================================
+        function updateLoadMoreButton() {
+            const btn = document.getElementById('loadMoreBtn');
+            if (!btn) return;
+            // Check if youtubePrompts exists and has more
+            if (window.youtubePrompts) {
+                const hasMore = window.youtubePrompts.hasMore !== false;
+                const isLoading = window.youtubePrompts.isLoading || false;
+                if (hasMore && !isLoading) {
+                    btn.style.display = 'inline-flex';
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="fas fa-chevron-down"></i> Load More';
+                } else if (isLoading) {
+                    btn.style.display = 'inline-flex';
+                    btn.disabled = true;
+                    btn.innerHTML = '<span class="spinner"></span> Loading...';
+                } else {
+                    btn.style.display = 'none';
+                }
+            } else {
+                // If youtubePrompts not ready, hide button
+                btn.style.display = 'none';
+            }
+        }
+
+        // Attach click event to load more button
+        document.addEventListener('DOMContentLoaded', function() {
+            const btn = document.getElementById('loadMoreBtn');
+            if (btn) {
+                btn.addEventListener('click', function() {
+                    if (window.youtubePrompts && typeof window.youtubePrompts.loadMorePrompts === 'function') {
+                        window.youtubePrompts.loadMorePrompts();
+                        // Update button state after a short delay (loading will set disabled)
+                        setTimeout(updateLoadMoreButton, 200);
+                    }
+                });
+            }
+        });
+
+        // Hook into the YouTubeStylePrompts load completion
+        // We'll patch the displayPrompts method to call updateLoadMoreButton
+        const originalDisplay = window.youtubePrompts?.displayPrompts;
+        if (originalDisplay) {
+            window.youtubePrompts.displayPrompts = function(prompts, isInitial) {
+                originalDisplay.call(this, prompts, isInitial);
+                setTimeout(updateLoadMoreButton, 200);
+            };
+        }
+
+        // Also patch the loadMorePrompts to call update after load
+        const originalLoadMore = window.youtubePrompts?.loadMorePrompts;
+        if (originalLoadMore) {
+            window.youtubePrompts.loadMorePrompts = function() {
+                originalLoadMore.call(this);
+                setTimeout(updateLoadMoreButton, 300);
+            };
+        }
+
+        // Initial update after page loads
+        setTimeout(updateLoadMoreButton, 3000);
+
+        // Also update when filter is applied (already handled in filterPrompts)
+
+        // =================================================================
+        //  AI GENERATOR STICKY BAR (unchanged, kept for completeness)
+        // =================================================================
         (function() {
             const bar = document.getElementById('aiGeneratorBar');
             const promptInput = document.getElementById('aiPromptInput');
@@ -3225,16 +3433,13 @@ nav {
             let uploadedImage = null;
             let isGenerating = false;
 
-            // Show bar on homepage
             bar.classList.add('active');
 
-            // Auto-resize textarea
             promptInput.addEventListener('input', function() {
                 this.style.height = 'auto';
                 this.style.height = Math.min(this.scrollHeight, 120) + 'px';
             });
 
-            // Sync duration slider display
             const durSlider = document.getElementById('aiDurationSlider');
             const durDisplay = document.getElementById('aiDurationDisplay');
             if (durSlider && durDisplay) {
@@ -3243,7 +3448,6 @@ nav {
                 });
             }
 
-            // Image upload
             uploadBtn.addEventListener('click', () => fileInput.click());
             fileInput.addEventListener('change', function(e) {
                 const file = this.files[0];
@@ -3264,11 +3468,17 @@ nav {
                 uploadedImage = null;
             });
 
-            // Fetch credits on load
             async function fetchCredits() {
                 const user = await getCurrentUser();
                 if (!user) {
-                    creditDisplay.textContent = '0';
+                    const stored = localStorage.getItem('guestUsage');
+                    let usage = stored ? JSON.parse(stored) : null;
+                    const today = new Date().toISOString().split('T')[0];
+                    if (!usage || usage.date !== today) {
+                        usage = { date: today, count: 0 };
+                        localStorage.setItem('guestUsage', JSON.stringify(usage));
+                    }
+                    creditDisplay.innerHTML = `<i class="fas fa-bolt"></i> ${Math.max(0, 3 - usage.count)} Generation Without Login`;
                     return;
                 }
                 currentUserId = user.uid;
@@ -3284,7 +3494,6 @@ nav {
             }
             fetchCredits();
 
-            // Mode toggle
             function setMode(mode) {
                 currentMode = mode;
                 modeImageBtn.classList.toggle('active', mode === 'image');
@@ -3306,7 +3515,6 @@ nav {
                 setMode('video');
             });
 
-            // Generate
             generateBtn.addEventListener('click', async function() {
                 if (isGenerating) return;
                 const prompt = promptInput.value.trim();
@@ -3316,19 +3524,31 @@ nav {
                 }
 
                 let user = await getCurrentUser();
-                if (!user) {
-                    showNotification('Please login to generate.', 'error');
-                    const returnUrl = encodeURIComponent(window.location.href);
-                    window.location.href = '/login.html?returnUrl=' + returnUrl;
-                    return;
+                if (user) {
+                    currentUserId = user.uid;
+                } else {
+                    currentUserId = null;
                 }
-                currentUserId = user.uid;
 
-                const creditInfo = await fetch(`/api/credits/${user.uid}`).then(r => r.json());
-                if (!creditInfo.success || creditInfo.credits <= 0) {
-                    upgradeCurrent.textContent = creditInfo.credits || 0;
-                    upgradeModal.style.display = 'flex';
-                    return;
+                if (user) {
+                    const creditInfo = await fetch(`/api/credits/${user.uid}`).then(r => r.json());
+                    if (!creditInfo.success || creditInfo.credits <= 0) {
+                        upgradeCurrent.textContent = creditInfo.credits || 0;
+                        upgradeModal.style.display = 'flex';
+                        return;
+                    }
+                } else {
+                    const stored = localStorage.getItem('guestUsage');
+                    let usage = stored ? JSON.parse(stored) : null;
+                    const today = new Date().toISOString().split('T')[0];
+                    if (!usage || usage.date !== today) {
+                        usage = { date: today, count: 0 };
+                        localStorage.setItem('guestUsage', JSON.stringify(usage));
+                    }
+                    if (usage.count >= 3) {
+                        showGuestLimitModal();
+                        return;
+                    }
                 }
 
                 isGenerating = true;
@@ -3355,16 +3575,29 @@ nav {
                         formData.append('duration', durationVal);
                     }
 
-                    const idToken = await user.getIdToken();
+                    const headers = {};
+                    if (user) {
+                        const idToken = await user.getIdToken();
+                        headers['Authorization'] = `Bearer ${idToken}`;
+                    }
+
                     const endpoint = currentMode === 'video' ? '/api/generate-agnes-video' : '/api/generate-image';
                     const response = await fetch(endpoint, {
                         method: 'POST',
-                        headers: { 'Authorization': `Bearer ${idToken}` },
+                        headers: headers,
                         body: formData
                     });
 
                     const result = await response.json();
                     if (!response.ok) {
+                        if (response.status === 403 && result.error === 'guest_limit_reached') {
+                            showGuestLimitModal();
+                            generateBtn.disabled = false;
+                            generateBtn.innerHTML = currentMode === 'video' ? '<i class="fas fa-video"></i>' : '<i class="fas fa-arrow-right"></i>';
+                            isGenerating = false;
+                            if (statusEl) statusEl.textContent = '';
+                            return;
+                        }
                         if (response.status === 429) {
                             const waitSec = result.retryAfter || 60;
                             statusEl.textContent = `⏳ Rate limited. Please wait ${waitSec} seconds and try again.`;
@@ -3378,7 +3611,6 @@ nav {
                     }
 
                     if (currentMode === 'video') {
-                        // Agnes video (async)
                         const videoId = result.video_id;
                         if (!videoId) throw new Error('No video_id returned from Agnes.');
 
@@ -3436,14 +3668,26 @@ nav {
                         showVideoModal(videoUrl);
                         showNotification('Video generated successfully!', 'success');
                     } else {
-                        // Image generation (Pollinations)
                         modalImg.src = result.imageUrl;
                         modal.classList.add('active');
                         statusEl.textContent = '✅ Image generated!';
                         showNotification('Image generated successfully!', 'success');
                     }
 
-                    creditDisplay.textContent = result.remainingCredits;
+                    if (user) {
+                        creditDisplay.textContent = result.remainingCredits;
+                    } else {
+                        const today = new Date().toISOString().split('T')[0];
+                        let stored = localStorage.getItem('guestUsage');
+                        let usage = stored ? JSON.parse(stored) : null;
+                        if (!usage || usage.date !== today) {
+                            usage = { date: today, count: 0 };
+                        }
+                        usage.count += 1;
+                        localStorage.setItem('guestUsage', JSON.stringify(usage));
+                        const remaining = Math.max(0, 3 - usage.count);
+                        creditDisplay.innerHTML = `<i class="fas fa-bolt"></i> ${remaining} free generations left`;
+                    }
 
                     promptInput.value = '';
                     promptInput.style.height = 'auto';
@@ -3466,7 +3710,6 @@ nav {
                 }
             });
 
-            // Modal controls
             modalClose.addEventListener('click', () => modal.classList.remove('active'));
             modal.addEventListener('click', (e) => {
                 if (e.target === modal) modal.classList.remove('active');
@@ -3480,7 +3723,6 @@ nav {
                 document.body.removeChild(link);
             });
 
-            // Video modal helper
             window.showVideoModal = function(videoUrl) {
                 const existing = document.getElementById('videoModal');
                 if (existing) existing.remove();
@@ -3506,7 +3748,6 @@ nav {
                 document.body.removeChild(a);
             };
 
-            // Upgrade modal
             upgradeClose.addEventListener('click', () => upgradeModal.style.display = 'none');
             upgradeModal.addEventListener('click', (e) => {
                 if (e.target === upgradeModal) upgradeModal.style.display = 'none';
@@ -3612,7 +3853,6 @@ nav {
                 }
             });
 
-            // Keyboard shortcut: Ctrl+Enter
             promptInput.addEventListener('keydown', function(e) {
                 if (e.ctrlKey && e.key === 'Enter') {
                     e.preventDefault();
@@ -3620,11 +3860,39 @@ nav {
                 }
             });
 
-            // Expose fetchCredits for after top-up
             window.refreshCredits = fetchCredits;
+
+            window.showGuestLimitModal = function() {
+                const existing = document.getElementById('guestLimitModal');
+                if (existing) existing.remove();
+
+                const overlay = document.createElement('div');
+                overlay.className = 'buy-modal-overlay';
+                overlay.id = 'guestLimitModal';
+                overlay.innerHTML = `
+                    <div class="buy-modal" style="max-width: 450px;">
+                        <div class="modal-header">
+                            <h2><i class="fas fa-exclamation-circle"></i> Free Generations Used</h2>
+                            <button class="close-modal" onclick="document.getElementById('guestLimitModal').remove()">&times;</button>
+                        </div>
+                        <div class="buy-modal-content" style="padding: 20px; text-align: center;">
+                            <p>You’ve used all your free guest generations today.</p>
+                            <p><strong>Login</strong> to receive <strong>5 free credits every day</strong> and continue creating!</p>
+                            <button class="buy-now-btn" onclick="window.location.href='/login.html?returnUrl='+encodeURIComponent(window.location.href)">
+                                <i class="fas fa-sign-in-alt"></i> Login Now
+                            </button>
+                            <p style="margin-top: 15px; font-size: 0.8rem; color: #666;">
+                                Or <a href="/" style="color: #4e54c8;">continue browsing</a>.
+                            </p>
+                        </div>
+                    </div>
+                `;
+                document.body.appendChild(overlay);
+                document.body.style.overflow = 'hidden';
+            };
         })();
 
-        // ===== REFERRAL SYSTEM HOMEPAGE DISPLAY =====
+        // ===== REFERRAL SYSTEM =====
         (async function loadReferralHomepage() {
             try {
                 const user = await getCurrentUser();
@@ -3648,13 +3916,11 @@ nav {
                                 <span>💰 Credits earned: ${data.credits}</span>
                             </div>
                         `;
-                        // Store the link for copy function
                         window.referralLink = data.referralLink;
                     } else {
                         container.innerHTML = `<p style="color: #1a1a2e;">Unable to load referral link. Please refresh.</p>`;
                     }
                 } else {
-                    // User not logged in – show login button
                     container.innerHTML = `
                         <div style="text-align: center;">
                             <a href="/login.html?returnUrl=${encodeURIComponent(window.location.href)}" class="referral-login-btn">
@@ -3672,7 +3938,6 @@ nav {
             }
         })();
 
-        // Copy referral link function
         function copyReferralLink() {
             const input = document.getElementById('referralLinkInput');
             if (input) {
@@ -3680,6 +3945,44 @@ nav {
                 document.execCommand('copy');
                 showNotification('Referral link copied!', 'success');
             }
+        }
+
+        // Helper to show notification (fallback)
+        function showNotification(msg, type) {
+            type = type || 'info';
+            const existing = document.querySelector('.toast-notification');
+            if (existing) existing.remove();
+            const div = document.createElement('div');
+            div.className = 'toast-notification ' + type;
+            const icon = type === 'success' ? 'fa-check-circle' : type === 'error' ? 'fa-exclamation-circle' : 'fa-info-circle';
+            div.innerHTML = '<i class="fas ' + icon + '"></i> ' + msg;
+            document.body.appendChild(div);
+            setTimeout(() => { if (div.parentNode) div.remove(); }, 3500);
+        }
+
+        // Override global showNotification if exists
+        if (typeof window.showNotification === 'undefined') {
+            window.showNotification = showNotification;
+        }
+
+        // Expose getCurrentUser for other scripts
+        window.getCurrentUser = function() {
+            return new Promise((resolve) => {
+                if (typeof firebase !== 'undefined' && firebase.auth) {
+                    const unsub = firebase.auth().onAuthStateChanged((u) => {
+                        unsub();
+                        resolve(u);
+                    });
+                } else {
+                    resolve(null);
+                }
+            });
+        };
+
+        // Ensure allPrompts is available globally
+        // (it will be set by script.js, but we keep a reference)
+        if (typeof window.allPrompts === 'undefined') {
+            window.allPrompts = [];
         }
     </script>
 </body>

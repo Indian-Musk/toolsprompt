@@ -34,6 +34,10 @@ const s3Client = new S3Client({
 const R2_BUCKET = process.env.R2_BUCKET_NAME;
 const R2_PUBLIC_URL = process.env.R2_PUBLIC_URL; // e.g., https://pub-xxxx.r2.dev
 
+// ========== Guest Generation Limit ==========
+const GUEST_LIMIT = 3;
+const guestUsage = new Map(); // key: "ip-YYYY-MM-DD", value: count
+
 // ========== Helper: upload file to R2 ==========
 async function uploadToR2(buffer, key, contentType) {
   const command = new PutObjectCommand({
@@ -147,6 +151,22 @@ async function addCredits(userId, amount) {
     totalPurchased: (data.totalPurchased || 0) + amount,
     updatedAt: new Date().toISOString()
   });
+}
+
+// ========== Guest Usage Helper ==========
+function checkAndIncrementGuest(req, increment = false) {
+    const ip = req.ip || req.headers['x-forwarded-for'] || req.connection.remoteAddress;
+    const today = new Date().toISOString().split('T')[0];
+    const key = `${ip}-${today}`;
+    
+    let count = guestUsage.get(key) || 0;
+    if (count >= GUEST_LIMIT) {
+        return { allowed: false, remaining: 0 };
+    }
+    if (increment) {
+        guestUsage.set(key, count + 1);
+    }
+    return { allowed: true, remaining: GUEST_LIMIT - count };
 }
 
 // Initialize Razorpay
@@ -2643,10 +2663,10 @@ class AIDescriptionGenerator {
     
     if (isVideo) {
       const platform = AIModelManager.getVideoModelInfo(platformId);
-      return `${platform.name}'s ${platform.category} capabilities deliver ${platform.strengths.join(', ')} for professional-quality video content.`;
+      return `${platform.name}'s ${platform.category} capabilities deliver ${platform.strengths.join(', ') || 'high-quality'} video content.`;
     } else {
       const platform = AIModelManager.getPhotoModelInfo(platformId);
-      return `${platform.name}'s ${platform.category} engine creates ${platform.strengths.join(', ')} outputs with exceptional quality and consistency.`;
+      return `${platform.name}'s ${platform.category} engine creates ${platform.strengths.join(', ') || 'professional'} outputs with exceptional quality and consistency.`;
     }
   }
 
@@ -5149,115 +5169,204 @@ app.get('/api/credits/:userId', async (req, res) => {
   }
 });
 
+// ---- UPDATED: /api/generate-image ----
 app.post('/api/generate-image', async (req, res) => {
-  try {
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({ error: 'Authentication required' });
-    }
+  // --- Authentication & credits ---
+  let userId = null;
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
     const idToken = authHeader.split('Bearer ')[1];
-    const decodedToken = await admin.auth().verifyIdToken(idToken);
-    const userId = decodedToken.uid;
+    try {
+      const decodedToken = await admin.auth().verifyIdToken(idToken);
+      userId = decodedToken.uid;
+    } catch (err) {
+      console.log('Auth token invalid, proceeding as guest');
+    }
+  }
 
+  if (userId) {
     const creditInfo = await getUserCredits(userId);
     if (creditInfo.credits <= 0) {
       return res.status(403).json({ error: 'Insufficient credits. Please upgrade.' });
     }
+  } else {
+    // Guest user: check quota
+    const guestCheck = checkAndIncrementGuest(req, false);
+    if (!guestCheck.allowed) {
+      return res.status(403).json({ error: 'guest_limit_reached', remaining: 0 });
+    }
+  }
 
-    const busboy = Busboy({ headers: req.headers, limits: { fileSize: 10 * 1024 * 1024 } });
-    let prompt = '';
-    let imageBuffer = null;
-    let imageMimeType = null;
+  // --- Parse multipart request ---
+  const busboy = Busboy({ headers: req.headers, limits: { fileSize: 10 * 1024 * 1024 } });
+  let prompt = '';
+  let imageBuffer = null, imageMimeType = null, imageFileName = null;
 
-    busboy.on('field', (fieldname, val) => {
-      if (fieldname === 'prompt') prompt = val;
-    });
+  busboy.on('field', (fieldname, val) => { if (fieldname === 'prompt') prompt = val; });
+  busboy.on('file', (fieldname, file, info) => {
+    if (fieldname === 'image') {
+      imageFileName = info.filename;
+      imageMimeType = info.mimeType;
+      const chunks = [];
+      file.on('data', (data) => chunks.push(data));
+      file.on('end', () => { imageBuffer = Buffer.concat(chunks); });
+    } else file.resume();
+  });
 
-    busboy.on('file', (fieldname, file, info) => {
-      if (fieldname === 'image') {
-        const chunks = [];
-        file.on('data', (data) => chunks.push(data));
-        file.on('end', () => {
-          imageBuffer = Buffer.concat(chunks);
-          imageMimeType = info.mimeType;
-        });
+  busboy.on('finish', async () => {
+    try {
+      let finalPrompt = prompt.trim();
+      if (!finalPrompt) return res.status(400).json({ error: 'Prompt is required' });
+
+      // --- Upload reference image to R2 (if provided) for image‑to‑image ---
+      let imageUrl = null;
+      if (imageBuffer) {
+        const timestamp = Date.now();
+        const uniqueId = uuidv4();
+        const ext = imageFileName ? imageFileName.split('.').pop() : 'jpg';
+        const key = `agnes_images/${timestamp}-${uniqueId}.${ext}`;
+        imageUrl = await uploadToR2(imageBuffer, key, imageMimeType);
       }
-    });
 
-    busboy.on('finish', async () => {
-      try {
-        let finalPrompt = prompt.trim();
-        if (!finalPrompt) {
-          return res.status(400).json({ error: 'Prompt is required' });
-        }
+      // --- Prepare Agnes AI request (OpenAI‑compatible) ---
+      const payload = {
+        model: 'agnes-image-2.1-flash',
+        prompt: finalPrompt,
+        size: '1K',              // or '2K', '3K', '4K'
+        ratio: '1:1',            // or '16:9', '3:4', etc.
+      };
+      if (imageUrl) {
+        payload.image = [imageUrl];   // array of image URLs or base64
+      }
 
-        // Optional: Use GPT-4 Vision to describe uploaded image (keep this part)
-        let imageDescription = '';
-        if (imageBuffer) {
-          try {
-            const base64Image = imageBuffer.toString('base64');
-            const visionResponse = await openai.chat.completions.create({
-              model: 'gpt-4-vision-preview',
-              messages: [{
-                role: 'user',
-                content: [
-                  { type: 'text', text: 'Describe this image in detail, focusing on style, composition, colors, and content. Keep it under 200 words.' },
-                  { type: 'image_url', image_url: { url: `data:${imageMimeType || 'image/png'};base64,${base64Image}` } }
-                ]
-              }],
-              max_tokens: 500,
-            });
-            imageDescription = visionResponse.choices[0].message.content;
-            finalPrompt = `Using this image description as reference: "${imageDescription}". Now generate a new image based on this prompt: "${prompt}"`;
-          } catch (visionError) {
-            console.error('Vision API error:', visionError.message);
-            // Continue without description if vision fails
+      // --- Call Agnes AI image API with extended timeout and retry ---
+      let agnesResponse = null;
+      let attempts = 0;
+      const maxAttempts = 3;
+      let lastError = null;
+
+      while (attempts < maxAttempts) {
+        attempts++;
+        try {
+          agnesResponse = await axios.post(
+            'https://apihub.agnes-ai.com/v1/images/generations',
+            payload,
+            {
+              headers: {
+                'Authorization': `Bearer ${process.env.AGNES_API_KEY}`,
+                'Content-Type': 'application/json',
+              },
+              timeout: 120000,   // 120 seconds (2 minutes)
+            }
+          );
+          break; // success
+        } catch (err) {
+          lastError = err;
+          console.warn(`Agnes API attempt ${attempts} failed:`, err.message);
+          if (attempts < maxAttempts) {
+            // Wait before retry (exponential backoff)
+            const delay = Math.min(2000 * Math.pow(2, attempts - 1), 10000);
+            await new Promise(resolve => setTimeout(resolve, delay));
           }
         }
+      }
 
-        // ===== Generate image using Pollinations.ai =====
-        const encodedPrompt = encodeURIComponent(finalPrompt);
-        const pollinationsUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1024&height=1024&model=flux&nologo=true`;
+      if (!agnesResponse) {
+        throw lastError || new Error('Agnes API failed after retries');
+      }
 
-        const response = await axios({
-          method: 'get',
-          url: pollinationsUrl,
-          responseType: 'arraybuffer',
-          timeout: 30000,
-        });
+      // --- Extract image from response ---
+      let imageUrlFinal = null;
+      if (agnesResponse.data.data && Array.isArray(agnesResponse.data.data)) {
+        const firstImage = agnesResponse.data.data[0];
+        if (firstImage.url) {
+          imageUrlFinal = firstImage.url;
+        } else if (firstImage.b64_json) {
+          imageUrlFinal = `data:image/png;base64,${firstImage.b64_json}`;
+        }
+      }
 
-        const base64Image = Buffer.from(response.data, 'binary').toString('base64');
-        const mimeType = response.headers['content-type'] || 'image/png';
-        const imageUrl = `data:${mimeType};base64,${base64Image}`;
+      if (!imageUrlFinal) {
+        throw new Error('No image data in Agnes response');
+      }
 
-        console.log('✅ Image generated via Pollinations.ai');
+      // --- If it's a URL, fetch and convert to base64 ---
+      if (imageUrlFinal.startsWith('http')) {
+        const imgRes = await fetch(imageUrlFinal);
+        const buffer = await imgRes.arrayBuffer();
+        const mime = imgRes.headers.get('content-type') || 'image/png';
+        imageUrlFinal = `data:${mime};base64,${Buffer.from(buffer).toString('base64')}`;
+      }
 
-        // Deduct credit
+      // --- Deduct credit or increment guest ---
+      if (userId) {
         await deductCredit(userId);
-
+        const remainingCredits = (await getUserCredits(userId)).credits;
         res.json({
           success: true,
-          imageUrl,
-          remainingCredits: (await getUserCredits(userId)).credits,
+          imageUrl: imageUrlFinal,
+          remainingCredits,
           prompt: finalPrompt,
-          modelUsed: 'pollinations.ai (flux)'
+          modelUsed: 'Agnes Image 2.1 Flash',
         });
-      } catch (error) {
-        console.error('Generation error:', error);
-        res.status(500).json({ error: error.message || 'Image generation failed' });
+      } else {
+        checkAndIncrementGuest(req, true);
+        const guestCheck = checkAndIncrementGuest(req, false);
+        res.json({
+          success: true,
+          imageUrl: imageUrlFinal,
+          remainingCredits: guestCheck.remaining,
+          prompt: finalPrompt,
+          modelUsed: 'Agnes Image 2.1 Flash',
+          isGuest: true
+        });
       }
-    });
 
-    req.pipe(busboy);
-  } catch (error) {
-    console.error('Generate image error:', error);
-    res.status(500).json({ error: error.message });
-  }
+    } catch (error) {
+      console.error('Agnes image error:', error.response?.data || error.message);
+
+      // --- Fallback to Pollinations ---
+      try {
+        const pollinationsUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(finalPrompt)}?width=1024&height=1024&model=flux&nologo=true`;
+        const fallbackRes = await axios.get(pollinationsUrl, { responseType: 'arraybuffer', timeout: 30000 });
+        const base64 = Buffer.from(fallbackRes.data, 'binary').toString('base64');
+        const mime = fallbackRes.headers['content-type'] || 'image/png';
+        const fallbackUrl = `data:${mime};base64,${base64}`;
+
+        if (userId) {
+          await deductCredit(userId);
+          res.json({
+            success: true,
+            imageUrl: fallbackUrl,
+            remainingCredits: (await getUserCredits(userId)).credits,
+            prompt: finalPrompt,
+            modelUsed: 'Pollinations (fallback)',
+          });
+        } else {
+          checkAndIncrementGuest(req, true);
+          const guestCheck = checkAndIncrementGuest(req, false);
+          res.json({
+            success: true,
+            imageUrl: fallbackUrl,
+            remainingCredits: guestCheck.remaining,
+            prompt: finalPrompt,
+            modelUsed: 'Pollinations (fallback)',
+            isGuest: true
+          });
+        }
+      } catch (fallbackError) {
+        res.status(500).json({ error: 'All generation methods failed' });
+      }
+    }
+  });
+
+  req.pipe(busboy);
 });
 
 // ==================== AGNES AI VIDEO GENERATION (FREE API) ====================
 
 // ===== NEW: Auto-resolution based on duration =====
+// ---- UPDATED: /api/generate-agnes-video ----
 app.post('/api/generate-agnes-video', async (req, res) => {
     if (!AGNES_API_KEY) {
         console.error('Agnes API Key is not configured.');
@@ -5275,19 +5384,22 @@ app.post('/api/generate-agnes-video', async (req, res) => {
                 userId = decodedToken.uid;
             }
         } catch (err) {
-            console.error('Auth token verification failed:', err);
-            return res.status(401).json({ error: 'Authentication failed' });
+            console.log('Auth token invalid, proceeding as guest');
         }
     }
 
-    if (!userId) {
-        return res.status(401).json({ error: 'Authentication required' });
-    }
-
-    // Check credits
-    const creditInfo = await getUserCredits(userId);
-    if (creditInfo.credits <= 0) {
-        return res.status(403).json({ error: 'Insufficient credits. Please upgrade.' });
+    if (userId) {
+        // Check credits
+        const creditInfo = await getUserCredits(userId);
+        if (creditInfo.credits <= 0) {
+            return res.status(403).json({ error: 'Insufficient credits. Please upgrade.' });
+        }
+    } else {
+        // Guest check
+        const guestCheck = checkAndIncrementGuest(req, false);
+        if (!guestCheck.allowed) {
+            return res.status(403).json({ error: 'guest_limit_reached', remaining: 0 });
+        }
     }
 
     // ---------- Busboy parsing ----------
@@ -5466,18 +5578,29 @@ app.post('/api/generate-agnes-video', async (req, res) => {
                 throw new Error('Could not create video task.');
             }
 
-            // Deduct credit
-            await deductCredit(userId);
-            const remainingCredits = (await getUserCredits(userId)).credits;
-
-            console.log(`✅ Agnes video task created with video_id: ${response.data.video_id} for user ${userId}`);
-
-            res.json({
-                success: true,
-                video_id: response.data.video_id,
-                remainingCredits: remainingCredits,
-                message: 'Video generation task created successfully.'
-            });
+            // Deduct credit or increment guest
+            if (userId) {
+                await deductCredit(userId);
+                const remainingCredits = (await getUserCredits(userId)).credits;
+                console.log(`✅ Agnes video task created with video_id: ${response.data.video_id} for user ${userId}`);
+                res.json({
+                    success: true,
+                    video_id: response.data.video_id,
+                    remainingCredits: remainingCredits,
+                    message: 'Video generation task created successfully.'
+                });
+            } else {
+                checkAndIncrementGuest(req, true);
+                const guestCheck = checkAndIncrementGuest(req, false);
+                console.log(`✅ Agnes video task created with video_id: ${response.data.video_id} for guest`);
+                res.json({
+                    success: true,
+                    video_id: response.data.video_id,
+                    remainingCredits: guestCheck.remaining,
+                    message: 'Video generation task created successfully.',
+                    isGuest: true
+                });
+            }
 
         } catch (error) {
             console.error('Agnes video generation error:', error.response?.data || error.message);
@@ -7558,7 +7681,7 @@ function generateAffiliateHTML(affiliate) {
   `;
 }
 
-// ==================== UPDATED generateEnhancedPromptHTML with NOTIFICATION SUPPORT ====================
+// ==================== generateEnhancedPromptHTML (FIXED) ====================
 function generateEnhancedPromptHTML(promptData, affiliates) {
   const prompt = promptData;
   const baseUrl = 'https://www.toolsprompt.com';
@@ -7581,266 +7704,951 @@ function generateEnhancedPromptHTML(promptData, affiliates) {
   // Generate Adsterra ads for prompt pages
   const adsterraAds = generateAllAdsterraAds();
 
-  const mediaDisplay = isVideo ? `
-    <div class="shorts-video-container">
-      <video 
-        src="${promptData.videoUrl || promptData.mediaUrl}" 
-        poster="${promptData.imageUrl}"
-        class="shorts-image"
-        controls
-        loop
-        playsinline
-        preload="metadata"
-        onerror="this.style.display='none'; document.getElementById('videoFallback').style.display='flex';"
-      ></video>
-      <div id="videoFallback" style="display:none; position:absolute; top:0; left:0; right:0; bottom:0; background:#000; color:white; align-items:center; justify-content:center; flex-direction:column;">
-        <i class="fas fa-exclamation-triangle" style="font-size:2rem; margin-bottom:1rem;"></i>
-        <p>Video failed to load. Try refreshing.</p>
-      </div>
-      ${promptData.videoDuration ? `<span class="video-duration">${promptData.videoDuration}s</span>` : ''}
-    </div>
-  ` : `
-    <img src="${promptData.imageUrl}" 
-         alt="${promptData.title} - AI Generated Image" 
-         class="prompt-image"
-         onerror="this.src='https://via.placeholder.com/800x400/4e54c8/ffffff?text=AI+Generated+Image'"
-         id="promptImage">
-  `;
+  // ==================== CSS DEFINITIONS ====================
+  const miniBrowserCSS = `
+.mini-browser-container {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    width: 320px;
+    height: 450px;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+    z-index: 10000;
+    display: none;
+    flex-direction: column;
+    overflow: hidden;
+    transition: all 0.3s ease;
+    border: 2px solid #4e54c8;
+    resize: both;
+    min-width: 300px;
+    min-height: 400px;
+}
 
-  const platformBadge = `
-    <div class="ai-model-badge">
-      <i class="fas fa-${isVideo ? 'video' : 'camera'}"></i> ${platformInfo.name || (isVideo ? 'AI Video' : 'AI Image')}
-    </div>
-  `;
+.mini-browser-container.expanded {
+    width: 90vw !important;
+    height: 90vh !important;
+    bottom: 5vh !important;
+    right: 5vw !important;
+    resize: none;
+}
 
-  const priceBadge = promptData.isPaid ? `
-    <div class="price-badge">
-      <i class="fas fa-rupee-sign"></i> ${promptData.price}
-    </div>
-  ` : `
-    <div class="price-badge free">
-      <i class="fas fa-gift"></i> Free
-    </div>
-  `;
+.mini-browser-header {
+    background: #4e54c8;
+    color: white;
+    padding: 12px 15px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: move;
+    user-select: none;
+    flex-shrink: 0;
+}
 
-  const aiStepsHTML = isVideo ? `
-    <div class="instruction-step">
-      <div class="step-number">1</div>
-      <div class="step-content">
-        <strong>Access the Platform:</strong> ${promptData.aiStepByStepGuide.access}
-      </div>
-    </div>
-    <div class="instruction-step">
-      <div class="step-number">2</div>
-      <div class="step-content">
-        <strong>Prepare Your Video Concept:</strong> ${promptData.aiStepByStepGuide.preparation}
-      </div>
-    </div>
-    <div class="instruction-step">
-      <div class="step-number">3</div>
-      <div class="step-content">
-        <strong>Use Your Prompt:</strong> ${promptData.aiStepByStepGuide.prompt}
-      </div>
-    </div>
-    <div class="instruction-step">
-      <div class="step-number">4</div>
-      <div class="step-content">
-        <strong>Adjust Parameters:</strong> ${promptData.aiStepByStepGuide.customization}
-      </div>
-    </div>
-    <div class="instruction-step">
-      <div class="step-number">5</div>
-      <div class="step-content">
-        <strong>Generate and Review:</strong> ${promptData.aiStepByStepGuide.generation}
-      </div>
-    </div>
-    <div class="instruction-step">
-      <div class="step-number">6</div>
-      <div class="step-content">
-        <strong>Export and Edit Further:</strong> ${promptData.aiStepByStepGuide.finalization}
-      </div>
-    </div>
-  ` : `
-    <div class="instruction-step">
-      <div class="step-number">1</div>
-      <div class="step-content">
-        <strong>Access the Platform:</strong> ${promptData.aiStepByStepGuide.access}
-      </div>
-    </div>
-    <div class="instruction-step">
-      <div class="step-number">2</div>
-      <div class="step-content">
-        <strong>Prepare Your Input:</strong> ${promptData.aiStepByStepGuide.preparation}
-      </div>
-    </div>
-    <div class="instruction-step">
-      <div class="step-number">3</div>
-      <div class="step-content">
-        <strong>Use Your Prompt:</strong> ${promptData.aiStepByStepGuide.prompt}
-      </div>
-    </div>
-    <div class="instruction-step">
-      <div class="step-number">4</div>
-      <div class="step-content">
-        <strong>Customize Details:</strong> ${promptData.aiStepByStepGuide.customization}
-      </div>
-    </div>
-    <div class="instruction-step">
-      <div class="step-number">5</div>
-      <div class="step-content">
-        <strong>Generate and Refine:</strong> ${promptData.aiStepByStepGuide.generation}
-      </div>
-    </div>
-    <div class="instruction-step">
-      <div class="step-number">6</div>
-      <div class="step-content">
-        <strong>Finalize and Export:</strong> ${promptData.aiStepByStepGuide.finalization}
-      </div>
-    </div>
-  `;
+.mini-browser-title {
+    font-size: 0.9rem;
+    font-weight: 600;
+}
 
-  const aiExpertTipsHTML = (promptData.aiExpertTips || []).map(tip => `
-    <li>${tip}</li>
-  `).join('');
+.mini-browser-controls {
+    display: flex;
+    gap: 8px;
+}
 
-  const toolsHTML = (promptData.bestAITools || []).map(tool => `
-    <div class="tool-card-enhanced ${tool.isPrimary ? 'primary-tool' : ''}">
-      <h4>
-        ${tool.name}
-        <div class="tool-rating">
-          ${Array(tool.rating || 4).fill('<i class="fas fa-star"></i>').join('')}
-          ${Array(5 - (tool.rating || 4)).fill('<i class="far fa-star"></i>').join('')}
-        </div>
-      </h4>
-      <p>${tool.description}</p>
-      <div class="tool-tags">
-        ${(tool.strengths || tool.category || []).map(tag => `<span class="tool-tag">${tag}</span>`).join('')}
-      </div>
-    </div>
-  `).join('');
+.mini-browser-btn {
+    background: rgba(255,255,255,0.2);
+    border: none;
+    color: white;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 0.8rem;
+    transition: all 0.3s ease;
+}
 
-  const tipsHTML = (promptData.usageTips || []).map(tip => `
-    <li>${tip}</li>
-  `).join('');
+.mini-browser-btn:hover {
+    background: rgba(255,255,255,0.3);
+    transform: scale(1.1);
+}
 
-  const seoTipsHTML = (promptData.seoTips || []).map(tip => `
-    <li>${tip}</li>
-  `).join('');
+.mini-browser-content {
+    flex: 1;
+    background: white;
+    position: relative;
+    overflow: hidden;
+}
 
-  // Add download app button HTML at the end of body
-  const downloadAppButtonHTMLWithStyle = `
-    <!-- Floating Download App Button -->
-    <style>${downloadAppCSS}</style>
-    <button class="floating-download-btn" id="downloadAppBtn" onclick="downloadApp()">
-        <i class="fas fa-download"></i>
-        <span class="btn-text">Download App</span>
-        <span class="btn-badge">FREE</span>
-    </button>
-  `;
+.mini-browser-iframe {
+    width: 100%;
+    height: 100%;
+    border: none;
+    background: white;
+}
 
-  // Download App JavaScript function to be added
-  const downloadAppJS = `
-    // ==================== DOWNLOAD APP FUNCTION ====================
+.mini-browser-toggle {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background: #4e54c8;
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 60px;
+    height: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 4px 15px rgba(78, 84, 200, 0.4);
+    z-index: 9999;
+    transition: all 0.3s ease;
+    font-size: 1.5rem;
+}
+
+.mini-browser-toggle:hover {
+    transform: scale(1.1);
+    box-shadow: 0 6px 20px rgba(78, 84, 200, 0.6);
+}
+
+@media (max-width: 768px) {
+    .mini-browser-container {
+        width: 280px;
+        height: 350px;
+        bottom: 10px;
+        right: 10px;
+        min-width: 250px;
+        min-height: 300px;
+    }
     
-    function downloadApp() {
-        const appUrl = 'https://apk.e-droid.net/apk/app4057785-93607p.apk?v=2';
-        
-        // Track download click for analytics
-        try {
-            fetch('/api/track-download', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    promptId: '${promptData.id}',
-                    promptTitle: '${promptData.title.replace(/'/g, "\\'")}',
-                    timestamp: new Date().toISOString(),
-                    userAgent: navigator.userAgent
-                })
-            }).catch(err => console.log('Download tracking error:', err));
-        } catch(e) {}
-        
-        // Show download started notification
-        showDownloadNotification();
-        
-        // Open download URL
-        window.open(appUrl, '_blank');
+    .mini-browser-container.expanded {
+        width: 95vw !important;
+        height: 70vh !important;
+        bottom: 5vh !important;
+        right: 2.5vw !important;
     }
-
-    function showDownloadNotification() {
-        const notification = document.createElement('div');
-        notification.className = 'download-notification';
-        notification.innerHTML = \`
-            <i class="fas fa-check-circle"></i>
-            <span>Download started! Check your browser.</span>
-        \`;
-        notification.style.cssText = \`
-            position: fixed;
-            bottom: 100px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: #20bf6b;
-            color: white;
-            padding: 10px 20px;
-            border-radius: 50px;
-            z-index: 10001;
-            font-size: 0.9rem;
-            font-weight: 500;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
-            animation: slideUpFade 0.3s ease;
-            white-space: nowrap;
-        \`;
-        document.body.appendChild(notification);
-        
-        setTimeout(() => {
-            notification.style.opacity = '0';
-            notification.style.transform = 'translateX(-50%) translateY(-10px)';
-            setTimeout(() => notification.remove(), 300);
-        }, 3000);
+    
+    .mini-browser-toggle {
+        width: 45px;
+        height: 45px;
+        bottom: 10px;
+        right: 10px;
+        font-size: 1.1rem;
     }
+}
 
-    // Optional: Hide button when user scrolls down (or keep sticky - your choice)
-    let lastScrollY = window.scrollY;
-    let hideTimeout;
-
-    function handleDownloadButtonVisibility() {
-        const downloadBtn = document.getElementById('downloadAppBtn');
-        if (!downloadBtn) return;
-        
-        // Button stays sticky (doesn't move) - just ensure it's visible
-        // This keeps it always visible at bottom center
-        
-        // Optional: Add scroll-based animation
-        const currentScrollY = window.scrollY;
-        if (Math.abs(currentScrollY - lastScrollY) > 10) {
-            downloadBtn.style.opacity = '0.7';
-            clearTimeout(hideTimeout);
-            hideTimeout = setTimeout(() => {
-                downloadBtn.style.opacity = '1';
-            }, 300);
-        }
-        lastScrollY = currentScrollY;
+@media (max-width: 480px) {
+    .mini-browser-container {
+        width: 250px;
+        height: 300px;
+        bottom: 8px;
+        right: 8px;
+        min-width: 220px;
+        min-height: 250px;
     }
+    
+    .mini-browser-container.expanded {
+        width: 98vw !important;
+        height: 60vh !important;
+        bottom: 5vh !important;
+        right: 1vw !important;
+    }
+    
+    .mini-browser-toggle {
+        width: 40px;
+        height: 40px;
+        bottom: 8px;
+        right: 8px;
+        font-size: 1rem;
+    }
+    
+    .title-text {
+        display: none;
+    }
+}
 
-    window.addEventListener('scroll', handleDownloadButtonVisibility);
+.mini-browser-loading {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: white;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: #666;
+    z-index: 10;
+}
 
-    // Add pulse effect on page load
-    setTimeout(() => {
-        const btn = document.getElementById('downloadAppBtn');
-        if (btn) {
-            btn.style.animation = 'none';
-            setTimeout(() => {
-                btn.style.animation = 'slideUpFade 0.5s ease-out, pulse 0.5s ease-in-out 2';
-            }, 10);
-        }
-    }, 500);
-  `;
+.mini-browser-loading .spinner {
+    border: 3px solid #f3f3f3;
+    border-top: 3px solid #4e54c8;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    animation: spin 1s linear infinite;
+    margin-bottom: 15px;
+}
 
-  // ---- AFFILIATE PLACEMENT ----
-  const affiliateTop = affiliates[0] ? generateAffiliateHTML(affiliates[0]) : '';
-  const affiliateMiddle = affiliates[1] ? generateAffiliateHTML(affiliates[1]) : '';
-  const affiliateBottom = affiliates[2] ? generateAffiliateHTML(affiliates[2]) : '';
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
 
-  // ==================== AI GENERATOR CSS, HTML, JS ====================
+.mini-browser-iframe {
+    opacity: 1;
+    transition: opacity 0.3s ease;
+}
+
+.mini-browser-iframe[style*="display: none"] {
+    opacity: 0;
+}
+`;
+
+  const platformComparisonCSS = `
+.platform-comparison {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 2rem;
+    border-radius: 15px;
+    margin: 2rem 0;
+    position: relative;
+    overflow: hidden;
+}
+
+.platform-comparison::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    right: -50%;
+    width: 100%;
+    height: 200%;
+    background: rgba(255,255,255,0.1);
+    transform: rotate(45deg);
+}
+
+.platform-comparison h3 {
+    position: relative;
+    z-index: 1;
+    margin-bottom: 1rem;
+    font-size: 1.5rem;
+    color: white;
+}
+
+.platform-comparison p {
+    position: relative;
+    z-index: 1;
+    opacity: 0.9;
+    margin-bottom: 1.5rem;
+}
+
+.comparison-table-container {
+    position: relative;
+    z-index: 1;
+    overflow-x: auto;
+    margin: 1.5rem 0;
+    background: rgba(255,255,255,0.1);
+    border-radius: 10px;
+    padding: 1rem;
+    backdrop-filter: blur(10px);
+}
+
+.platform-comparison-table {
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 600px;
+}
+
+.platform-comparison-table th {
+    background: rgba(255,255,255,0.2);
+    color: white;
+    font-weight: 600;
+    text-align: left;
+    padding: 1rem;
+    border-bottom: 2px solid rgba(255,255,255,0.3);
+}
+
+.platform-comparison-table td {
+    padding: 1rem;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+    color: rgba(255,255,255,0.9);
+}
+
+.platform-comparison-table tr:hover {
+    background: rgba(255,255,255,0.1);
+}
+
+.platform-comparison-table tr.primary-platform {
+    background: rgba(255,255,255,0.15);
+    border-left: 4px solid #4e54c8;
+}
+
+.primary-badge {
+    background: #4e54c8;
+    color: white;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 0.7rem;
+    margin-left: 8px;
+    vertical-align: middle;
+}
+
+.price-tag {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.price-free {
+    background: #20bf6b;
+    color: white;
+}
+
+.price-paid {
+    background: #ff9f43;
+    color: white;
+}
+
+.category-badge {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    background: rgba(255,255,255,0.2);
+    color: white;
+}
+
+.category-professional {
+    background: #4e54c8;
+}
+
+.category-artistic {
+    background: #9b59b6;
+}
+
+.category-open-source {
+    background: #2c3e50;
+}
+
+.category-free {
+    background: #20bf6b;
+}
+
+.category-commercial {
+    background: #2980b9;
+}
+
+.category-editing {
+    background: #e67e22;
+}
+
+.category-design {
+    background: #f1c40f;
+    color: #333;
+}
+
+.category-versatile {
+    background: #3498db;
+}
+
+.category-mobile {
+    background: #e91e63;
+}
+
+.category-nft {
+    background: #8e44ad;
+}
+
+.category-real-time {
+    background: #16a085;
+}
+
+.category-video {
+    background: #ff6b6b;
+}
+
+.category-animation {
+    background: #f39c12;
+}
+
+.category-social {
+    background: #00acc1;
+}
+
+.category-marketing {
+    background: #d35400;
+}
+
+.category-avatar {
+    background: #c0392b;
+}
+
+.category-cinematic {
+    background: #1abc9c;
+}
+
+.category-motion {
+    background: #d35400;
+}
+
+.category-3d {
+    background: #2ecc71;
+}
+
+.category-expressive {
+    background: #e74c3c;
+}
+
+.category-storytelling {
+    background: #9b59b6;
+}
+
+.comparison-tips {
+    position: relative;
+    z-index: 1;
+    background: rgba(255,255,255,0.1);
+    padding: 1.5rem;
+    border-radius: 10px;
+    margin-top: 1.5rem;
+    backdrop-filter: blur(10px);
+}
+
+.comparison-tips ul {
+    margin: 0;
+    padding-left: 1.5rem;
+}
+
+.comparison-tips li {
+    margin-bottom: 0.5rem;
+    opacity: 0.9;
+}
+
+.model-specific-tips {
+    background: #f8f9fa;
+    padding: 2rem;
+    border-radius: 15px;
+    margin: 2rem 0;
+    border: 2px solid #e9ecef;
+}
+
+.model-specific-tips h4 {
+    color: #4e54c8;
+    margin-bottom: 1.5rem;
+    font-size: 1.3rem;
+}
+
+.model-tips-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1.5rem;
+    margin-top: 1rem;
+}
+
+.model-tip {
+    background: white;
+    padding: 1.5rem;
+    border-radius: 10px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    border-top: 4px solid #4e54c8;
+    transition: transform 0.3s ease;
+}
+
+.model-tip:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+}
+
+.model-tip h5 {
+    color: #4e54c8;
+    margin-bottom: 1rem;
+    font-size: 1.1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.model-tip ul {
+    margin: 0;
+    padding-left: 1.2rem;
+}
+
+.model-tip li {
+    margin-bottom: 0.5rem;
+    color: #555;
+    font-size: 0.9rem;
+}
+
+.model-tip code {
+    background: #f1f3f9;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-family: 'Courier New', monospace;
+    color: #4e54c8;
+    font-size: 0.85rem;
+}
+
+.tools-grid-enhanced {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 1.5rem;
+    margin-top: 1rem;
+}
+
+.tool-card-enhanced {
+    background: white;
+    padding: 1.5rem;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    border-left: 4px solid #4e54c8;
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.tool-card-enhanced:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+}
+
+.tool-card-enhanced.primary-tool {
+    border-left: 4px solid #20bf6b;
+    background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
+}
+
+.tool-card-enhanced.primary-tool::before {
+    content: '★ Recommended';
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: #20bf6b;
+    color: white;
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-size: 0.7rem;
+    font-weight: 600;
+}
+
+.tool-card-enhanced h4 {
+    color: #4e54c8;
+    margin-bottom: 0.75rem;
+    font-size: 1.2rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.tool-rating {
+    display: flex;
+    gap: 2px;
+}
+
+.tool-rating i {
+    color: #ffd700;
+    font-size: 0.9rem;
+}
+
+.tool-card-enhanced p {
+    color: #555;
+    margin-bottom: 1rem;
+    font-size: 0.95rem;
+    line-height: 1.5;
+}
+
+.tool-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 1rem;
+}
+
+.tool-tag {
+    background: rgba(78, 84, 200, 0.1);
+    color: #4e54c8;
+    padding: 4px 10px;
+    border-radius: 15px;
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+`;
+
+  const commentSystemCSS = `
+.comment-section {
+    margin-top: 2rem;
+    padding: 1.5rem;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+}
+
+.comment-section h2 {
+    color: #4e54c8;
+    margin-bottom: 1.5rem;
+    font-size: 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.comment-form {
+    background: #f8f9fa;
+    padding: 1.5rem;
+    border-radius: 10px;
+    margin-bottom: 2rem;
+}
+
+.comment-form h3 {
+    color: #2d334a;
+    margin-bottom: 1rem;
+    font-size: 1.2rem;
+}
+
+.form-group {
+    margin-bottom: 1rem;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 0.5rem;
+    color: #555;
+    font-weight: 500;
+}
+
+.form-group input,
+.form-group textarea {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    font-size: 1rem;
+    transition: all 0.3s ease;
+}
+
+.form-group input:focus,
+.form-group textarea:focus {
+    outline: none;
+    border-color: #4e54c8;
+    box-shadow: 0 0 0 3px rgba(78, 84, 200, 0.1);
+}
+
+.form-group textarea {
+    min-height: 120px;
+    resize: vertical;
+    font-family: inherit;
+}
+
+.comment-submit-btn {
+    background: linear-gradient(135deg, #4e54c8 0%, #8f94fb 100%);
+    color: white;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.comment-submit-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(78, 84, 200, 0.3);
+}
+
+.comments-list {
+    margin-top: 2rem;
+}
+
+.comment-item {
+    background: white;
+    border: 1px solid #e9ecef;
+    border-radius: 10px;
+    padding: 1.5rem;
+    margin-bottom: 1rem;
+    transition: all 0.3s ease;
+}
+
+.comment-item:hover {
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    transform: translateY(-2px);
+}
+
+.comment-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 1rem;
+    flex-wrap: wrap;
+    gap: 1rem;
+}
+
+.comment-author {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.comment-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #4e54c8 0%, #8f94fb 100%);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    font-size: 1.1rem;
+}
+
+.comment-author-info h4 {
+    margin: 0;
+    color: #2d334a;
+    font-size: 1.1rem;
+}
+
+.comment-author-info .comment-date {
+    color: #666;
+    font-size: 0.85rem;
+    margin-top: 0.25rem;
+}
+
+.comment-actions {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.like-comment-btn {
+    background: none;
+    border: 1px solid #e9ecef;
+    color: #666;
+    padding: 6px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.9rem;
+}
+
+.like-comment-btn:hover {
+    border-color: #4e54c8;
+    color: #4e54c8;
+}
+
+.like-comment-btn.liked {
+    background: #ffeaea;
+    border-color: #ff6b6b;
+    color: #ff6b6b;
+}
+
+.comment-content {
+    color: #2d334a;
+    line-height: 1.6;
+    margin: 0;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+
+.comment-stats {
+    display: flex;
+    gap: 1rem;
+    margin-top: 1rem;
+    color: #666;
+    font-size: 0.9rem;
+}
+
+.load-more-comments {
+    text-align: center;
+    margin-top: 2rem;
+}
+
+.load-more-btn {
+    background: #f8f9fa;
+    border: 2px solid #4e54c8;
+    color: #4e54c8;
+    padding: 10px 20px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: all 0.3s ease;
+}
+
+.load-more-btn:hover {
+    background: #4e54c8;
+    color: white;
+}
+
+.no-comments {
+    text-align: center;
+    padding: 3rem;
+    color: #666;
+    background: #f8f9fa;
+    border-radius: 10px;
+    border: 2px dashed #ddd;
+}
+
+@media (max-width: 768px) {
+    .comment-section {
+        padding: 1rem;
+    }
+    
+    .comment-header {
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+    
+    .comment-author {
+        width: 100%;
+    }
+    
+    .comment-actions {
+        width: 100%;
+        justify-content: flex-end;
+    }
+    
+    .comment-item {
+        padding: 1rem;
+    }
+    
+    .comment-form {
+        padding: 1rem;
+    }
+}
+`;
+
+  const downloadAppCSS = `
+/* Floating Download App Button */
+.floating-download-btn {
+ display: none !important;
+    position: fixed;
+    bottom: 30px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: linear-gradient(135deg, #4e54c8 0%, #8f94fb 100%);
+    color: white;
+    border: none;
+    border-radius: 50px;
+    padding: 14px 28px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    cursor: pointer;
+    z-index: 10000;
+    font-size: 1rem;
+    font-weight: bold;
+    box-shadow: 0 8px 25px rgba(78, 84, 200, 0.4);
+    transition: all 0.3s ease;
+    backdrop-filter: blur(10px);
+    background: rgba(78, 84, 200, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    font-family: 'Segoe UI', sans-serif;
+}
+
+.floating-download-btn:hover {
+    transform: translateX(-50%) scale(1.05);
+    box-shadow: 0 12px 35px rgba(78, 84, 200, 0.6);
+    background: linear-gradient(135deg, #3b41b5 0%, #7c82f0 100%);
+}
+
+.floating-download-btn:active {
+    transform: translateX(-50%) scale(0.98);
+}
+
+.floating-download-btn i {
+    font-size: 1.2rem;
+    animation: bounce 2s infinite;
+}
+
+.floating-download-btn .btn-text {
+    letter-spacing: 0.5px;
+}
+
+.floating-download-btn .btn-badge {
+    background: #ff6b6b;
+    color: white;
+    border-radius: 20px;
+    padding: 2px 8px;
+    font-size: 0.7rem;
+    margin-left: 8px;
+    font-weight: normal;
+}
+
+@keyframes bounce {
+    0%, 100% {
+        transform: translateY(0);
+    }
+    50% {
+        transform: translateY(-3px);
+    }
+}
+
+/* Slide up animation for button */
+@keyframes slideUpFade {
+    from {
+        opacity: 0;
+        transform: translateX(-50%) translateY(30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
+    }
+}
+
+.floating-download-btn {
+    animation: slideUpFade 0.5s ease-out;
+}
+
+@media (max-width: 768px) {
+    .floating-download-btn {
+        padding: 12px 20px;
+        font-size: 0.85rem;
+        gap: 8px;
+        bottom: 20px;
+    }
+    
+    .floating-download-btn i {
+        font-size: 1rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .floating-download-btn {
+        padding: 10px 16px;
+        font-size: 0.75rem;
+        gap: 6px;
+        bottom: 15px;
+    }
+    
+    .floating-download-btn i {
+        font-size: 0.9rem;
+    }
+}
+
+/* Hide on certain pages if needed */
+.floating-download-btn.hidden {
+    display: none;
+}
+
+@keyframes pulse {
+    0% { transform: translateX(-50%) scale(1); box-shadow: 0 8px 25px rgba(78, 84, 200, 0.4); }
+    50% { transform: translateX(-50%) scale(1.08); box-shadow: 0 12px 35px rgba(78, 84, 200, 0.7); }
+    100% { transform: translateX(-50%) scale(1); box-shadow: 0 8px 25px rgba(78, 84, 200, 0.4); }
+}
+`;
+
   const aiGeneratorCSS = `
 /* Sticky AI Generator Bar */
 .ai-generator-bar {
@@ -8195,537 +9003,8 @@ function generateEnhancedPromptHTML(promptData, affiliates) {
     }
 }
 `;
-const aiGeneratorHTML = `
-<!-- AI Generator Sticky Bar -->
-<div class="ai-generator-bar" id="aiGeneratorBar">
-    <textarea class="ai-generator-input" id="aiPromptInput" placeholder="Describe the image you want to generate..." rows="1"></textarea>
-    <div class="ai-generator-actions">
-        <div class="ai-image-preview" id="aiImagePreview">
-            <img id="aiPreviewImg" src="" alt="Uploaded preview">
-            <button class="remove-image" id="aiRemoveImage">&times;</button>
-        </div>
-        <button class="ai-image-upload-btn" id="aiImageUploadBtn" title="Upload an image for reference">
-            <i class="fas fa-plus"></i>
-        </button>
-        <input type="file" class="ai-file-input" id="aiFileInput" accept="image/*">
-        
-        <!-- NEW: Duration slider -->
-        <div class="duration-option" style="display:flex; align-items:center; gap:6px; background:#f8f9fa; padding:4px 10px; border-radius:20px; flex-shrink:0;">
-            <i class="fas fa-clock" style="color:#666; font-size:0.8rem;"></i>
-            <input type="range" id="aiDurationSlider" min="3" max="40" value="5" step="1" 
-                   style="width:60px; height:4px; background:#4e54c8; border-radius:2px; outline:none; cursor:pointer;">
-            <span id="aiDurationDisplay" style="font-size:0.7rem; font-weight:600; color:#4e54c8; min-width:28px; text-align:center;">5s</span>
-        </div>
-        
-        <!-- Mode Toggle -->
-        <div class="ai-mode-toggle-group">
-            <button class="ai-mode-option active" data-mode="image" id="aiModeImage">
-                <i class="fas fa-image"></i> <span>Image</span>
-            </button>
-            <button class="ai-mode-option" data-mode="video" id="aiModeVideo">
-                <i class="fas fa-video"></i> <span>Video</span>
-            </button>
-        </div>
-        
-        <span class="ai-credit-display" id="aiCreditDisplay">
-            <i class="fas fa-coins"></i> <span class="credits-num" id="aiCreditsCount">0</span> credits
-        </span>
-        <button class="ai-generate-btn" id="aiGenerateBtn" title="Generate Image">
-            <i class="fas fa-arrow-right"></i>
-        </button>
-    </div>
-</div>
 
-<!-- Generated Image Modal -->
-<div class="generated-modal" id="generatedModal">
-    <div class="generated-modal-content">
-        <button class="generated-modal-close" id="generatedModalClose">&times;</button>
-        <img id="generatedImage" src="" alt="Generated Image">
-        <button class="generated-modal-download" id="generatedDownloadBtn">Download Image</button>
-    </div>
-</div>
-
-<!-- Upgrade Modal (for credits) -->
-<div class="buy-modal-overlay" id="upgradeModal" style="display:none;">
-    <div class="buy-modal" style="max-width:500px;">
-        <div class="modal-header">
-            <h2><i class="fas fa-gem"></i> Upgrade Credits</h2>
-            <button class="close-modal" id="upgradeModalClose">&times;</button>
-        </div>
-        <div class="buy-modal-content" style="grid-template-columns:1fr;padding:20px;">
-            <div style="text-align:center;">
-                <p>You have <strong id="upgradeCurrentCredits">0</strong> credits left.</p>
-                <p>Get <strong>50 credits</strong> for just <strong>₹20</strong>!</p>
-                <button class="buy-now-btn" id="upgradePayBtn" style="margin-top:20px;">
-                    <i class="fas fa-rupee-sign"></i> Pay ₹20 for 50 credits
-                </button>
-                <p class="secure-payment" style="margin-top:15px;">
-                    <i class="fas fa-lock"></i> Secure payment via Razorpay
-                </p>
-            </div>
-        </div>
-    </div>
-</div>
-`;
-
-const aiGeneratorJS = `
-// ==================== AI GENERATOR STICKY BAR ====================
-(function() {
-    const bar = document.getElementById('aiGeneratorBar');
-    const promptInput = document.getElementById('aiPromptInput');
-    const generateBtn = document.getElementById('aiGenerateBtn');
-    const uploadBtn = document.getElementById('aiImageUploadBtn');
-    const fileInput = document.getElementById('aiFileInput');
-    const previewContainer = document.getElementById('aiImagePreview');
-    const previewImg = document.getElementById('aiPreviewImg');
-    const removeImageBtn = document.getElementById('aiRemoveImage');
-    const creditDisplay = document.getElementById('aiCreditsCount');
-    const modal = document.getElementById('generatedModal');
-    const modalImg = document.getElementById('generatedImage');
-    const modalClose = document.getElementById('generatedModalClose');
-    const downloadBtn = document.getElementById('generatedDownloadBtn');
-    const upgradeModal = document.getElementById('upgradeModal');
-    const upgradeClose = document.getElementById('upgradeModalClose');
-    const upgradePayBtn = document.getElementById('upgradePayBtn');
-    const upgradeCurrent = document.getElementById('upgradeCurrentCredits');
-
-    // ===== NEW: Mode toggle buttons =====
-    const modeImageBtn = document.getElementById('aiModeImage');
-    const modeVideoBtn = document.getElementById('aiModeVideo');
-    let currentMode = 'image'; // 'image' or 'video'
-
-    let currentUserId = null;
-    let uploadedImage = null; // base64 or File
-    let isGenerating = false;
-
-    // Show bar only on prompt pages
-    bar.classList.add('active');
-
-    // Auto-resize textarea
-    promptInput.addEventListener('input', function() {
-        this.style.height = 'auto';
-        this.style.height = Math.min(this.scrollHeight, 120) + 'px';
-    });
-
-    // Sync duration slider display
-    const durSlider = document.getElementById('aiDurationSlider');
-    const durDisplay = document.getElementById('aiDurationDisplay');
-    if (durSlider && durDisplay) {
-        durSlider.addEventListener('input', function() {
-            durDisplay.textContent = this.value + 's';
-        });
-    }
-
-    // Image upload
-    uploadBtn.addEventListener('click', () => fileInput.click());
-    fileInput.addEventListener('change', function(e) {
-        const file = this.files[0];
-        if (file) {
-            const reader = new FileReader();
-            reader.onload = function(ev) {
-                previewImg.src = ev.target.result;
-                previewContainer.style.display = 'block';
-                uploadedImage = file;
-            };
-            reader.readAsDataURL(file);
-        }
-    });
-    removeImageBtn.addEventListener('click', function() {
-        previewContainer.style.display = 'none';
-        previewImg.src = '';
-        fileInput.value = '';
-        uploadedImage = null;
-    });
-
-    // Fetch credits on load
-    async function fetchCredits() {
-        const user = await getCurrentUser();
-        if (!user) {
-            creditDisplay.textContent = '0';
-            return;
-        }
-        currentUserId = user.uid;
-        try {
-            const res = await fetch(\`/api/credits/\${user.uid}\`);
-            const data = await res.json();
-            if (data.success) {
-                creditDisplay.textContent = data.credits;
-            }
-        } catch(e) {
-            console.error('Credit fetch error', e);
-        }
-    }
-    fetchCredits();
-
-    // ===== MODE TOGGLE LOGIC =====
-    function setMode(mode) {
-        currentMode = mode;
-        // Update UI
-        modeImageBtn.classList.toggle('active', mode === 'image');
-        modeVideoBtn.classList.toggle('active', mode === 'video');
-        // Update placeholder
-        promptInput.placeholder = mode === 'image' 
-            ? 'Describe the image you want to generate...' 
-            : 'Describe the video you want to create...';
-        // Update generate button icon
-        generateBtn.innerHTML = mode === 'image' 
-            ? '<i class="fas fa-arrow-right"></i>' 
-            : '<i class="fas fa-video"></i>';
-        // Update file input accept (both modes accept image for reference)
-        fileInput.accept = 'image/*';
-    }
-
-    modeImageBtn.addEventListener('click', function() {
-        if (currentMode === 'image') return;
-        setMode('image');
-    });
-    modeVideoBtn.addEventListener('click', function() {
-        if (currentMode === 'video') return;
-        setMode('video');
-    });
-
-    // ===== GENERATE =====
-    generateBtn.addEventListener('click', async function() {
-        if (isGenerating) return;
-        const prompt = promptInput.value.trim();
-        if (!prompt) {
-            showNotification('Please enter a prompt.', 'error');
-            return;
-        }
-
-        // Check login
-        let user = await getCurrentUser();
-        if (!user) {
-            showNotification('Please login to generate.', 'error');
-            const returnUrl = encodeURIComponent(window.location.href);
-            window.location.href = '/login.html?returnUrl=' + returnUrl;
-            return;
-        }
-        currentUserId = user.uid;
-
-        // Check credits
-        const creditInfo = await fetch(\`/api/credits/\${user.uid}\`).then(r => r.json());
-        if (!creditInfo.success || creditInfo.credits <= 0) {
-            upgradeCurrent.textContent = creditInfo.credits || 0;
-            upgradeModal.style.display = 'flex';
-            return;
-        }
-
-        // Proceed with generation
-        isGenerating = true;
-        generateBtn.disabled = true;
-        generateBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
-
-        // Create or get status element
-        let statusEl = document.getElementById('generationStatus');
-        if (!statusEl) {
-            statusEl = document.createElement('div');
-            statusEl.id = 'generationStatus';
-            statusEl.style.cssText = 'font-size:0.9rem; color:#666; margin-top:5px; text-align:center;';
-            bar.parentNode.insertBefore(statusEl, bar.nextSibling);
-        }
-        statusEl.textContent = '⏳ Starting...';
-
-        try {
-            const formData = new FormData();
-            formData.append('prompt', prompt);
-            if (uploadedImage) {
-                formData.append('image', uploadedImage);
-            }
-            if (currentMode === 'video') {
-                const durationVal = document.getElementById('aiDurationSlider')?.value || 5;
-                formData.append('duration', durationVal);
-            }
-
-            const idToken = await user.getIdToken();
-            const endpoint = currentMode === 'video' ? '/api/generate-agnes-video' : '/api/generate-image';
-            const response = await fetch(endpoint, {
-                method: 'POST',
-                headers: { 'Authorization': \`Bearer \${idToken}\` },
-                body: formData
-            });
-
-            const result = await response.json();
-            if (!response.ok) {
-                // Check for rate limit (429)
-                if (response.status === 429) {
-                    const waitSec = result.retryAfter || 60;
-                    statusEl.textContent = \`⏳ Rate limited. Please wait \${waitSec} seconds and try again.\`;
-                    showNotification(\`Generation rate limited. Try again in \${waitSec}s.\`, 'error');
-                    generateBtn.disabled = false;
-                    generateBtn.innerHTML = currentMode === 'video' ? '<i class="fas fa-video"></i>' : '<i class="fas fa-arrow-right"></i>';
-                    isGenerating = false;
-                    return;
-                }
-                throw new Error(result.error || 'Generation failed');
-            }
-
-            if (currentMode === 'video') {
-                // Agnes video (async)
-                const videoId = result.video_id;
-                if (!videoId) throw new Error('No video_id returned from Agnes.');
-
-                statusEl.textContent = '⏳ Video generation started (may take several minutes)...';
-
-                const maxAttempts = 300;       // 15 minutes max
-                let attempt = 0;
-                let videoUrl = null;
-                const completionStatuses = ['completed', 'succeeded', 'done', 'finished', 'success'];
-
-                while (attempt < maxAttempts) {
-                    attempt++;
-                    try {
-                        const pollRes = await fetch(\`/api/poll-agnes-video?video_id=\${videoId}\`);
-                        
-                        if (pollRes.status === 429) {
-                            const data = await pollRes.json();
-                            const waitSeconds = data.retryAfter || 30;
-                            statusEl.textContent = \`⏳ Rate limited. Retrying in \${waitSeconds}s... (attempt \${attempt})\`;
-                            console.log(\`⏳ Rate limited. Waiting \${waitSeconds}s...\`);
-                            await new Promise(r => setTimeout(r, waitSeconds * 1000));
-                            continue;
-                        }
-
-                        if (!pollRes.ok) {
-                            throw new Error(\`Poll failed: \${pollRes.status}\`);
-                        }
-
-                        const pollData = await pollRes.json();
-                        console.log(\`Poll \${attempt}:\`, pollData);
-
-                        const status = pollData.status || pollData.state || '';
-                        if (completionStatuses.includes(status.toLowerCase())) {
-                            videoUrl = pollData.video_url || pollData.output?.video_url || pollData.url;
-                            break;
-                        } else if (status === 'failed' || status === 'error') {
-                            throw new Error('Video generation failed.');
-                        }
-
-                        const progress = Math.min(attempt / maxAttempts * 100, 99);
-                        statusEl.textContent = \`⏳ Generating video… \${Math.round(progress)}% (attempt \${attempt}/\${maxAttempts})\`;
-                        const delay = Math.min(2000 * Math.pow(1.2, attempt), 15000);
-                        await new Promise(r => setTimeout(r, delay));
-
-                    } catch (pollError) {
-                        console.error('Poll error:', pollError);
-                        if (!pollError.message.includes('failed')) {
-                            await new Promise(r => setTimeout(r, 5000));
-                        } else {
-                            throw pollError;
-                        }
-                    }
-                }
-
-                if (!videoUrl) {
-                    statusEl.textContent = '⏳ Video is taking longer than expected. Please check your dashboard later.';
-                    showNotification('Video generation is still processing. You can check your dashboard for updates.', 'info');
-                    generateBtn.disabled = false;
-                    generateBtn.innerHTML = '<i class="fas fa-video"></i>';
-                    isGenerating = false;
-                    return;
-                }
-
-                statusEl.textContent = '✅ Video generated!';
-                showVideoModal(videoUrl);
-                showNotification('Video generated successfully!', 'success');
-
-            } else {
-                // Image generation (Pollinations)
-                modalImg.src = result.imageUrl;
-                modal.classList.add('active');
-                statusEl.textContent = '✅ Image generated!';
-                showNotification('Image generated successfully!', 'success');
-            }
-
-            // Update remaining credits
-            creditDisplay.textContent = result.remainingCredits;
-
-            // Clear input and image
-            promptInput.value = '';
-            promptInput.style.height = 'auto';
-            previewContainer.style.display = 'none';
-            previewImg.src = '';
-            fileInput.value = '';
-            uploadedImage = null;
-
-        } catch (error) {
-            console.error('Generation error:', error);
-            statusEl.textContent = '❌ ' + error.message;
-            showNotification(error.message, 'error');
-        } finally {
-            isGenerating = false;
-            generateBtn.disabled = false;
-            generateBtn.innerHTML = currentMode === 'video' ? '<i class="fas fa-video"></i>' : '<i class="fas fa-arrow-right"></i>';
-            setTimeout(() => {
-                if (statusEl) statusEl.textContent = '';
-            }, 10000);
-        }
-    });
-
-    // Modal controls
-    modalClose.addEventListener('click', () => modal.classList.remove('active'));
-    modal.addEventListener('click', (e) => {
-        if (e.target === modal) modal.classList.remove('active');
-    });
-    downloadBtn.addEventListener('click', function() {
-        const link = document.createElement('a');
-        link.href = modalImg.src;
-        link.download = 'generated-image.png';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-    });
-
-    // Video modal helper
-    window.showVideoModal = function(videoUrl) {
-        const existing = document.getElementById('videoModal');
-        if (existing) existing.remove();
-
-        const modalHTML = \`
-            <div class="generated-modal active" id="videoModal">
-                <div class="generated-modal-content" style="max-width:90%;">
-                    <button class="generated-modal-close" onclick="document.getElementById('videoModal').classList.remove('active')">&times;</button>
-                    <video src="\${videoUrl}" controls autoplay loop style="width:100%; max-height:80vh; border-radius:12px; background:#000;"></video>
-                    <button class="generated-modal-download" onclick="downloadVideo('\${videoUrl}')">Download Video</button>
-                </div>
-            </div>
-        \`;
-        document.body.insertAdjacentHTML('beforeend', modalHTML);
-    };
-
-    window.downloadVideo = function(url) {
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'generated-video.mp4';
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-    };
-
-    // Upgrade modal
-    upgradeClose.addEventListener('click', () => upgradeModal.style.display = 'none');
-    upgradeModal.addEventListener('click', (e) => {
-        if (e.target === upgradeModal) upgradeModal.style.display = 'none';
-    });
-
-    upgradePayBtn.addEventListener('click', async function() {
-        const user = await getCurrentUser();
-        if (!user) {
-            showNotification('Please login first.', 'error');
-            return;
-        }
-        this.disabled = true;
-        this.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating order...';
-
-        try {
-            const idToken = await user.getIdToken();
-            const res = await fetch('/api/top-up-credits', {
-                method: 'POST',
-                headers: { 'Authorization': \`Bearer \${idToken}\` }
-            });
-            const data = await res.json();
-            if (!data.success) throw new Error('Failed to create order');
-
-            if (data.isDemo) {
-                // Demo mode: add credits directly
-                const verifyRes = await fetch('/api/verify-topup', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        orderId: data.orderId,
-                        paymentId: 'demo_pay_' + Date.now(),
-                        signature: 'demo_signature',
-                        userId: user.uid
-                    })
-                });
-                const verifyData = await verifyRes.json();
-                if (verifyData.success) {
-                    showNotification('Added 50 credits (demo)!', 'success');
-                    upgradeModal.style.display = 'none';
-                    fetchCredits();
-                } else {
-                    throw new Error('Demo verification failed');
-                }
-            } else {
-                // Real Razorpay checkout
-                if (typeof Razorpay === 'undefined') {
-                    await new Promise((resolve, reject) => {
-                        const script = document.createElement('script');
-                        script.src = 'https://checkout.razorpay.com/v1/checkout.js';
-                        script.onload = resolve;
-                        script.onerror = reject;
-                        document.head.appendChild(script);
-                    });
-                }
-                const options = {
-                    key: data.keyId,
-                    amount: data.amount,
-                    currency: data.currency,
-                    name: 'Tools Prompt',
-                    description: 'Top-up 50 credits',
-                    order_id: data.orderId,
-                    handler: async function(response) {
-                        try {
-                            const verifyRes = await fetch('/api/verify-topup', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({
-                                    orderId: response.razorpay_order_id,
-                                    paymentId: response.razorpay_payment_id,
-                                    signature: response.razorpay_signature,
-                                    userId: user.uid
-                                })
-                            });
-                            const verifyData = await verifyRes.json();
-                            if (verifyData.success) {
-                                showNotification('Credits added!', 'success');
-                                upgradeModal.style.display = 'none';
-                                fetchCredits();
-                            } else {
-                                throw new Error('Verification failed');
-                            }
-                        } catch (e) {
-                            showNotification('Top-up failed: ' + e.message, 'error');
-                        }
-                    },
-                    modal: {
-                        ondismiss: function() {
-                            showNotification('Payment cancelled', 'info');
-                        }
-                    },
-                    theme: { color: '#4e54c8' },
-                    prefill: {
-                        email: user.email,
-                        name: user.displayName || user.email
-                    }
-                };
-                const rzp = new Razorpay(options);
-                rzp.open();
-            }
-        } catch (error) {
-            showNotification('Upgrade error: ' + error.message, 'error');
-        } finally {
-            this.disabled = false;
-            this.innerHTML = '<i class="fas fa-rupee-sign"></i> Pay ₹20 for 50 credits';
-        }
-    });
-
-    // Keyboard shortcut: Ctrl+Enter to generate
-    promptInput.addEventListener('keydown', function(e) {
-        if (e.ctrlKey && e.key === 'Enter') {
-            e.preventDefault();
-            generateBtn.click();
-        }
-    });
-
-    // Expose fetchCredits for after top-up
-    window.refreshCredits = fetchCredits;
-
-})();
-`;
-
-  // ==================== STICKY SOCIAL BADGES (Instagram + YouTube) ====================
-const socialBadgesCSS = `
+  const socialBadgesCSS = `
 /* Sticky Social Badges Container - Left Side */
 .social-badges-container {
     position: fixed;
@@ -8902,28 +9181,7 @@ const socialBadgesCSS = `
     }
 }
 `;
-const socialBadgesHTML = `
-<!-- Sticky Social Badges with Toggle -->
-<div class="social-badges-container" id="socialBadgesContainer">
-    <button class="social-badges-toggle" id="socialToggleBtn" aria-label="Toggle social badges">
-        <i class="fas fa-chevron-up"></i>
-    </button>
-    <a href="https://instagram.com/toolsprompt" target="_blank" class="social-badge instagram-badge" rel="noopener noreferrer">
-        <i class="fab fa-instagram"></i>
-        <span class="followers-text">10K Followers</span>
-    </a>
-    <a href="https://youtube.com/@toolsprompt" target="_blank" class="social-badge youtube-badge" rel="noopener noreferrer">
-        <i class="fab fa-youtube"></i>
-        <span class="followers-text">10K Subscribers</span>
-    </a>
-    <a href="https://wa.me/yourwhatsappnumber" target="_blank" class="social-badge whatsapp-badge" rel="noopener noreferrer">
-        <i class="fab fa-whatsapp"></i>
-        <span class="followers-text">10K Members</span>
-    </a>
-</div>
-`;
 
-  // ==================== SOCIAL FEED CSS ====================
   const socialFeedCSS = `
 /* Social Feed Container - Right Side, Centered */
 .social-feed-container {
@@ -9274,7 +9532,151 @@ margin-right: 5vw;
 }
 `;
 
-   // ==================== SOCIAL FEED HTML ====================
+  // ==================== HTML DEFINITIONS ====================
+  const miniBrowserHTML = `
+<div class="mini-browser-container" id="miniBrowser">
+    <div class="mini-browser-header" id="miniBrowserHeader">
+        <div class="mini-browser-title">
+            <i class="fas fa-compact-disc"></i> <span class="title-text">Quick Unique Best Match</span>
+        </div>
+        <div class="mini-browser-controls">
+            <button class="mini-browser-btn" onclick="refreshMiniBrowser()" title="Refresh">
+                <i class="fas fa-redo"></i>
+            </button>
+            <button class="mini-browser-btn" onclick="toggleMiniBrowserSize()" title="Expand/Collapse">
+                <i class="fas fa-expand"></i>
+            </button>
+            <button class="mini-browser-btn" onclick="closeMiniBrowser()" title="Close">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+    </div>
+    <div class="mini-browser-content">
+        <div class="mini-browser-loading" id="miniBrowserLoading">
+            <div class="spinner"></div>
+            <div>Loading tools prompt...</div>
+        </div>
+        <iframe 
+            src="https://www.toolsprompt.com" 
+            class="mini-browser-iframe" 
+            id="miniBrowserIframe"
+            onload="hideMiniBrowserLoading()"
+            allow="fullscreen"
+            referrerpolicy="strict-origin-when-cross-origin"
+            sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox"
+        ></iframe>
+    </div>
+</div>
+
+<button class="mini-browser-toggle" id="miniBrowserToggle" onclick="toggleMiniBrowser()">
+    <i class="fas fa-plus"></i>
+</button>
+`;
+
+  const socialBadgesHTML = `
+<!-- Sticky Social Badges with Toggle -->
+<div class="social-badges-container" id="socialBadgesContainer">
+    <button class="social-badges-toggle" id="socialToggleBtn" aria-label="Toggle social badges">
+        <i class="fas fa-chevron-up"></i>
+    </button>
+    <a href="https://instagram.com/toolsprompt" target="_blank" class="social-badge instagram-badge" rel="noopener noreferrer">
+        <i class="fab fa-instagram"></i>
+        <span class="followers-text">Follow on Insta</span>
+    </a>
+    <a href="https://youtube.com/@toolsprompt" target="_blank" class="social-badge youtube-badge" rel="noopener noreferrer">
+        <i class="fab fa-youtube"></i>
+        <span class="followers-text">Subscribe On YT</span>
+    </a>
+    <a href="https://wa.me/yourwhatsappnumber" target="_blank" class="social-badge whatsapp-badge" rel="noopener noreferrer">
+        <i class="fab fa-whatsapp"></i>
+        <span class="followers-text">Join Whatsapp</span>
+    </a>
+</div>
+`;
+
+  const downloadAppButtonHTMLWithStyle = `
+<!-- Floating Download App Button -->
+<style>${downloadAppCSS}</style>
+<button class="floating-download-btn" id="downloadAppBtn" onclick="downloadApp()">
+    <i class="fas fa-download"></i>
+    <span class="btn-text">Download App</span>
+    <span class="btn-badge">FREE</span>
+</button>
+`;
+
+  const aiGeneratorHTML = `
+<!-- AI Generator Sticky Bar -->
+<div class="ai-generator-bar" id="aiGeneratorBar">
+    <textarea class="ai-generator-input" id="aiPromptInput" placeholder="Describe the image you want to generate..." rows="1"></textarea>
+    <div class="ai-generator-actions">
+        <div class="ai-image-preview" id="aiImagePreview">
+            <img id="aiPreviewImg" src="" alt="Uploaded preview">
+            <button class="remove-image" id="aiRemoveImage">&times;</button>
+        </div>
+        <button class="ai-image-upload-btn" id="aiImageUploadBtn" title="Upload an image for reference">
+            <i class="fas fa-plus"></i>
+        </button>
+        <input type="file" class="ai-file-input" id="aiFileInput" accept="image/*">
+        
+        <!-- NEW: Duration slider -->
+        <div class="duration-option" style="display:flex; align-items:center; gap:6px; background:#f8f9fa; padding:4px 10px; border-radius:20px; flex-shrink:0;">
+            <i class="fas fa-clock" style="color:#666; font-size:0.8rem;"></i>
+            <input type="range" id="aiDurationSlider" min="3" max="40" value="5" step="1" 
+                   style="width:60px; height:4px; background:#4e54c8; border-radius:2px; outline:none; cursor:pointer;">
+            <span id="aiDurationDisplay" style="font-size:0.7rem; font-weight:600; color:#4e54c8; min-width:28px; text-align:center;">5s</span>
+        </div>
+        
+        <!-- Mode Toggle -->
+        <div class="ai-mode-toggle-group">
+            <button class="ai-mode-option active" data-mode="image" id="aiModeImage">
+                <i class="fas fa-image"></i> <span>Image</span>
+            </button>
+            <button class="ai-mode-option" data-mode="video" id="aiModeVideo">
+                <i class="fas fa-video"></i> <span>Video</span>
+            </button>
+        </div>
+        
+        <span class="ai-credit-display" id="aiCreditDisplay">
+            <i class="fas fa-coins"></i> <span class="credits-num" id="aiCreditsCount">0</span> credits
+        </span>
+        <button class="ai-generate-btn" id="aiGenerateBtn" title="Generate Image">
+            <i class="fas fa-arrow-right"></i>
+        </button>
+    </div>
+</div>
+
+<!-- Generated Image Modal -->
+<div class="generated-modal" id="generatedModal">
+    <div class="generated-modal-content">
+        <button class="generated-modal-close" id="generatedModalClose">&times;</button>
+        <img id="generatedImage" src="" alt="Generated Image">
+        <button class="generated-modal-download" id="generatedDownloadBtn">Download Image</button>
+    </div>
+</div>
+
+<!-- Upgrade Modal (for credits) -->
+<div class="buy-modal-overlay" id="upgradeModal" style="display:none;">
+    <div class="buy-modal" style="max-width:500px;">
+        <div class="modal-header">
+            <h2><i class="fas fa-gem"></i> Upgrade Credits</h2>
+            <button class="close-modal" id="upgradeModalClose">&times;</button>
+        </div>
+        <div class="buy-modal-content" style="grid-template-columns:1fr;padding:20px;">
+            <div style="text-align:center;">
+                <p>You have <strong id="upgradeCurrentCredits">0</strong> credits left.</p>
+                <p>Get <strong>50 credits</strong> for just <strong>₹20</strong>!</p>
+                <button class="buy-now-btn" id="upgradePayBtn" style="margin-top:20px;">
+                    <i class="fas fa-rupee-sign"></i> Pay ₹20 for 50 credits
+                </button>
+                <p class="secure-payment" style="margin-top:15px;">
+                    <i class="fas fa-lock"></i> Secure payment via Razorpay
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+`;
+
   const socialFeedHTML = `
 <!-- Social Feed – Right Side, Centered -->
 <div class="social-feed-container" id="socialFeed">
@@ -9333,10 +9735,1086 @@ margin-right: 5vw;
             </div>
         </div>
     </div>
-</div>  `;
+</div>
+`;
 
-  // ==================== SOCIAL FEED JAVASCRIPT (GLOBAL) WITH NOTIFICATIONS ====================
-const socialFeedJS = `
+  // ==================== JAVASCRIPT DEFINITIONS ====================
+  const miniBrowserJS = `
+let isMiniBrowserOpen = false;
+let isMiniBrowserExpanded = false;
+let isDragging = false;
+let dragOffset = { x: 0, y: 0 };
+
+function autoOpenMiniBrowser() {
+    console.log('Auto-opening mini browser...');
+    
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    
+    setTimeout(() => {
+        if (!isMobile || window.innerWidth > 480) {
+            toggleMiniBrowser();
+        } else {
+            console.log('Mobile device detected - mini browser auto-open disabled');
+            showMobileNotification();
+        }
+    }, 1500);
+}
+
+function showMobileNotification() {
+    const notification = document.createElement('div');
+    notification.innerHTML = \`
+        <div style="
+            position: fixed;
+            bottom: 60px;
+            right: 10px;
+            background: #4e54c8;
+            color: white;
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-size: 0.8rem;
+            z-index: 10001;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+            max-width: 150px;
+        ">
+            <i class="fas fa-compass"></i> Quick Browser Available
+            <br>
+            <small>Tap the + button</small>
+        </div>
+    \`;
+    document.body.appendChild(notification);
+    
+    setTimeout(() => {
+        if (notification.parentNode) {
+            notification.parentNode.removeChild(notification);
+        }
+    }, 3000);
+}
+
+function toggleMiniBrowser() {
+    console.log('Toggle mini browser called');
+    const miniBrowser = document.getElementById('miniBrowser');
+    const toggleBtn = document.getElementById('miniBrowserToggle');
+    
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    
+    if (!isMiniBrowserOpen) {
+        miniBrowser.style.display = 'flex';
+        toggleBtn.innerHTML = '<i class="fas fa-times"></i>';
+        toggleBtn.style.background = '#ff6b6b';
+        isMiniBrowserOpen = true;
+        
+        if (isMobile && window.innerWidth <= 480) {
+            miniBrowser.style.width = '250px';
+            miniBrowser.style.height = '300px';
+        }
+        
+        showMiniBrowserLoading();
+        
+        const iframe = document.getElementById('miniBrowserIframe');
+        iframe.src = 'https://www.toolsprompt.com';
+    } else {
+        closeMiniBrowser();
+    }
+}
+
+function closeMiniBrowser() {
+    const miniBrowser = document.getElementById('miniBrowser');
+    const toggleBtn = document.getElementById('miniBrowserToggle');
+    
+    miniBrowser.style.display = 'none';
+    toggleBtn.innerHTML = '<i class="fas fa-plus"></i>';
+    toggleBtn.style.background = '#4e54c8';
+    isMiniBrowserOpen = false;
+    isMiniBrowserExpanded = false;
+    miniBrowser.classList.remove('expanded');
+    
+    const expandBtn = document.querySelector('.mini-browser-btn .fa-expand, .mini-browser-btn .fa-compress');
+    if (expandBtn) {
+        expandBtn.className = 'fas fa-expand';
+    }
+}
+
+function toggleMiniBrowserSize() {
+    const miniBrowser = document.getElementById('miniBrowser');
+    const expandBtn = document.querySelector('.mini-browser-controls .fa-expand, .mini-browser-controls .fa-compress');
+    
+    if (!isMiniBrowserExpanded) {
+        miniBrowser.classList.add('expanded');
+        if (expandBtn) expandBtn.className = 'fas fa-compress';
+        isMiniBrowserExpanded = true;
+    } else {
+        miniBrowser.classList.remove('expanded');
+        if (expandBtn) expandBtn.className = 'fas fa-expand';
+        isMiniBrowserExpanded = false;
+    }
+}
+
+function refreshMiniBrowser() {
+    const iframe = document.getElementById('miniBrowserIframe');
+    showMiniBrowserLoading();
+    iframe.src = 'https://www.toolsprompt.com';
+}
+
+function showMiniBrowserLoading() {
+    const loading = document.getElementById('miniBrowserLoading');
+    if (loading) loading.style.display = 'block';
+}
+
+function hideMiniBrowserLoading() {
+    const loading = document.getElementById('miniBrowserLoading');
+    if (loading) loading.style.display = 'none';
+}
+
+function initializeDragging() {
+    const header = document.getElementById('miniBrowserHeader');
+    const browser = document.getElementById('miniBrowser');
+    
+    if (!header || !browser) return;
+    
+    header.addEventListener('mousedown', startDrag);
+    header.addEventListener('touchstart', startDragTouch);
+    
+    function startDrag(e) {
+        if (isMiniBrowserExpanded) return;
+        
+        isDragging = true;
+        const rect = browser.getBoundingClientRect();
+        dragOffset.x = e.clientX - rect.left;
+        dragOffset.y = e.clientY - rect.top;
+        
+        document.addEventListener('mousemove', onDrag);
+        document.addEventListener('mouseup', stopDrag);
+        e.preventDefault();
+    }
+    
+    function startDragTouch(e) {
+        if (isMiniBrowserExpanded) return;
+        
+        isDragging = true;
+        const touch = e.touches[0];
+        const rect = browser.getBoundingClientRect();
+        dragOffset.x = touch.clientX - rect.left;
+        dragOffset.y = touch.clientY - rect.top;
+        
+        document.addEventListener('touchmove', onDragTouch);
+        document.addEventListener('touchend', stopDrag);
+        e.preventDefault();
+    }
+    
+    function onDrag(e) {
+        if (!isDragging) return;
+        
+        browser.style.position = 'fixed';
+        browser.style.left = (e.clientX - dragOffset.x) + 'px';
+        browser.style.top = (e.clientY - dragOffset.y) + 'px';
+        browser.style.right = 'auto';
+        browser.style.bottom = 'auto';
+    }
+    
+    function onDragTouch(e) {
+        if (!isDragging) return;
+        
+        const touch = e.touches[0];
+        browser.style.position = 'fixed';
+        browser.style.left = (touch.clientX - dragOffset.x) + 'px';
+        browser.style.top = (touch.clientY - dragOffset.y) + 'px';
+        browser.style.right = 'auto';
+        browser.style.bottom = 'auto';
+    }
+    
+    function stopDrag() {
+        isDragging = false;
+        document.removeEventListener('mousemove', onDrag);
+        document.removeEventListener('touchmove', onDragTouch);
+        document.removeEventListener('mouseup', stopDrag);
+        document.removeEventListener('touchend', stopDrag);
+    }
+}
+
+document.addEventListener('click', function(e) {
+    const miniBrowser = document.getElementById('miniBrowser');
+    const toggleBtn = document.getElementById('miniBrowserToggle');
+    
+    if (isMiniBrowserOpen && !isMiniBrowserExpanded && 
+        miniBrowser && !miniBrowser.contains(e.target) && 
+        e.target !== toggleBtn) {
+        closeMiniBrowser();
+    }
+});
+
+window.addEventListener('message', function(e) {
+    console.log('Message from iframe:', e.data);
+});
+
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('DOM loaded, initializing mini browser');
+    initializeDragging();
+    autoOpenMiniBrowser();
+});
+
+document.addEventListener('keydown', function(e) {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'b') {
+        e.preventDefault();
+        toggleMiniBrowser();
+    }
+    
+    if (e.key === 'Escape' && isMiniBrowserOpen) {
+        if (isMiniBrowserExpanded) {
+            toggleMiniBrowserSize();
+        } else {
+            closeMiniBrowser();
+        }
+    }
+});
+`;
+
+  const downloadAppJS = `
+// ==================== DOWNLOAD APP FUNCTION ====================
+
+function downloadApp() {
+    const appUrl = 'https://apk.e-droid.net/apk/app4057785-93607p.apk?v=2';
+    
+    // Track download click for analytics
+    try {
+        fetch('/api/track-download', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                promptId: '${promptData.id}',
+                promptTitle: '${promptData.title.replace(/'/g, "\\'")}',
+                timestamp: new Date().toISOString(),
+                userAgent: navigator.userAgent
+            })
+        }).catch(err => console.log('Download tracking error:', err));
+    } catch(e) {}
+    
+    // Show download started notification
+    showDownloadNotification();
+    
+    // Open download URL
+    window.open(appUrl, '_blank');
+}
+
+function showDownloadNotification() {
+    const notification = document.createElement('div');
+    notification.className = 'download-notification';
+    notification.innerHTML = \`
+        <i class="fas fa-check-circle"></i>
+        <span>Download started! Check your browser.</span>
+    \`;
+    notification.style.cssText = \`
+        position: fixed;
+        bottom: 100px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: #20bf6b;
+        color: white;
+        padding: 10px 20px;
+        border-radius: 50px;
+        z-index: 10001;
+        font-size: 0.9rem;
+        font-weight: 500;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        animation: slideUpFade 0.3s ease;
+        white-space: nowrap;
+    \`;
+    document.body.appendChild(notification);
+    
+    setTimeout(() => {
+        notification.style.opacity = '0';
+        notification.style.transform = 'translateX(-50%) translateY(-10px)';
+        setTimeout(() => notification.remove(), 300);
+    }, 3000);
+}
+
+// Optional: Hide button when user scrolls down (or keep sticky - your choice)
+let lastScrollY = window.scrollY;
+let hideTimeout;
+
+function handleDownloadButtonVisibility() {
+    const downloadBtn = document.getElementById('downloadAppBtn');
+    if (!downloadBtn) return;
+    
+    // Button stays sticky (doesn't move) - just ensure it's visible
+    // This keeps it always visible at bottom center
+    
+    // Optional: Add scroll-based animation
+    const currentScrollY = window.scrollY;
+    if (Math.abs(currentScrollY - lastScrollY) > 10) {
+        downloadBtn.style.opacity = '0.7';
+        clearTimeout(hideTimeout);
+        hideTimeout = setTimeout(() => {
+            downloadBtn.style.opacity = '1';
+        }, 300);
+    }
+    lastScrollY = currentScrollY;
+}
+
+window.addEventListener('scroll', handleDownloadButtonVisibility);
+
+// Add pulse effect on page load
+setTimeout(() => {
+    const btn = document.getElementById('downloadAppBtn');
+    if (btn) {
+        btn.style.animation = 'none';
+        setTimeout(() => {
+            btn.style.animation = 'slideUpFade 0.5s ease-out, pulse 0.5s ease-in-out 2';
+        }, 10);
+    }
+}, 500);
+`;
+
+  const aiGeneratorJS = `
+// ==================== AI GENERATOR STICKY BAR ====================
+(function() {
+    const bar = document.getElementById('aiGeneratorBar');
+    const promptInput = document.getElementById('aiPromptInput');
+    const generateBtn = document.getElementById('aiGenerateBtn');
+    const uploadBtn = document.getElementById('aiImageUploadBtn');
+    const fileInput = document.getElementById('aiFileInput');
+    const previewContainer = document.getElementById('aiImagePreview');
+    const previewImg = document.getElementById('aiPreviewImg');
+    const removeImageBtn = document.getElementById('aiRemoveImage');
+    const creditDisplay = document.getElementById('aiCreditsCount');
+    const modal = document.getElementById('generatedModal');
+    const modalImg = document.getElementById('generatedImage');
+    const modalClose = document.getElementById('generatedModalClose');
+    const downloadBtn = document.getElementById('generatedDownloadBtn');
+    const upgradeModal = document.getElementById('upgradeModal');
+    const upgradeClose = document.getElementById('upgradeModalClose');
+    const upgradePayBtn = document.getElementById('upgradePayBtn');
+    const upgradeCurrent = document.getElementById('upgradeCurrentCredits');
+
+    // ===== NEW: Mode toggle buttons =====
+    const modeImageBtn = document.getElementById('aiModeImage');
+    const modeVideoBtn = document.getElementById('aiModeVideo');
+    let currentMode = 'image'; // 'image' or 'video'
+
+    let currentUserId = null;
+    let uploadedImage = null; // base64 or File
+    let isGenerating = false;
+
+    // Show bar only on prompt pages
+    bar.classList.add('active');
+
+    // Auto-resize textarea
+    promptInput.addEventListener('input', function() {
+        this.style.height = 'auto';
+        this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+    });
+
+    // Sync duration slider display
+    const durSlider = document.getElementById('aiDurationSlider');
+    const durDisplay = document.getElementById('aiDurationDisplay');
+    if (durSlider && durDisplay) {
+        durSlider.addEventListener('input', function() {
+            durDisplay.textContent = this.value + 's';
+        });
+    }
+
+    // Image upload
+    uploadBtn.addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', function(e) {
+        const file = this.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = function(ev) {
+                previewImg.src = ev.target.result;
+                previewContainer.style.display = 'block';
+                uploadedImage = file;
+            };
+            reader.readAsDataURL(file);
+        }
+    });
+    removeImageBtn.addEventListener('click', function() {
+        previewContainer.style.display = 'none';
+        previewImg.src = '';
+        fileInput.value = '';
+        uploadedImage = null;
+    });
+
+    // Fetch credits on load
+    async function fetchCredits() {
+        const user = await getCurrentUser();
+        if (!user) {
+            const stored = localStorage.getItem('guestUsage');
+            let usage = stored ? JSON.parse(stored) : null;
+            const today = new Date().toISOString().split('T')[0];
+            if (!usage || usage.date !== today) {
+                usage = { date: today, count: 0 };
+                localStorage.setItem('guestUsage', JSON.stringify(usage));
+            }
+            creditDisplay.innerHTML = \`<i class="fas fa-bolt"></i> \${Math.max(0, 3 - usage.count)} free without login\`;
+            return;
+        }
+        currentUserId = user.uid;
+        try {
+            const res = await fetch(\`/api/credits/\${user.uid}\`);
+            const data = await res.json();
+            if (data.success) {
+                creditDisplay.textContent = data.credits;
+            }
+        } catch(e) {
+            console.error('Credit fetch error', e);
+        }
+    }
+    fetchCredits();
+
+    // ===== MODE TOGGLE LOGIC =====
+    function setMode(mode) {
+        currentMode = mode;
+        // Update UI
+        modeImageBtn.classList.toggle('active', mode === 'image');
+        modeVideoBtn.classList.toggle('active', mode === 'video');
+        // Update placeholder
+        promptInput.placeholder = mode === 'image' 
+            ? 'Describe the image you want to generate...' 
+            : 'Describe the video you want to create...';
+        // Update generate button icon
+        generateBtn.innerHTML = mode === 'image' 
+            ? '<i class="fas fa-arrow-right"></i>' 
+            : '<i class="fas fa-video"></i>';
+        // Update file input accept (both modes accept image for reference)
+        fileInput.accept = 'image/*';
+    }
+
+    modeImageBtn.addEventListener('click', function() {
+        if (currentMode === 'image') return;
+        setMode('image');
+    });
+    modeVideoBtn.addEventListener('click', function() {
+        if (currentMode === 'video') return;
+        setMode('video');
+    });
+
+    // ===== GENERATE =====
+    generateBtn.addEventListener('click', async function() {
+        if (isGenerating) return;
+        const prompt = promptInput.value.trim();
+        if (!prompt) {
+            showNotification('Please enter a prompt.', 'error');
+            return;
+        }
+
+        // Check login and get user
+        let user = await getCurrentUser();
+        if (user) {
+            currentUserId = user.uid;
+        } else {
+            currentUserId = null;
+        }
+
+        // Check credits for logged-in users
+        if (user) {
+            const creditInfo = await fetch(\`/api/credits/\${user.uid}\`).then(r => r.json());
+            if (!creditInfo.success || creditInfo.credits <= 0) {
+                upgradeCurrent.textContent = creditInfo.credits || 0;
+                upgradeModal.style.display = 'flex';
+                return;
+            }
+        } else {
+            // For guests, we proceed to the API which will handle the limit.
+            // Optionally, we can check localStorage here for immediate feedback,
+            // but the server will enforce the limit.
+            const stored = localStorage.getItem('guestUsage');
+            let usage = stored ? JSON.parse(stored) : null;
+            const today = new Date().toISOString().split('T')[0];
+            if (!usage || usage.date !== today) {
+                usage = { date: today, count: 0 };
+                localStorage.setItem('guestUsage', JSON.stringify(usage));
+            }
+            if (usage.count >= 3) {
+                showGuestLimitModal();
+                return;
+            }
+        }
+
+        // Proceed with generation
+        isGenerating = true;
+        generateBtn.disabled = true;
+        generateBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+
+        // Create or get status element
+        let statusEl = document.getElementById('generationStatus');
+        if (!statusEl) {
+            statusEl = document.createElement('div');
+            statusEl.id = 'generationStatus';
+            statusEl.style.cssText = 'font-size:0.9rem; color:#666; margin-top:5px; text-align:center;';
+            bar.parentNode.insertBefore(statusEl, bar.nextSibling);
+        }
+        statusEl.textContent = '⏳ Starting...';
+
+        try {
+            const formData = new FormData();
+            formData.append('prompt', prompt);
+            if (uploadedImage) {
+                formData.append('image', uploadedImage);
+            }
+            if (currentMode === 'video') {
+                const durationVal = document.getElementById('aiDurationSlider')?.value || 5;
+                formData.append('duration', durationVal);
+            }
+
+            // Build headers conditionally
+            const headers = {};
+            if (user) {
+                const idToken = await user.getIdToken();
+                headers['Authorization'] = \`Bearer \${idToken}\`;
+            }
+
+            const endpoint = currentMode === 'video' ? '/api/generate-agnes-video' : '/api/generate-image';
+            const response = await fetch(endpoint, {
+                method: 'POST',
+                headers: headers, // Content-Type is set automatically for FormData
+                body: formData
+            });
+
+            const result = await response.json();
+            if (!response.ok) {
+                // Check for guest limit (guest_limit_reached)
+                if (response.status === 403 && result.error === 'guest_limit_reached') {
+                    showGuestLimitModal();
+                    generateBtn.disabled = false;
+                    generateBtn.innerHTML = currentMode === 'video' ? '<i class="fas fa-video"></i>' : '<i class="fas fa-arrow-right"></i>';
+                    isGenerating = false;
+                    if (statusEl) statusEl.textContent = '';
+                    return;
+                }
+                // Check for rate limit (429)
+                if (response.status === 429) {
+                    const waitSec = result.retryAfter || 60;
+                    statusEl.textContent = \`⏳ Rate limited. Please wait \${waitSec} seconds and try again.\`;
+                    showNotification(\`Generation rate limited. Try again in \${waitSec}s.\`, 'error');
+                    generateBtn.disabled = false;
+                    generateBtn.innerHTML = currentMode === 'video' ? '<i class="fas fa-video"></i>' : '<i class="fas fa-arrow-right"></i>';
+                    isGenerating = false;
+                    return;
+                }
+                throw new Error(result.error || 'Generation failed');
+            }
+
+            if (currentMode === 'video') {
+                // Agnes video (async)
+                const videoId = result.video_id;
+                if (!videoId) throw new Error('No video_id returned from Agnes.');
+
+                statusEl.textContent = '⏳ Video generation started (may take several minutes)...';
+
+                const maxAttempts = 300;       // 15 minutes max
+                let attempt = 0;
+                let videoUrl = null;
+                const completionStatuses = ['completed', 'succeeded', 'done', 'finished', 'success'];
+
+                while (attempt < maxAttempts) {
+                    attempt++;
+                    try {
+                        const pollRes = await fetch(\`/api/poll-agnes-video?video_id=\${videoId}\`);
+                        
+                        if (pollRes.status === 429) {
+                            const data = await pollRes.json();
+                            const waitSeconds = data.retryAfter || 30;
+                            statusEl.textContent = \`⏳ Rate limited. Retrying in \${waitSeconds}s... (attempt \${attempt})\`;
+                            console.log(\`⏳ Rate limited. Waiting \${waitSeconds}s...\`);
+                            await new Promise(r => setTimeout(r, waitSeconds * 1000));
+                            continue;
+                        }
+
+                        if (!pollRes.ok) {
+                            throw new Error(\`Poll failed: \${pollRes.status}\`);
+                        }
+
+                        const pollData = await pollRes.json();
+                        console.log(\`Poll \${attempt}:\`, pollData);
+
+                        const status = pollData.status || pollData.state || '';
+                        if (completionStatuses.includes(status.toLowerCase())) {
+                            videoUrl = pollData.video_url || pollData.output?.video_url || pollData.url;
+                            break;
+                        } else if (status === 'failed' || status === 'error') {
+                            throw new Error('Video generation failed.');
+                        }
+
+                        const progress = Math.min(attempt / maxAttempts * 100, 99);
+                        statusEl.textContent = \`⏳ Generating video… \${Math.round(progress)}% (attempt \${attempt}/\${maxAttempts})\`;
+                        const delay = Math.min(2000 * Math.pow(1.2, attempt), 15000);
+                        await new Promise(r => setTimeout(r, delay));
+
+                    } catch (pollError) {
+                        console.error('Poll error:', pollError);
+                        if (!pollError.message.includes('failed')) {
+                            await new Promise(r => setTimeout(r, 5000));
+                        } else {
+                            throw pollError;
+                        }
+                    }
+                }
+
+                if (!videoUrl) {
+                    statusEl.textContent = '⏳ Video is taking longer than expected. Please check your dashboard later.';
+                    showNotification('Video generation is still processing. You can check your dashboard for updates.', 'info');
+                    generateBtn.disabled = false;
+                    generateBtn.innerHTML = '<i class="fas fa-video"></i>';
+                    isGenerating = false;
+                    return;
+                }
+
+                statusEl.textContent = '✅ Video generated!';
+                showVideoModal(videoUrl);
+                showNotification('Video generated successfully!', 'success');
+
+            } else {
+                // Image generation (Pollinations)
+                modalImg.src = result.imageUrl;
+                modal.classList.add('active');
+                statusEl.textContent = '✅ Image generated!';
+                showNotification('Image generated successfully!', 'success');
+            }
+
+            // Update remaining credits or guest usage
+            if (user) {
+                // Logged-in user: update credits
+                creditDisplay.textContent = result.remainingCredits;
+            } else {
+                // Guest: update localStorage and display
+                const today = new Date().toISOString().split('T')[0];
+                let stored = localStorage.getItem('guestUsage');
+                let usage = stored ? JSON.parse(stored) : null;
+                if (!usage || usage.date !== today) {
+                    usage = { date: today, count: 0 };
+                }
+                usage.count += 1;
+                localStorage.setItem('guestUsage', JSON.stringify(usage));
+                const remaining = Math.max(0, 3 - usage.count);
+                creditDisplay.innerHTML = \`<i class="fas fa-bolt"></i> \${remaining} free generations left\`;
+            }
+
+            // Clear input and image
+            promptInput.value = '';
+            promptInput.style.height = 'auto';
+            previewContainer.style.display = 'none';
+            previewImg.src = '';
+            fileInput.value = '';
+            uploadedImage = null;
+
+        } catch (error) {
+            console.error('Generation error:', error);
+            statusEl.textContent = '❌ ' + error.message;
+            showNotification(error.message, 'error');
+        } finally {
+            isGenerating = false;
+            generateBtn.disabled = false;
+            generateBtn.innerHTML = currentMode === 'video' ? '<i class="fas fa-video"></i>' : '<i class="fas fa-arrow-right"></i>';
+            setTimeout(() => {
+                if (statusEl) statusEl.textContent = '';
+            }, 10000);
+        }
+    });
+
+    // Modal controls
+    modalClose.addEventListener('click', () => modal.classList.remove('active'));
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) modal.classList.remove('active');
+    });
+    downloadBtn.addEventListener('click', function() {
+        const link = document.createElement('a');
+        link.href = modalImg.src;
+        link.download = 'generated-image.png';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    });
+
+    // Video modal helper
+    window.showVideoModal = function(videoUrl) {
+        const existing = document.getElementById('videoModal');
+        if (existing) existing.remove();
+
+        const modalHTML = \`
+            <div class="generated-modal active" id="videoModal">
+                <div class="generated-modal-content" style="max-width:90%;">
+                    <button class="generated-modal-close" onclick="document.getElementById('videoModal').classList.remove('active')">&times;</button>
+                    <video src="\${videoUrl}" controls autoplay loop style="width:100%; max-height:80vh; border-radius:12px; background:#000;"></video>
+                    <button class="generated-modal-download" onclick="downloadVideo('\${videoUrl}')">Download Video</button>
+                </div>
+            </div>
+        \`;
+        document.body.insertAdjacentHTML('beforeend', modalHTML);
+    };
+
+    window.downloadVideo = function(url) {
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'generated-video.mp4';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+    };
+
+    // Upgrade modal
+    upgradeClose.addEventListener('click', () => upgradeModal.style.display = 'none');
+    upgradeModal.addEventListener('click', (e) => {
+        if (e.target === upgradeModal) upgradeModal.style.display = 'none';
+    });
+
+    upgradePayBtn.addEventListener('click', async function() {
+        const user = await getCurrentUser();
+        if (!user) {
+            showNotification('Please login first.', 'error');
+            return;
+        }
+        this.disabled = true;
+        this.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating order...';
+
+        try {
+            const idToken = await user.getIdToken();
+            const res = await fetch('/api/top-up-credits', {
+                method: 'POST',
+                headers: { 'Authorization': \`Bearer \${idToken}\` }
+            });
+            const data = await res.json();
+            if (!data.success) throw new Error('Failed to create order');
+
+            if (data.isDemo) {
+                // Demo mode: add credits directly
+                const verifyRes = await fetch('/api/verify-topup', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        orderId: data.orderId,
+                        paymentId: 'demo_pay_' + Date.now(),
+                        signature: 'demo_signature',
+                        userId: user.uid
+                    })
+                });
+                const verifyData = await verifyRes.json();
+                if (verifyData.success) {
+                    showNotification('Added 50 credits (demo)!', 'success');
+                    upgradeModal.style.display = 'none';
+                    fetchCredits();
+                } else {
+                    throw new Error('Demo verification failed');
+                }
+            } else {
+                // Real Razorpay checkout
+                if (typeof Razorpay === 'undefined') {
+                    await new Promise((resolve, reject) => {
+                        const script = document.createElement('script');
+                        script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+                        script.onload = resolve;
+                        script.onerror = reject;
+                        document.head.appendChild(script);
+                    });
+                }
+                const options = {
+                    key: data.keyId,
+                    amount: data.amount,
+                    currency: data.currency,
+                    name: 'Tools Prompt',
+                    description: 'Top-up 50 credits',
+                    order_id: data.orderId,
+                    handler: async function(response) {
+                        try {
+                            const verifyRes = await fetch('/api/verify-topup', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    orderId: response.razorpay_order_id,
+                                    paymentId: response.razorpay_payment_id,
+                                    signature: response.razorpay_signature,
+                                    userId: user.uid
+                                })
+                            });
+                            const verifyData = await verifyRes.json();
+                            if (verifyData.success) {
+                                showNotification('Credits added!', 'success');
+                                upgradeModal.style.display = 'none';
+                                fetchCredits();
+                            } else {
+                                throw new Error('Verification failed');
+                            }
+                        } catch (e) {
+                            showNotification('Top-up failed: ' + e.message, 'error');
+                        }
+                    },
+                    modal: {
+                        ondismiss: function() {
+                            showNotification('Payment cancelled', 'info');
+                        }
+                    },
+                    theme: { color: '#4e54c8' },
+                    prefill: {
+                        email: user.email,
+                        name: user.displayName || user.email
+                    }
+                };
+                const rzp = new Razorpay(options);
+                rzp.open();
+            }
+        } catch (error) {
+            showNotification('Upgrade error: ' + error.message, 'error');
+        } finally {
+            this.disabled = false;
+            this.innerHTML = '<i class="fas fa-rupee-sign"></i> Pay ₹20 for 50 credits';
+        }
+    });
+
+    // Keyboard shortcut: Ctrl+Enter to generate
+    promptInput.addEventListener('keydown', function(e) {
+        if (e.ctrlKey && e.key === 'Enter') {
+            e.preventDefault();
+            generateBtn.click();
+        }
+    });
+
+    // Expose fetchCredits for after top-up
+    window.refreshCredits = fetchCredits;
+
+    // ===== GUEST LIMIT MODAL =====
+    window.showGuestLimitModal = function() {
+        const existing = document.getElementById('guestLimitModal');
+        if (existing) existing.remove();
+
+        const overlay = document.createElement('div');
+        overlay.className = 'buy-modal-overlay';
+        overlay.id = 'guestLimitModal';
+        overlay.innerHTML = \`
+            <div class="buy-modal" style="max-width: 450px;">
+                <div class="modal-header">
+                    <h2><i class="fas fa-exclamation-circle"></i> Free Generations Used</h2>
+                    <button class="close-modal" onclick="document.getElementById('guestLimitModal').remove()">&times;</button>
+                </div>
+                <div class="buy-modal-content" style="padding: 20px; text-align: center;">
+                    <p>You’ve used all your free guest generations today.</p>
+                    <p><strong>Login</strong> to receive <strong>5 free credits every day</strong> and continue creating!</p>
+                    <button class="buy-now-btn" onclick="window.location.href='/login.html?returnUrl='+encodeURIComponent(window.location.href)">
+                        <i class="fas fa-sign-in-alt"></i> Login Now
+                    </button>
+                    <p style="margin-top: 15px; font-size: 0.8rem; color: #666;">
+                        Or <a href="/" style="color: #4e54c8;">continue browsing</a>.
+                    </p>
+                </div>
+            </div>
+        \`;
+        document.body.appendChild(overlay);
+        document.body.style.overflow = 'hidden';
+    };
+})();
+`;
+
+  function generateCommentSystemJS(promptData) {
+    return `
+let currentPage = 1;
+let isLoadingComments = false;
+let hasMoreComments = true;
+
+async function loadComments(page = 1) {
+    if (isLoadingComments) return;
+    
+    isLoadingComments = true;
+    const promptId = '${promptData.id}';
+    const commentsList = document.getElementById('commentsList');
+    const noComments = document.getElementById('noComments');
+    const loadMoreDiv = document.getElementById('loadMoreComments');
+    
+    try {
+        const response = await fetch('/api/prompt/' + promptId + '/comments?page=' + page + '&limit=10');
+        if (!response.ok) throw new Error('Failed to load comments');
+        
+        const data = await response.json();
+        
+        if (page === 1) {
+            commentsList.innerHTML = '';
+            noComments.style.display = 'none';
+        }
+        
+        if (data.comments && data.comments.length > 0) {
+            data.comments.forEach(comment => {
+                const commentElement = createCommentElement(comment);
+                commentsList.appendChild(commentElement);
+            });
+            
+            hasMoreComments = data.hasMore;
+            loadMoreDiv.style.display = hasMoreComments ? 'block' : 'none';
+            
+            if (page === 1 && data.totalCount > 0) {
+                const commentCount = document.querySelector('.comment-count');
+                if (commentCount) {
+                    commentCount.textContent = data.totalCount;
+                }
+            }
+        } else if (page === 1) {
+            noComments.style.display = 'block';
+            loadMoreDiv.style.display = 'none';
+        }
+        
+        currentPage = page;
+    } catch (error) {
+        console.error('Error loading comments:', error);
+        if (page === 1) {
+            noComments.innerHTML = '<p>Error loading comments. Please try again.</p>';
+            noComments.style.display = 'block';
+        }
+    } finally {
+        isLoadingComments = false;
+    }
+}
+
+function createCommentElement(comment) {
+    const commentDate = new Date(comment.createdAt);
+    const formattedDate = commentDate.toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+    });
+    
+    const avatarLetter = comment.authorName.charAt(0).toUpperCase();
+    
+    const element = document.createElement('div');
+    element.className = 'comment-item';
+    element.id = 'comment-' + comment.id;
+    element.innerHTML = 
+        '<div class="comment-header">' +
+            '<div class="comment-author">' +
+                '<div class="comment-avatar">' +
+                    avatarLetter +
+                '</div>' +
+                '<div class="comment-author-info">' +
+                    '<h4>' + comment.authorName + '</h4>' +
+                    '<div class="comment-date">' +
+                        '<i class="far fa-clock"></i> ' + formattedDate +
+                    '</div>' +
+                '</div>' +
+            '</div>' +
+            '<div class="comment-actions">' +
+                '<button class="like-comment-btn" ' +
+                        'onclick="likeComment(\\'' + comment.id + '\\')"' +
+                        'data-likes="' + (comment.likes || 0) + '">' +
+                    '<i class="far fa-heart"></i>' +
+                    '<span class="like-count">' + (comment.likes || 0) + '</span>' +
+                '</button>' +
+            '</div>' +
+        '</div>' +
+        '<p class="comment-content">' + comment.content + '</p>';
+    
+    return element;
+}
+
+document.getElementById('commentForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    const promptId = '${promptData.id}';
+    const form = e.target;
+    const submitBtn = form.querySelector('button[type="submit"]');
+    const originalBtnText = submitBtn.innerHTML;
+    
+    const formData = {
+        content: form.content.value.trim(),
+        authorName: form.authorName.value.trim() || 'Anonymous',
+        authorEmail: form.authorEmail.value.trim() || null
+    };
+    
+    if (!formData.content) {
+        alert('Please enter a comment');
+        return;
+    }
+    
+    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Posting...';
+    submitBtn.disabled = true;
+    
+    try {
+        const response = await fetch('/api/prompt/' + promptId + '/comments', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(formData)
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            form.reset();
+            alert('Comment posted successfully!');
+            loadComments(1);
+            document.getElementById('commentSection').scrollIntoView({ 
+                behavior: 'smooth' 
+            });
+        } else {
+            alert(result.error || 'Failed to post comment');
+        }
+    } catch (error) {
+        console.error('Error posting comment:', error);
+        alert('Failed to post comment. Please try again.');
+    } finally {
+        submitBtn.innerHTML = originalBtnText;
+        submitBtn.disabled = false;
+    }
+});
+
+async function likeComment(commentId) {
+    const promptId = '${promptData.id}';
+    const likeBtn = document.querySelector('#comment-' + commentId + ' .like-comment-btn');
+    
+    if (likeBtn.classList.contains('liked')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/comment/' + commentId + '/like', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ promptId })
+        });
+        
+        if (response.ok) {
+            likeBtn.classList.add('liked');
+            const likeCount = likeBtn.querySelector('.like-count');
+            const currentLikes = parseInt(likeCount.textContent);
+            likeCount.textContent = currentLikes + 1;
+        }
+    } catch (error) {
+        console.error('Error liking comment:', error);
+    }
+}
+
+document.getElementById('loadMoreBtn').addEventListener('click', function() {
+    if (hasMoreComments && !isLoadingComments) {
+        loadComments(currentPage + 1);
+    }
+});
+
+document.addEventListener('DOMContentLoaded', function() {
+    loadComments(1);
+    
+    const commentTextarea = document.getElementById('commentContent');
+    if (commentTextarea) {
+        const counter = document.createElement('div');
+        counter.style.color = '#666';
+        counter.style.fontSize = '0.85rem';
+        counter.style.textAlign = 'right';
+        counter.style.marginTop = '0.25rem';
+        counter.textContent = '0/1000';
+        
+        commentTextarea.parentNode.appendChild(counter);
+        
+        commentTextarea.addEventListener('input', function() {
+            counter.textContent = this.value.length + '/1000';
+            if (this.value.length > 1000) {
+                counter.style.color = '#ff6b6b';
+            } else {
+                counter.style.color = '#666';
+            }
+        });
+    }
+});
+`;
+  }
+
+  const socialFeedJS = `
 // -------- GLOBAL SOCIAL FEED FUNCTIONS --------
 let feedExpanded = false;
 let replyTo = null;
@@ -9823,6 +11301,164 @@ if (typeof firebase !== 'undefined' && firebase.auth) {
 console.log('🔔 Notification integration ready');
 `;
 
+  // ==================== MEDIA DISPLAY ====================
+  const mediaDisplay = isVideo ? `
+    <div class="shorts-video-container">
+      <video 
+        src="${promptData.videoUrl || promptData.mediaUrl}" 
+        poster="${promptData.imageUrl}"
+        class="shorts-image"
+        controls
+        loop
+        playsinline
+        preload="metadata"
+        onerror="this.style.display='none'; document.getElementById('videoFallback').style.display='flex';"
+      ></video>
+      <div id="videoFallback" style="display:none; position:absolute; top:0; left:0; right:0; bottom:0; background:#000; color:white; align-items:center; justify-content:center; flex-direction:column;">
+        <i class="fas fa-exclamation-triangle" style="font-size:2rem; margin-bottom:1rem;"></i>
+        <p>Video failed to load. Try refreshing.</p>
+      </div>
+      ${promptData.videoDuration ? `<span class="video-duration">${promptData.videoDuration}s</span>` : ''}
+    </div>
+  ` : `
+    <img src="${promptData.imageUrl}" 
+         alt="${promptData.title} - AI Generated Image" 
+         class="prompt-image"
+         onerror="this.src='https://via.placeholder.com/800x400/4e54c8/ffffff?text=AI+Generated+Image'"
+         id="promptImage">
+  `;
+
+  const platformBadge = `
+    <div class="ai-model-badge">
+      <i class="fas fa-${isVideo ? 'video' : 'camera'}"></i> ${platformInfo.name || (isVideo ? 'AI Video' : 'AI Image')}
+    </div>
+  `;
+
+  const priceBadge = promptData.isPaid ? `
+    <div class="price-badge">
+      <i class="fas fa-rupee-sign"></i> ${promptData.price}
+    </div>
+  ` : `
+    <div class="price-badge free">
+      <i class="fas fa-gift"></i> Free
+    </div>
+  `;
+
+  const aiStepsHTML = isVideo ? `
+    <div class="instruction-step">
+      <div class="step-number">1</div>
+      <div class="step-content">
+        <strong>Access the Platform:</strong> ${promptData.aiStepByStepGuide.access}
+      </div>
+    </div>
+    <div class="instruction-step">
+      <div class="step-number">2</div>
+      <div class="step-content">
+        <strong>Prepare Your Video Concept:</strong> ${promptData.aiStepByStepGuide.preparation}
+      </div>
+    </div>
+    <div class="instruction-step">
+      <div class="step-number">3</div>
+      <div class="step-content">
+        <strong>Use Your Prompt:</strong> ${promptData.aiStepByStepGuide.prompt}
+      </div>
+    </div>
+    <div class="instruction-step">
+      <div class="step-number">4</div>
+      <div class="step-content">
+        <strong>Adjust Parameters:</strong> ${promptData.aiStepByStepGuide.customization}
+      </div>
+    </div>
+    <div class="instruction-step">
+      <div class="step-number">5</div>
+      <div class="step-content">
+        <strong>Generate and Review:</strong> ${promptData.aiStepByStepGuide.generation}
+      </div>
+    </div>
+    <div class="instruction-step">
+      <div class="step-number">6</div>
+      <div class="step-content">
+        <strong>Export and Edit Further:</strong> ${promptData.aiStepByStepGuide.finalization}
+      </div>
+    </div>
+  ` : `
+    <div class="instruction-step">
+      <div class="step-number">1</div>
+      <div class="step-content">
+        <strong>Access the Platform:</strong> ${promptData.aiStepByStepGuide.access}
+      </div>
+    </div>
+    <div class="instruction-step">
+      <div class="step-number">2</div>
+      <div class="step-content">
+        <strong>Prepare Your Input:</strong> ${promptData.aiStepByStepGuide.preparation}
+      </div>
+    </div>
+    <div class="instruction-step">
+      <div class="step-number">3</div>
+      <div class="step-content">
+        <strong>Use Your Prompt:</strong> ${promptData.aiStepByStepGuide.prompt}
+      </div>
+    </div>
+    <div class="instruction-step">
+      <div class="step-number">4</div>
+      <div class="step-content">
+        <strong>Customize Details:</strong> ${promptData.aiStepByStepGuide.customization}
+      </div>
+    </div>
+    <div class="instruction-step">
+      <div class="step-number">5</div>
+      <div class="step-content">
+        <strong>Generate and Refine:</strong> ${promptData.aiStepByStepGuide.generation}
+      </div>
+    </div>
+    <div class="instruction-step">
+      <div class="step-number">6</div>
+      <div class="step-content">
+        <strong>Finalize and Export:</strong> ${promptData.aiStepByStepGuide.finalization}
+      </div>
+    </div>
+  `;
+
+  const aiExpertTipsHTML = (promptData.aiExpertTips || []).map(tip => `
+    <li>${tip}</li>
+  `).join('');
+
+  const toolsHTML = (promptData.bestAITools || []).map(tool => `
+    <div class="tool-card-enhanced ${tool.isPrimary ? 'primary-tool' : ''}">
+      <h4>
+        ${tool.name}
+        <div class="tool-rating">
+          ${Array(tool.rating || 4).fill('<i class="fas fa-star"></i>').join('')}
+          ${Array(5 - (tool.rating || 4)).fill('<i class="far fa-star"></i>').join('')}
+        </div>
+      </h4>
+      <p>${tool.description}</p>
+      <div class="tool-tags">
+        ${(tool.strengths || tool.category || []).map(tag => `<span class="tool-tag">${tag}</span>`).join('')}
+      </div>
+    </div>
+  `).join('');
+
+  const tipsHTML = (promptData.usageTips || []).map(tip => `
+    <li>${tip}</li>
+  `).join('');
+
+  const seoTipsHTML = (promptData.seoTips || []).map(tip => `
+    <li>${tip}</li>
+  `).join('');
+
+  const miniBrowserToggleButton = `
+<button class="engagement-btn" onclick="toggleMiniBrowser()" title="Open tools prompt Browser (Ctrl+B)">
+    <i class="fas fa-external-link-alt"></i> Quick Browse
+</button>
+`;
+
+  const affiliateTop = affiliates[0] ? generateAffiliateHTML(affiliates[0]) : '';
+  const affiliateMiddle = affiliates[1] ? generateAffiliateHTML(affiliates[1]) : '';
+  const affiliateBottom = affiliates[2] ? generateAffiliateHTML(affiliates[2]) : '';
+
+  // ==================== FINAL HTML TEMPLATE ====================
   return `<!DOCTYPE html>
 <html lang="en" itemscope itemtype="https://schema.org/Article">
 <head>
@@ -12037,7 +13673,6 @@ ${socialFeedJS}
 </body>
 </html>`;
 }
-
 function generateCategoryHTML(category, baseUrl) {
   const categoryNames = {
     'art': 'AI Art',
