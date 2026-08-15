@@ -11,6 +11,7 @@ const NodeCache = require('node-cache');
 const { v4: uuidv4 } = require('uuid');
 const mime = require('mime-types');
 const Razorpay = require('razorpay');
+const MONETAG_ZONE_COPY = process.env.MONETAG_ZONE_COPY || '';
 require('dotenv').config();
 
 // ========== NEW: OpenAI for AI Image Generation ==========
@@ -34,6 +35,14 @@ const s3Client = new S3Client({
 const R2_BUCKET = process.env.R2_BUCKET_NAME;
 const R2_PUBLIC_URL = process.env.R2_PUBLIC_URL; // e.g., https://pub-xxxx.r2.dev
 
+// 🔥 MONETAG CONFIGURATION (from .env)
+const MONETAG_SITE_ID = process.env.MONETAG_SITE_ID || '';
+const MONETAG_ZONE_TOP = process.env.MONETAG_ZONE_TOP || '';
+const MONETAG_ZONE_MIDDLE = process.env.MONETAG_ZONE_MIDDLE || '';
+const MONETAG_ZONE_BOTTOM = process.env.MONETAG_ZONE_BOTTOM || '';
+const MONETAG_ZONE_STICKY = process.env.MONETAG_ZONE_STICKY || '';
+const MONETAG_ZONE_EXIT = process.env.MONETAG_ZONE_EXIT || '';
+
 // ========== Guest Generation Limit ==========
 const GUEST_LIMIT = 3;
 const guestUsage = new Map(); // key: "ip-YYYY-MM-DD", value: count
@@ -50,20 +59,11 @@ async function uploadToR2(buffer, key, contentType) {
   return `${R2_PUBLIC_URL}/${key}`;
 }
 
-// Add this helper function at the top of server.js
 function sanitizeFirestoreData(data) {
     const sanitized = {};
     for (const [key, value] of Object.entries(data)) {
-        // Skip undefined values
-        if (value === undefined) {
-            continue;
-        }
-        // Handle null values
-        if (value === null) {
-            sanitized[key] = null;
-            continue;
-        }
-        // Handle objects recursively
+        if (value === undefined) continue;
+        if (value === null) { sanitized[key] = null; continue; }
         if (typeof value === 'object' && value !== null && !Array.isArray(value) && !(value instanceof Date)) {
             sanitized[key] = sanitizeFirestoreData(value);
             continue;
@@ -87,7 +87,6 @@ async function getUserCredits(userId) {
       totalUsed: 0,
       updatedAt: new Date().toISOString()
     });
-    // Also ensure referral code exists
     await ensureUserReferralCode(userId);
     return { credits: 5, freeLimit: 5, isFree: true };
   }
@@ -105,7 +104,7 @@ async function getUserCredits(userId) {
 }
 
 async function deductCredit(userId) {
-  if (!db) return true; // mock
+  if (!db) return true;
   const doc = await db.collection('credits').doc(userId).get();
   if (!doc.exists) {
     const now = new Date().toISOString().split('T')[0];
@@ -121,9 +120,8 @@ async function deductCredit(userId) {
   }
   const data = doc.data();
   if (data.credits <= 0) return false;
-  const newCredits = data.credits - 1;
   await db.collection('credits').doc(userId).update({
-    credits: newCredits,
+    credits: data.credits - 1,
     totalUsed: (data.totalUsed || 0) + 1,
     updatedAt: new Date().toISOString()
   });
@@ -158,7 +156,6 @@ function checkAndIncrementGuest(req, increment = false) {
     const ip = req.ip || req.headers['x-forwarded-for'] || req.connection.remoteAddress;
     const today = new Date().toISOString().split('T')[0];
     const key = `${ip}-${today}`;
-    
     let count = guestUsage.get(key) || 0;
     if (count >= GUEST_LIMIT) {
         return { allowed: false, remaining: 0 };
@@ -191,7 +188,7 @@ try {
 }
 
 // ========== AGNES AI CONFIGURATION ==========
-const AGNES_API_KEY = process.env.AGNES_API_KEY; // Set this in your .env file
+const AGNES_API_KEY = process.env.AGNES_API_KEY;
 
 // ========== ROBUST DNS RESOLVER FOR AGNES ==========
 const { Agent } = require('https');
@@ -208,7 +205,6 @@ try {
   if (serviceAccount && serviceAccount.privateKey) {
     admin.initializeApp({
       credential: admin.credential.cert(serviceAccount),
-      // storageBucket is REMOVED – we use R2 instead
     });
     adminInitialized = true;
     console.log('✅ Firebase Admin initialized (Auth + Firestore)');
@@ -219,7 +215,6 @@ try {
   console.error('❌ Firebase Admin initialization failed:', error);
 }
 
-// Create mock admin object for development if not initialized (storage mock removed)
 let adminMock = null;
 if (!adminInitialized) {
   adminMock = {
@@ -268,30 +263,22 @@ if (!adminInitialized) {
 const app = express();
 const port = process.env.PORT || 3000;
 
-// Initialize cache with 5 minute TTL
 const cache = new NodeCache({ stdTTL: 300, checkperiod: 60 });
 
 const db = adminInitialized ? admin.firestore() : (adminMock ? adminMock.firestore() : null);
-// No bucket variable – we use s3Client directly
 
-// CORS middleware for development
 app.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', 'http://localhost:3000');
   res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
   }
-  
   next();
 });
 
-// Basic middleware
 app.use(express.json({ limit: '100mb' }));
 app.use(express.urlencoded({ extended: true, limit: '100mb' }));
-
-// Raw body for Razorpay webhook
 app.use('/api/razorpay-webhook', express.json());
 
 // ==================== ADS.TXT REDIRECT ====================
@@ -300,16 +287,12 @@ app.get('/ads.txt', (req, res) => {
     console.log(`🔄 Redirecting /ads.txt to ${adsTxtUrl}`);
     res.redirect(301, adsTxtUrl);
 });
-// Serve static files from current directory
 app.use(express.static(__dirname));
 
-
-// Helper function for safe date conversion
 function safeDateToString(dateValue) {
   if (!dateValue) {
     return new Date().toISOString();
   }
-  
   try {
     if (dateValue.toDate && typeof dateValue.toDate === 'function') {
       return dateValue.toDate().toISOString();
@@ -327,81 +310,75 @@ function safeDateToString(dateValue) {
   }
 }
 
-// ==================== ADSTERRA AD HELPER FUNCTIONS ====================
-
-/**
- * Generates Adsterra Native Banner Ad code
- */
-function generateAdsterraNativeAd() {
+// 🔥 MONETAG AD MANAGER (Replaces Adsterra)
+class MonetagManager {
+  static generateUniversalTag(siteId) {
+    if (!siteId) return '';
     return `
-        <!-- Adsterra Native Banner Ad -->
-        <div class="ad-container">
-            <div class="ad-label">Advertisement</div>
-            <div id="container-aca55beb03e2d8b514ae3f122920bdf0"></div>
-            <script async="async" data-cfasync="false" src="https://pl29189858.profitablecpmratenetwork.com/aca55beb03e2d8b514ae3f122920bdf0/invoke.js"></script>
-        </div>
+      <script type="text/javascript">
+        (function(d, z, s) {
+          s.src = 'https://' + d + '/400/' + z;
+          try {
+            document.getElementsByTagName('head')[0].appendChild(s);
+          } catch (e) {}
+        })('static.monetag.com', '${siteId}', document.createElement('script'));
+      </script>
     `;
-}
+  }
 
-/**
- * Generates Adsterra Banner Ad for Desktop (300x250)
- */
-function generateAdsterraDesktopBanner() {
+  static generateBannerAd(zoneId, adLabel = true) {
+    if (!zoneId) return '';
+    const label = adLabel ? `<div class="ad-label">Advertisement</div>` : '';
     return `
-        <!-- Adsterra Banner Ad - Desktop 300x250 -->
-        <div class="ad-container ad-banner-desktop">
-            <div class="ad-label">Advertisement</div>
-            <script>
-              atOptions = {
-                'key' : '8719e4636a7c41462203d84e956177c4',
-                'format' : 'iframe',
-                'height' : 250,
-                'width' : 300,
-                'params' : {}
-              };
-            </script>
-            <script src="https://www.highperformanceformat.com/8719e4636a7c41462203d84e956177c4/invoke.js"></script>
-        </div>
+      <div class="ad-container">
+        ${label}
+        <script type="text/javascript">
+          (function(d, z, s) {
+            s.src = 'https://' + d + '/401/' + z;
+            try {
+              document.body.appendChild(s);
+            } catch (e) {}
+          })('static.monetag.com', '${zoneId}', document.createElement('script'));
+        </script>
+      </div>
     `;
-}
+  }
 
-/**
- * Generates Adsterra Banner Ad for Mobile (320x50)
- */
-function generateAdsterraMobileBanner() {
+  static generateStickyBanner(zoneId) {
+    if (!zoneId) return '';
     return `
-        <!-- Adsterra Banner Ad - Mobile 320x50 -->
-        <div class="ad-container ad-banner-mobile">
-            <div class="ad-label">Advertisement</div>
-            <script>
-              atOptions = {
-                'key' : '37e3a123e9b664f6f0b0efed6c7ee71f',
-                'format' : 'iframe',
-                'height' : 50,
-                'width' : 320,
-                'params' : {}
-              };
-            </script>
-            <script src="https://www.highperformanceformat.com/37e3a123e9b664f6f0b0efed6c7ee71f/invoke.js"></script>
-        </div>
+      <div style="position:fixed;bottom:0;left:0;right:0;z-index:9999;background:#fff;box-shadow:0 -2px 10px rgba(0,0,0,0.1);text-align:center;padding:5px 0;">
+        <div class="ad-label" style="font-size:0.6rem;color:#888;margin-bottom:2px;">Advertisement</div>
+        <script type="text/javascript">
+          (function(d, z, s) {
+            s.src = 'https://' + d + '/401/' + z;
+            try {
+              document.body.appendChild(s);
+            } catch (e) {}
+          })('static.monetag.com', '${zoneId}', document.createElement('script'));
+        </script>
+      </div>
     `;
-}
+  }
 
-/**
- * Generates all Adsterra ads combined (Native + Desktop + Mobile)
- * Desktop and Mobile are shown/hidden via CSS media queries
- */
-function generateAllAdsterraAds() {
+  static generateExitIntent(zoneId) {
+    if (!zoneId) return '';
     return `
-        ${generateAdsterraNativeAd()}
-        ${generateAdsterraDesktopBanner()}
-        ${generateAdsterraMobileBanner()}
+      <script type="text/javascript">
+        (function(d, z, s) {
+          s.src = 'https://' + d + '/401/' + z;
+          try {
+            document.body.appendChild(s);
+          } catch (e) {}
+        })('static.monetag.com', '${zoneId}', document.createElement('script'));
+      </script>
     `;
+  }
 }
 
 // ==================== DOWNLOAD APP BUTTON FUNCTIONS ====================
 
-// Floating Download App Button CSS
+// Global CSS constants
 const downloadAppCSS = `
 /* Floating Download App Button */
 .floating-download-btn {
@@ -460,24 +437,13 @@ const downloadAppCSS = `
 }
 
 @keyframes bounce {
-    0%, 100% {
-        transform: translateY(0);
-    }
-    50% {
-        transform: translateY(-3px);
-    }
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-3px); }
 }
 
-/* Slide up animation for button */
 @keyframes slideUpFade {
-    from {
-        opacity: 0;
-        transform: translateX(-50%) translateY(30px);
-    }
-    to {
-        opacity: 1;
-        transform: translateX(-50%) translateY(0);
-    }
+    from { opacity: 0; transform: translateX(-50%) translateY(30px); }
+    to { opacity: 1; transform: translateX(-50%) translateY(0); }
 }
 
 .floating-download-btn {
@@ -491,10 +457,7 @@ const downloadAppCSS = `
         gap: 8px;
         bottom: 20px;
     }
-    
-    .floating-download-btn i {
-        font-size: 1rem;
-    }
+    .floating-download-btn i { font-size: 1rem; }
 }
 
 @media (max-width: 480px) {
@@ -504,16 +467,10 @@ const downloadAppCSS = `
         gap: 6px;
         bottom: 15px;
     }
-    
-    .floating-download-btn i {
-        font-size: 0.9rem;
-    }
+    .floating-download-btn i { font-size: 0.9rem; }
 }
 
-/* Hide on certain pages if needed */
-.floating-download-btn.hidden {
-    display: none;
-}
+.floating-download-btn.hidden { display: none; }
 
 @keyframes pulse {
     0% { transform: translateX(-50%) scale(1); box-shadow: 0 8px 25px rgba(78, 84, 200, 0.4); }
@@ -522,7 +479,362 @@ const downloadAppCSS = `
 }
 `;
 
-// Floating Download App Button HTML
+// 🔥 NEW: aiGeneratorCSS added
+const aiGeneratorCSS = `
+/* Sticky AI Generator Bar */
+.ai-generator-bar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: rgba(255, 255, 255, 0.98);
+    backdrop-filter: blur(10px);
+    border-top: 1px solid #e9ecef;
+    padding: 8px 12px;
+    display: none;
+    align-items: center;
+    gap: 8px;
+    z-index: 9999;
+    box-shadow: 0 -4px 20px rgba(0,0,0,0.1);
+    transition: transform 0.3s ease;
+    flex-wrap: nowrap; /* prevent wrapping */
+}
+.ai-generator-bar.active {
+    display: flex;
+}
+.ai-generator-input {
+    flex: 1 1 auto;
+    min-width: 60px;
+    max-height: 80px;
+    padding: 8px 12px;
+    border: 2px solid #e9ecef;
+    border-radius: 24px;
+    font-size: 0.9rem;
+    resize: none;
+    outline: none;
+    transition: border-color 0.3s ease;
+    font-family: inherit;
+    background: white;
+    line-height: 1.4;
+}
+.ai-generator-input:focus {
+    border-color: #4e54c8;
+}
+.ai-generator-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+}
+.ai-image-upload-btn {
+    background: #f1f3f5;
+    border: none;
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    font-size: 1.2rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s ease;
+    color: #495057;
+    flex-shrink: 0;
+}
+.ai-image-upload-btn:hover {
+    background: #4e54c8;
+    color: white;
+    transform: scale(1.05);
+}
+.ai-generate-btn {
+    background: linear-gradient(135deg, #4e54c8, #8f94fb);
+    border: none;
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    color: white;
+    font-size: 1.1rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 12px rgba(78,84,200,0.3);
+    flex-shrink: 0;
+}
+.ai-generate-btn:hover {
+    transform: scale(1.05);
+    box-shadow: 0 6px 20px rgba(78,84,200,0.5);
+}
+.ai-generate-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+}
+.ai-credit-display {
+    font-size: 0.75rem;
+    color: #495057;
+    padding: 0 4px;
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    flex-shrink: 0;
+}
+.ai-credit-display .credits-num {
+    font-weight: 700;
+    color: #4e54c8;
+}
+.ai-file-input {
+    display: none;
+}
+.ai-image-preview {
+    display: none;
+    position: relative;
+    width: 34px;
+    height: 34px;
+    border-radius: 8px;
+    overflow: hidden;
+    flex-shrink: 0;
+    border: 2px solid #4e54c8;
+}
+.ai-image-preview img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+.ai-image-preview .remove-image {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    background: #ff6b6b;
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 18px;
+    height: 18px;
+    font-size: 10px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* ===== SEGMENTED CONTROL ===== */
+.ai-mode-toggle-group {
+    display: flex;
+    background: #e9ecef;
+    border-radius: 20px;
+    padding: 2px;
+    gap: 0;
+    flex-shrink: 0;
+    border: 1px solid #dee2e6;
+}
+.ai-mode-option {
+    background: transparent;
+    border: none;
+    padding: 4px 10px;
+    border-radius: 18px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #495057;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    white-space: nowrap;
+}
+.ai-mode-option i {
+    font-size: 0.9rem;
+}
+.ai-mode-option.active {
+    background: white;
+    color: #4e54c8;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+}
+.ai-mode-option:hover:not(.active) {
+    background: rgba(255,255,255,0.5);
+}
+.ai-mode-option:active {
+    transform: scale(0.95);
+}
+
+/* Generated Image Modal */
+.generated-modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0,0,0,0.85);
+    z-index: 99999;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+}
+.generated-modal.active {
+    display: flex;
+}
+.generated-modal-content {
+    max-width: 90%;
+    max-height: 90%;
+    position: relative;
+}
+.generated-modal-content img {
+    max-width: 100%;
+    max-height: 90vh;
+    border-radius: 12px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+}
+.generated-modal-close {
+    position: absolute;
+    top: -40px;
+    right: -40px;
+    background: white;
+    border: none;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    font-size: 1.5rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #333;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+}
+.generated-modal-close:hover {
+    background: #ff6b6b;
+    color: white;
+}
+.generated-modal-download {
+    position: absolute;
+    bottom: -50px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #4e54c8;
+    color: white;
+    border: none;
+    padding: 10px 24px;
+    border-radius: 30px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.3s ease;
+}
+.generated-modal-download:hover {
+    background: #3f44b8;
+}
+
+/* ========== MOBILE RESPONSIVENESS ========== */
+@media (max-width: 768px) {
+    .ai-generator-bar {
+        flex-wrap: wrap;
+        padding: 6px 8px;
+        gap: 6px;
+        bottom: 0 !important;
+    }
+    .ai-generator-input {
+        flex: 1 1 100%;
+        min-height: 38px;
+        font-size: 0.85rem;
+        padding: 8px 12px;
+        border-radius: 20px;
+    }
+    .ai-generator-actions {
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        gap: 4px;
+        width: 100%;
+    }
+    .duration-option {
+        padding: 2px 6px !important;
+        gap: 3px !important;
+    }
+    .duration-option input[type="range"] {
+        width: 40px !important;
+        height: 4px !important;
+    }
+    .duration-option span {
+        font-size: 0.6rem !important;
+        min-width: 20px !important;
+    }
+    .ai-image-upload-btn, .ai-generate-btn {
+        width: 30px !important;
+        height: 30px !important;
+        font-size: 0.8rem !important;
+    }
+    .ai-mode-option {
+        padding: 2px 6px !important;
+        font-size: 0.6rem !important;
+    }
+    .ai-mode-option span {
+        display: none; /* hide text, only icons */
+    }
+    .ai-mode-option i {
+        font-size: 0.9rem !important;
+    }
+    .ai-credit-display {
+        font-size: 0.6rem !important;
+        padding: 0 2px;
+    }
+    .ai-image-preview {
+        width: 28px;
+        height: 28px;
+    }
+    .ai-image-preview .remove-image {
+        width: 16px;
+        height: 16px;
+        font-size: 8px;
+        top: -4px;
+        right: -4px;
+    }
+}
+
+@media (max-width: 480px) {
+    .ai-generator-bar {
+        padding: 4px 6px;
+        gap: 4px;
+        bottom: 56px;
+    }
+    .ai-generator-input {
+        min-height: 32px;
+        font-size: 0.75rem;
+        padding: 4px 10px;
+        border-radius: 16px;
+        flex: 1 1 100%;
+    }
+    .ai-generator-actions {
+        gap: 3px;
+    }
+    .duration-option input[type="range"] {
+        width: 32px !important;
+    }
+    .ai-image-upload-btn, .ai-generate-btn {
+        width: 26px !important;
+        height: 26px !important;
+        font-size: 0.7rem !important;
+    }
+    .ai-mode-option span {
+        display: none;
+    }
+    .ai-mode-option i {
+        font-size: 1rem !important;
+    }
+    .ai-credit-display {
+        font-size: 0.55rem;
+    }
+    .ai-credit-display .credits-num {
+        font-size: 0.65rem;
+    }
+    .ai-image-preview {
+        width: 24px;
+        height: 24px;
+    }
+}
+`;
+
 const downloadAppButtonHTML = `
 <!-- Floating Download App Button -->
 <button class="floating-download-btn" id="downloadAppBtn" onclick="downloadApp()">
@@ -532,16 +844,10 @@ const downloadAppButtonHTML = `
 </button>
 `;
 
-// Track app download clicks endpoint
 app.post('/api/track-download', async (req, res) => {
     try {
         const { promptId, promptTitle, userAgent } = req.body;
-        
         console.log(`📱 App download tracked - Prompt: ${promptTitle} (${promptId})`);
-        console.log(`   User Agent: ${userAgent}`);
-        console.log(`   Time: ${new Date().toISOString()}`);
-        
-        // Optional: Store in database if needed (keep this as it's a separate feature)
         if (db && db.collection) {
             await db.collection('downloads').add({
                 promptId: promptId || null,
@@ -551,7 +857,6 @@ app.post('/api/track-download', async (req, res) => {
                 source: 'prompt_page'
             });
         }
-        
         res.json({ success: true });
     } catch (error) {
         console.error('Download tracking error:', error);
@@ -560,8 +865,6 @@ app.post('/api/track-download', async (req, res) => {
 });
 
 // ==================== RAZORPAY ENDPOINTS ====================
-
-// Get Razorpay key
 app.get('/api/razorpay-key', (req, res) => {
     res.json({ 
         keyId: razorpayKeyId,
@@ -569,18 +872,13 @@ app.get('/api/razorpay-key', (req, res) => {
     });
 });
 
-// Alternative - let Razorpay generate receipt automatically
 app.post('/api/create-order', async (req, res) => {
     try {
         const { promptId, price, userId, userEmail, customerName, customerPhone } = req.body;
-        
         console.log('Creating order for:', { promptId, price, userId });
-        
-        // Check if Razorpay is configured
         if (!razorpay || !process.env.RAZORPAY_KEY_SECRET) {
             console.log('Razorpay not configured, using demo mode');
             const demoOrderId = 'order_demo_' + Date.now();
-            
             return res.json({
                 success: true,
                 orderId: demoOrderId,
@@ -590,25 +888,16 @@ app.post('/api/create-order', async (req, res) => {
                 keyId: razorpayKeyId || 'rzp_live_SXMEZ6fYLjDmzD'
             });
         }
-        
         const amount = Math.round(price * 100);
-        
-        // Remove receipt completely - let Razorpay generate it
         const options = {
             amount: amount,
             currency: 'INR',
-            notes: {
-                promptId: promptId,
-                userId: userId
-            },
+            notes: { promptId, userId },
             payment_capture: 1
         };
-        
         console.log('Sending order request to Razorpay (no receipt)...');
         const order = await razorpay.orders.create(options);
-        
         console.log('Order created successfully:', order.id);
-        
         res.json({
             success: true,
             orderId: order.id,
@@ -617,12 +906,8 @@ app.post('/api/create-order', async (req, res) => {
             isDemo: false,
             keyId: razorpayKeyId
         });
-        
     } catch (error) {
         console.error('Razorpay order creation error:', error);
-        
-        // Fallback to demo mode
-        console.log('Falling back to demo mode due to error');
         res.json({
             success: true,
             orderId: 'order_demo_' + Date.now(),
@@ -634,43 +919,30 @@ app.post('/api/create-order', async (req, res) => {
     }
 });
 
-// Fix for /api/verify-payment endpoint
 app.post('/api/verify-payment', async (req, res) => {
     try {
         const { orderId, paymentId, signature, promptId, userId, userEmail, amount } = req.body;
-        
-        // Use razorpay variable (not razorpay)
         if (!razorpay) {
-            // Demo mode
             const purchaseResult = await completePurchaseHelper(promptId, userId, userEmail, amount, paymentId);
             return res.json(purchaseResult);
         }
-        
-        // Verify signature using the secret from env
         const crypto = require('crypto');
         const generatedSignature = crypto
-            .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)  // Use env variable
+            .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
             .update(orderId + '|' + paymentId)
             .digest('hex');
-        
         if (generatedSignature !== signature) {
             return res.status(400).json({ error: 'Invalid payment signature' });
         }
-        
-        // Payment verified
         const purchaseResult = await completePurchaseHelper(promptId, userId, userEmail, amount, paymentId);
         res.json(purchaseResult);
-        
     } catch (error) {
         console.error('Payment verification error:', error);
         res.status(500).json({ error: 'Failed to verify payment', details: error.message });
     }
 });
 
-
-// Helper function to complete purchase
 async function completePurchaseHelper(promptId, userId, userEmail, amount, paymentId) {
-    // Get prompt details
     let promptData;
     if (db && db.collection) {
         const promptDoc = await db.collection('uploads').doc(promptId).get();
@@ -679,7 +951,6 @@ async function completePurchaseHelper(promptId, userId, userEmail, amount, payme
         }
         promptData = promptDoc.data();
     } else {
-        // Mock data fallback
         const mockPrompts = [
             {
                 id: 'demo-1',
@@ -688,7 +959,6 @@ async function completePurchaseHelper(promptId, userId, userEmail, amount, payme
                 userName: 'Demo User',
                 userId: 'anonymous',
                 imageUrl: 'https://via.placeholder.com/800x400/4e54c8/white?text=Fantasy+Landscape',
-                thumbnailUrl: null,
                 price: 0,
                 salesCount: 0,
                 totalEarnings: 0,
@@ -701,7 +971,6 @@ async function completePurchaseHelper(promptId, userId, userEmail, amount, payme
                 userName: 'Demo User',
                 userId: 'anonymous',
                 imageUrl: 'https://via.placeholder.com/800x400/8f94fb/white?text=Cyberpunk+City',
-                thumbnailUrl: null,
                 price: 50,
                 salesCount: 0,
                 totalEarnings: 0,
@@ -714,7 +983,6 @@ async function completePurchaseHelper(promptId, userId, userEmail, amount, payme
                 userName: 'Demo User',
                 userId: 'anonymous',
                 imageUrl: 'https://via.placeholder.com/800x400/20bf6b/white?text=Portrait+Photo',
-                thumbnailUrl: null,
                 price: 30,
                 salesCount: 0,
                 totalEarnings: 0,
@@ -722,133 +990,87 @@ async function completePurchaseHelper(promptId, userId, userEmail, amount, payme
             }
         ];
         promptData = mockPrompts.find(p => p.id === promptId);
-        if (!promptData) {
-            throw new Error('Prompt not found');
-        }
+        if (!promptData) throw new Error('Prompt not found');
     }
-    
-    // Check if already purchased
     const purchasedBy = promptData.purchasedBy || [];
     if (purchasedBy.includes(userId)) {
-        return {
-            success: true,
-            message: 'Already purchased',
-            promptText: promptData.promptText
-        };
+        return { success: true, message: 'Already purchased', promptText: promptData.promptText };
     }
-    
-    // Get proper image URL
     const imageUrl = promptData.thumbnailUrl || promptData.imageUrl || 
                     (promptData.fileType === 'video' ? 'https://via.placeholder.com/300x400/ff6b6b/ffffff?text=Video+Reel' : 
                      'https://via.placeholder.com/800x400/4e54c8/ffffff?text=AI+Prompt');
-    
-    // Create purchase record
     const purchaseData = sanitizeFirestoreData({
-        promptId: promptId,
-        promptTitle: promptData.title || 'Untitled Prompt',
+        promptId, promptTitle: promptData.title || 'Untitled Prompt',
         promptText: promptData.promptText || 'No prompt text available.',
-        imageUrl: imageUrl,
-        thumbnailUrl: promptData.thumbnailUrl || null,
+        imageUrl, thumbnailUrl: promptData.thumbnailUrl || null,
         fileType: promptData.fileType || 'image',
-        buyerId: userId,
-        buyerEmail: userEmail || null,
-        buyerName: userEmail ? userEmail.split('@')[0] : (promptData.buyerName || 'User'),
+        buyerId: userId, buyerEmail: userEmail || null,
+        buyerName: userEmail ? userEmail.split('@')[0] : 'User',
         sellerId: promptData.userId || 'anonymous',
         sellerName: promptData.userName || 'Anonymous',
         amount: amount || promptData.price || 0,
-        razorpayOrderId: null,
-        razorpayPaymentId: paymentId || null,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        razorpayOrderId: null, razorpayPaymentId: paymentId || null,
+        createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
         paymentStatus: 'completed'
     });
-    
-    // Create sale record
     const saleData = sanitizeFirestoreData({
-        promptId: promptId,
-        promptTitle: promptData.title || 'Untitled Prompt',
+        promptId, promptTitle: promptData.title || 'Untitled Prompt',
         promptText: promptData.promptText || '',
-        buyerId: userId,
-        buyerName: userEmail ? userEmail.split('@')[0] : 'User',
-        buyerEmail: userEmail || null,
-        sellerId: promptData.userId || 'anonymous',
+        buyerId: userId, buyerName: userEmail ? userEmail.split('@')[0] : 'User',
+        buyerEmail: userEmail || null, sellerId: promptData.userId || 'anonymous',
         sellerName: promptData.userName || 'Anonymous',
         amount: amount || promptData.price || 0,
         sellerEarnings: Math.round((amount || promptData.price || 0) * 0.8),
         platformFee: Math.round((amount || promptData.price || 0) * 0.2),
-        razorpayOrderId: null,
-        razorpayPaymentId: paymentId || null,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        razorpayOrderId: null, razorpayPaymentId: paymentId || null,
+        createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
         paymentStatus: 'completed'
     });
-    
-    // Store in database
     if (db && db.collection) {
         await db.collection('purchases').add(purchaseData);
-        console.log('✅ Purchase record saved for user:', userId, 'prompt:', promptId);
-        
         await db.collection('sales').add(saleData);
-        console.log('✅ Sale record saved for seller:', promptData.userId);
-        
         const promptRef = db.collection('uploads').doc(promptId);
         const currentSalesCount = promptData.salesCount || 0;
         const currentEarnings = promptData.totalEarnings || 0;
         const updatedPurchasedBy = [...(promptData.purchasedBy || []), userId];
-        
         await promptRef.update(sanitizeFirestoreData({
             salesCount: currentSalesCount + 1,
             totalEarnings: currentEarnings + (amount || promptData.price || 0),
             purchasedBy: updatedPurchasedBy,
             updatedAt: new Date().toISOString()
         }));
-        console.log('✅ Prompt updated with new sale');
     } else {
         console.log('Purchase recorded (demo mode):', purchaseData);
         console.log('Sale recorded (demo mode):', saleData);
-        
         promptData.salesCount = (promptData.salesCount || 0) + 1;
         promptData.totalEarnings = (promptData.totalEarnings || 0) + (amount || promptData.price || 0);
         promptData.purchasedBy = [...(promptData.purchasedBy || []), userId];
     }
-    
-    return {
-        success: true,
-        message: 'Purchase completed successfully',
-        promptText: promptData.promptText
-    };
+    return { success: true, message: 'Purchase completed successfully', promptText: promptData.promptText };
 }
 
-// Razorpay Webhook endpoint
 app.post('/api/razorpay-webhook', async (req, res) => {
     if (!razorpay) return res.json({ received: true });
-    
-    const secret = process.env.RAZORPAY_WEBHOOK_SECRET;  // ← Use env variable
+    const secret = process.env.RAZORPAY_WEBHOOK_SECRET;
     const signature = req.headers['x-razorpay-signature'];
-    
     if (secret && signature) {
         const crypto = require('crypto');
         const expectedSignature = crypto
             .createHmac('sha256', secret)
             .update(JSON.stringify(req.body))
             .digest('hex');
-        
         if (expectedSignature !== signature) {
             console.error('Invalid webhook signature');
             return res.status(400).send('Invalid signature');
         }
     }
-    
     const event = req.body;
-    
     switch (event.event) {
         case 'payment.captured':
             const payment = event.payload.payment.entity;
             console.log('Payment captured:', payment.id);
-            
             const { promptId, userId, userEmail } = payment.notes || {};
             const amount = payment.amount / 100;
-            
             if (promptId && userId) {
                 try {
                     await completePurchaseHelper(promptId, userId, userEmail, amount, payment.id);
@@ -857,58 +1079,46 @@ app.post('/api/razorpay-webhook', async (req, res) => {
                 }
             }
             break;
-            
         case 'payment.failed':
             console.log('Payment failed:', event.payload.payment.entity.id);
             break;
     }
-    
     res.json({ received: true });
 });
 
-// Enhanced HTML serving with canonical support
 function serveHTMLWithCanonical(filePath, requestedPath, req, res) {
   fs.readFile(filePath, 'utf8', (err, html) => {
     if (err) {
       console.error('Error reading HTML file:', err);
       return res.status(500).send('Error loading page');
     }
-    
     const baseUrl = process.env.BASE_URL || `https://${req.get('host')}`;
     let canonicalUrl = baseUrl + requestedPath;
-    
     if (requestedPath === '/index.html') {
       canonicalUrl = baseUrl + '/';
     }
-    
     const canonicalTag = `<link rel="canonical" href="${canonicalUrl}" />`;
     const modifiedHTML = html.replace('</head>', `${canonicalTag}</head>`);
-    
     res.set('Content-Type', 'text/html');
     res.send(modifiedHTML);
   });
 }
 
-// Serve main page with canonical support
 app.get('/', (req, res) => {
   serveHTMLWithCanonical(path.join(__dirname, 'index.html'), '/', req, res);
 });
 
-// Serve index.html as separate page with proper canonical
 app.get('/index.html', (req, res) => {
     if (req.get('host').includes('toolsprompt.com') || process.env.NODE_ENV === 'production') {
         const baseUrl = process.env.BASE_URL || `https://${req.get('host').replace('index.html', '')}`;
         return res.redirect(301, baseUrl.replace('/index.html', '/'));
     }
-    
     serveHTMLWithCanonical(path.join(__dirname, 'index.html'), '/index.html', req, res);
 });
 
-// ENHANCED AdSense Helper Functions
 class AdSenseManager {
   static generateAutoAdsCode() {
     const clientId = process.env.ADSENSE_CLIENT_ID || 'ca-pub-5992381116749724';
-    
     return `
       <!-- Google AdSense Auto Ads -->
       <script>
@@ -917,10 +1127,8 @@ class AdSenseManager {
             console.log('AdSense already loaded, skipping...');
             return;
           }
-          
           window.adsbygoogle = window.adsbygoogle || [];
           window.adsbygoogle.loaded = true;
-          
           var script = document.createElement('script');
           script.async = true;
           script.src = 'https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${clientId}';
@@ -943,7 +1151,6 @@ class AdSenseManager {
 
   static generateManualAd(adSlot = 'default') {
     const clientId = process.env.ADSENSE_CLIENT_ID || 'ca-pub-5992381116749724';
-    
     return `
       <!-- Manual Ad Placement -->
       <div class="ad-container">
@@ -973,7 +1180,6 @@ class AdSenseManager {
 
   static generatePromptPageAds() {
     const clientId = process.env.ADSENSE_CLIENT_ID || 'ca-pub-5992381116749724';
-    
     return `
       <!-- Manual Ad Placement for Prompt Pages -->
       <div class="ad-container">
@@ -1004,33 +1210,26 @@ function generatePromptAdPlacement() {
   return AdSenseManager.generatePromptPageAds();
 }
 
-// Migration function for existing prompts
 async function migrateExistingPromptsForAdSense() {
   try {
     console.log('🔄 Starting AdSense migration for existing prompts...');
-    
     if (db && db.collection) {
       const snapshot = await db.collection('uploads')
         .limit(500)
         .get();
-      
       let migratedCount = 0;
-      
       for (const doc of snapshot.docs) {
         const promptData = doc.data();
-        
         if (!promptData.adsenseMigrated) {
           await db.collection('uploads').doc(doc.id).update({
             adsenseMigrated: true,
             migratedAt: new Date().toISOString(),
             updatedAt: new Date().toISOString()
           });
-          
           migratedCount++;
           console.log(`✅ Migrated prompt: ${doc.id}`);
         }
       }
-      
       console.log(`🎉 AdSense migration completed! Migrated ${migratedCount} prompts.`);
       return migratedCount;
     } else {
@@ -1063,7 +1262,6 @@ class SEOOptimizer {
       .replace(/[^\w\s]/g, '')
       .split(/\s+/)
       .filter(word => word.length > 2 && !commonWords.has(word));
-    
     return [...new Set(words)];
   }
 
@@ -1502,7 +1700,7 @@ const AI_VIDEO_MODELS = {
     name: 'Runway Frame Interpolation',
     description: 'Smooth slow-motion and frame interpolation',
     strengths: ['slow motion', 'smooth transitions', 'frame generation'],
-    bestFor: 'Smooth motion, slow-motion effects',
+    bestFor: 'Smooth slow-motion, slow-motion effects',
     price: 'Subscription',
     releaseDate: '2024',
     category: 'effects'
@@ -2238,7 +2436,6 @@ class AIPlatformContentGenerator {
     }
   }
 
-  // ===== ADDED MISSING METHODS =====
   static getPhotoParameterTips(platformId) {
     const tips = {
       'midjourney-v6': 'Use --ar for aspect ratios, --style for artistic approaches, --chaos for variation, --stylize for artistic interpretation',
@@ -2264,7 +2461,6 @@ class AIPlatformContentGenerator {
     };
     return tips[platformId] || tips.default;
   }
-  // ===== END ADDED METHODS =====
   
   static getPhotoAccessMethod(platformId) {
     const methods = {
@@ -2710,7 +2906,6 @@ class AIDescriptionGenerator {
 // Enhanced Engagement Analytics Class - Mock only, no Firestore
 class EngagementAnalytics {
   static async getPromptEngagement(promptId, db) {
-    // Return mock data without any Firestore operations
     return {
       likes: Math.floor(Math.random() * 100),
       views: Math.floor(Math.random() * 500),
@@ -2777,7 +2972,6 @@ class SitemapGenerator {
   static generateSitemap(urls) {
     let xml = `<?xml version="1.0" encoding="UTF-8"?>\n`;
     xml += `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n`;
-    
     urls.forEach(url => {
       xml += `<url>\n`;
       xml += `  <loc>${this.escapeXml(url.loc)}</loc>\n`;
@@ -2786,7 +2980,6 @@ class SitemapGenerator {
       if (url.priority) xml += `  <priority>${url.priority}</priority>\n`;
       xml += `</url>\n`;
     });
-    
     xml += `</urlset>`;
     return xml;
   }
@@ -2795,7 +2988,6 @@ class SitemapGenerator {
     let xml = `<?xml version="1.0" encoding="UTF-8"?>\n`;
     xml += `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"\n`;
     xml += `        xmlns:news="http://www.google.com/schemas/sitemap-news/0.9">\n`;
-    
     newsUrls.forEach(url => {
       xml += `<url>\n`;
       xml += `  <loc>${this.escapeXml(url.loc)}</loc>\n`;
@@ -2809,7 +3001,6 @@ class SitemapGenerator {
       xml += `  </news:news>\n`;
       xml += `</url>\n`;
     });
-    
     xml += `</urlset>`;
     return xml;
   }
@@ -2939,16 +3130,13 @@ const mockPrompts = [
   }
 ];
 
-// Generate mock news
 function generateMockNews(count) {
   const news = [];
   const categories = ['ai-news', 'prompt-tips', 'industry-updates', 'tutorials', 'video-news'];
   const authors = ['AI News Team', 'Prompt Master', 'Tech Editor', 'Community Manager', 'Video Creator'];
-  
   for (let i = 1; i <= count; i++) {
     const category = categories[Math.floor(Math.random() * categories.length)];
     const author = authors[Math.floor(Math.random() * authors.length)];
-    
     news.push({
       id: `news-${i}`,
       title: `Breaking: New AI Prompt Technique Revolutionizes ${category.replace('-', ' ')}`,
@@ -2968,14 +3156,11 @@ function generateMockNews(count) {
       publishedAt: new Date(Date.now() - i * 3600000).toISOString()
     });
   }
-  
   return news;
 }
 
-// Initialize global mock news
 global.mockNews = generateMockNews(5);
 
-// Helper function for mock comments
 function generateMockComments(count) {
   const names = ['Alex Johnson', 'Sam Wilson', 'Taylor Smith', 'Jordan Lee', 'Casey Brown'];
   const comments = [
@@ -2993,7 +3178,6 @@ function generateMockComments(count) {
     'Perfect for creating Instagram Reels content.',
     'The custom thumbnail looks great!'
   ];
-  
   const mockComments = [];
   for (let i = 0; i < count; i++) {
     mockComments.push({
@@ -3007,31 +3191,24 @@ function generateMockComments(count) {
       isApproved: true
     });
   }
-  
   return mockComments.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 }
 
 // ==================== MARKETPLACE API ENDPOINTS ====================
-
-// Get user's prompts - WITHOUT orderBy to avoid index requirement
 app.get('/api/user/:userId/prompts', async (req, res) => {
   try {
     const userId = req.params.userId;
-    
     if (db && db.collection) {
       const snapshot = await db.collection('uploads')
         .where('userId', '==', userId)
         .limit(100)
         .get();
-      
       const prompts = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data(),
         createdAt: safeDateToString(doc.data().createdAt)
       }));
-      
       prompts.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-      
       res.json({ success: true, prompts });
     } else {
       const userPrompts = mockPrompts.filter(p => p.userId === userId || p.userName === 'Demo User');
@@ -3043,17 +3220,14 @@ app.get('/api/user/:userId/prompts', async (req, res) => {
   }
 });
 
-// Get user's sales
 app.get('/api/user/:userId/sales', async (req, res) => {
   try {
     const userId = req.params.userId;
-    
     if (db && db.collection) {
       const snapshot = await db.collection('sales')
         .where('sellerId', '==', userId)
         .limit(100)
         .get();
-      
       const sales = snapshot.docs.map(doc => {
         const data = doc.data();
         return {
@@ -3071,9 +3245,7 @@ app.get('/api/user/:userId/sales', async (req, res) => {
           paymentStatus: data.paymentStatus || 'completed'
         };
       });
-      
       sales.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-      
       res.json({ success: true, sales });
     } else {
       const mockSales = [
@@ -3093,17 +3265,14 @@ app.get('/api/user/:userId/sales', async (req, res) => {
   }
 });
 
-// Get user's purchases
 app.get('/api/user/:userId/purchases', async (req, res) => {
   try {
     const userId = req.params.userId;
-    
     if (db && db.collection) {
       const snapshot = await db.collection('purchases')
         .where('buyerId', '==', userId)
         .limit(100)
         .get();
-      
       const purchases = snapshot.docs.map(doc => {
         const data = doc.data();
         return {
@@ -3122,9 +3291,7 @@ app.get('/api/user/:userId/purchases', async (req, res) => {
           paymentStatus: data.paymentStatus || 'completed'
         };
       });
-      
       purchases.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-      
       res.json({ success: true, purchases });
     } else {
       const mockPurchases = [
@@ -3163,36 +3330,29 @@ app.get('/api/user/:userId/purchases', async (req, res) => {
   }
 });
 
-// Get user's earnings
 app.get('/api/user/:userId/earnings', async (req, res) => {
   try {
     const userId = req.params.userId;
-    
     if (db && db.collection) {
       const salesSnapshot = await db.collection('sales')
         .where('sellerId', '==', userId)
         .get();
-      
       const earnings = salesSnapshot.docs.map(doc => ({
         promptTitle: doc.data().promptTitle,
         buyerName: doc.data().buyerName,
         amount: doc.data().amount,
         date: safeDateToString(doc.data().createdAt)
       }));
-      
       const totalEarnings = earnings.reduce((sum, e) => sum + Math.round(e.amount * 0.8), 0);
       const totalSales = earnings.length;
-      
       const promptsSnapshot = await db.collection('uploads')
         .where('userId', '==', userId)
         .get();
       const totalPrompts = promptsSnapshot.size;
-      
       const purchasesSnapshot = await db.collection('purchases')
         .where('buyerId', '==', userId)
         .get();
       const totalPurchases = purchasesSnapshot.size;
-      
       res.json({
         success: true,
         earnings,
@@ -3225,23 +3385,17 @@ app.get('/api/user/:userId/earnings', async (req, res) => {
   }
 });
 
-// Check if user has purchased a prompt
 app.get('/api/check-purchase/:promptId', async (req, res) => {
   try {
     const promptId = req.params.promptId;
     const userId = req.query.userId;
-    
-    if (!userId) {
-      return res.json({ purchased: false });
-    }
-    
+    if (!userId) return res.json({ purchased: false });
     if (db && db.collection) {
       const purchaseSnapshot = await db.collection('purchases')
         .where('promptId', '==', promptId)
         .where('buyerId', '==', userId)
         .limit(1)
         .get();
-      
       res.json({ purchased: !purchaseSnapshot.empty });
     } else {
       res.json({ purchased: false });
@@ -3252,18 +3406,14 @@ app.get('/api/check-purchase/:promptId', async (req, res) => {
   }
 });
 
-// Complete purchase after successful payment
 app.post('/api/complete-purchase', async (req, res) => {
     try {
         const { promptId, userId, userEmail, amount, paymentId } = req.body;
-        
         if (!promptId || !userId) {
             return res.status(400).json({ error: 'Missing required fields' });
         }
-        
         const result = await completePurchaseHelper(promptId, userId, userEmail, amount, paymentId);
         res.json(result);
-        
     } catch (error) {
         console.error('Purchase completion error:', error);
         res.status(500).json({ 
@@ -3273,12 +3423,8 @@ app.post('/api/complete-purchase', async (req, res) => {
     }
 });
 
-// ==================== ADMIN CONFIGURATION ====================
 const ADMIN_EMAILS = ['shaikhmujahid771@gmail.com', 'mujjuchatbot@gmail.com'];
 
-// ==================== OWNER / ADMIN ENDPOINTS ====================
-
-// Middleware to check if user is admin
 async function isAdmin(req, res, next) {
   try {
     const authHeader = req.headers.authorization;
@@ -3286,9 +3432,7 @@ async function isAdmin(req, res, next) {
       console.log('No token provided for admin check');
       return res.status(401).json({ error: 'No token provided' });
     }
-
     const idToken = authHeader.split('Bearer ')[1];
-    
     if (!adminInitialized || !admin.auth) {
       console.log('Firebase Admin not initialized, using mock admin');
       if (process.env.NODE_ENV === 'development') {
@@ -3297,12 +3441,9 @@ async function isAdmin(req, res, next) {
       }
       return res.status(403).json({ error: 'Admin authentication not configured' });
     }
-    
     const decodedToken = await admin.auth().verifyIdToken(idToken);
     const email = decodedToken.email;
-    
     console.log('Admin check for email:', email);
-    
     if (ADMIN_EMAILS.includes(email)) {
       req.user = decodedToken;
       console.log('Admin access granted for:', email);
@@ -3317,22 +3458,18 @@ async function isAdmin(req, res, next) {
   }
 }
 
-// Get all sellers with their info and earnings
 app.get('/api/owner/sellers', async (req, res) => {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return res.status(401).json({ error: 'No token provided' });
   }
-  
   const idToken = authHeader.split('Bearer ')[1];
-  
   try {
     if (!adminInitialized || !admin.auth) {
       throw new Error('Admin not initialized');
     }
     const decodedToken = await admin.auth().verifyIdToken(idToken);
     const email = decodedToken.email;
-    
     if (!ADMIN_EMAILS.includes(email)) {
       return res.status(403).json({ error: 'Unauthorized' });
     }
@@ -3340,24 +3477,19 @@ app.get('/api/owner/sellers', async (req, res) => {
     console.error('Admin auth error:', error);
     return res.status(401).json({ error: 'Authentication failed' });
   }
-  
   try {
     let sellers = [];
-
     if (db && db.collection) {
       const sellersSnapshot = await db.collection('sellerInfo').get();
       for (const doc of sellersSnapshot.docs) {
         const sellerData = doc.data();
         const userId = doc.id;
-
         let totalEarnings = 0;
         const salesSnapshot = await db.collection('sales').where('sellerId', '==', userId).get();
         totalEarnings = salesSnapshot.docs.reduce((sum, d) => sum + (d.data().sellerEarnings || 0), 0);
-
         let totalPaidOut = 0;
         const payoutsSnapshot = await db.collection('payouts').where('sellerId', '==', userId).get();
         totalPaidOut = payoutsSnapshot.docs.reduce((sum, d) => sum + (d.data().amount || 0), 0);
-
         sellers.push({
           userId,
           ...sellerData,
@@ -3384,7 +3516,6 @@ app.get('/api/owner/sellers', async (req, res) => {
         }
       ];
     }
-
     res.json({ success: true, sellers });
   } catch (error) {
     console.error('Error fetching sellers:', error);
@@ -3392,22 +3523,18 @@ app.get('/api/owner/sellers', async (req, res) => {
   }
 });
 
-// Get all sales
 app.get('/api/owner/sales', async (req, res) => {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return res.status(401).json({ error: 'No token provided' });
   }
-  
   const idToken = authHeader.split('Bearer ')[1];
-  
   try {
     if (!adminInitialized || !admin.auth) {
       throw new Error('Admin not initialized');
     }
     const decodedToken = await admin.auth().verifyIdToken(idToken);
     const email = decodedToken.email;
-    
     if (!ADMIN_EMAILS.includes(email)) {
       return res.status(403).json({ error: 'Unauthorized' });
     }
@@ -3415,10 +3542,8 @@ app.get('/api/owner/sales', async (req, res) => {
     console.error('Admin auth error:', error);
     return res.status(401).json({ error: 'Authentication failed' });
   }
-  
   try {
     let sales = [];
-
     if (db && db.collection) {
       const snapshot = await db.collection('sales')
         .orderBy('createdAt', 'desc')
@@ -3438,7 +3563,6 @@ app.get('/api/owner/sales', async (req, res) => {
         }
       ];
     }
-
     res.json({ success: true, sales });
   } catch (error) {
     console.error('Error fetching sales:', error);
@@ -3446,22 +3570,18 @@ app.get('/api/owner/sales', async (req, res) => {
   }
 });
 
-// Get all purchases
 app.get('/api/owner/purchases', async (req, res) => {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return res.status(401).json({ error: 'No token provided' });
   }
-  
   const idToken = authHeader.split('Bearer ')[1];
-  
   try {
     if (!adminInitialized || !admin.auth) {
       throw new Error('Admin not initialized');
     }
     const decodedToken = await admin.auth().verifyIdToken(idToken);
     const email = decodedToken.email;
-    
     if (!ADMIN_EMAILS.includes(email)) {
       return res.status(403).json({ error: 'Unauthorized' });
     }
@@ -3469,10 +3589,8 @@ app.get('/api/owner/purchases', async (req, res) => {
     console.error('Admin auth error:', error);
     return res.status(401).json({ error: 'Authentication failed' });
   }
-  
   try {
     let purchases = [];
-
     if (db && db.collection) {
       const snapshot = await db.collection('purchases')
         .orderBy('createdAt', 'desc')
@@ -3491,7 +3609,6 @@ app.get('/api/owner/purchases', async (req, res) => {
         }
       ];
     }
-
     res.json({ success: true, purchases });
   } catch (error) {
     console.error('Error fetching purchases:', error);
@@ -3499,22 +3616,18 @@ app.get('/api/owner/purchases', async (req, res) => {
   }
 });
 
-// Get all pending payouts
 app.get('/api/owner/pending-payouts', async (req, res) => {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return res.status(401).json({ error: 'No token provided' });
   }
-  
   const idToken = authHeader.split('Bearer ')[1];
-  
   try {
     if (!adminInitialized || !admin.auth) {
       throw new Error('Admin not initialized');
     }
     const decodedToken = await admin.auth().verifyIdToken(idToken);
     const email = decodedToken.email;
-    
     if (!ADMIN_EMAILS.includes(email)) {
       return res.status(403).json({ error: 'Unauthorized' });
     }
@@ -3522,10 +3635,8 @@ app.get('/api/owner/pending-payouts', async (req, res) => {
     console.error('Admin auth error:', error);
     return res.status(401).json({ error: 'Authentication failed' });
   }
-  
   try {
     let payouts = [];
-
     if (db && db.collection) {
       const snapshot = await db.collection('payouts')
         .where('status', '==', 'pending')
@@ -3536,7 +3647,6 @@ app.get('/api/owner/pending-payouts', async (req, res) => {
     } else {
       payouts = (global.payouts || []).filter(p => p.status === 'pending');
     }
-
     res.json({ success: true, payouts });
   } catch (error) {
     console.error('Error fetching pending payouts:', error);
@@ -3544,22 +3654,18 @@ app.get('/api/owner/pending-payouts', async (req, res) => {
   }
 });
 
-// Mark payout as paid
 app.post('/api/owner/payout/:payoutId', async (req, res) => {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return res.status(401).json({ error: 'No token provided' });
   }
-  
   const idToken = authHeader.split('Bearer ')[1];
-  
   try {
     if (!adminInitialized || !admin.auth) {
       throw new Error('Admin not initialized');
     }
     const decodedToken = await admin.auth().verifyIdToken(idToken);
     const email = decodedToken.email;
-    
     if (!ADMIN_EMAILS.includes(email)) {
       return res.status(403).json({ error: 'Unauthorized' });
     }
@@ -3567,11 +3673,9 @@ app.post('/api/owner/payout/:payoutId', async (req, res) => {
     console.error('Admin auth error:', error);
     return res.status(401).json({ error: 'Authentication failed' });
   }
-  
   try {
     const payoutId = req.params.payoutId;
     const { transactionId, notes } = req.body;
-
     if (db && db.collection) {
       await db.collection('payouts').doc(payoutId).update({
         status: 'paid',
@@ -3590,7 +3694,6 @@ app.post('/api/owner/payout/:payoutId', async (req, res) => {
         console.log(`Demo: Payout ${payoutId} marked as paid`);
       }
     }
-
     res.json({ success: true, message: 'Payout marked as paid' });
   } catch (error) {
     console.error('Error updating payout:', error);
@@ -3598,18 +3701,15 @@ app.post('/api/owner/payout/:payoutId', async (req, res) => {
   }
 });
 
-// Check if current user is admin
 app.get('/api/check-admin', async (req, res) => {
     try {
         const authHeader = req.headers.authorization;
         if (!authHeader || !authHeader.startsWith('Bearer ')) {
             return res.json({ isAdmin: false });
         }
-        
         if (!adminInitialized || !admin.auth) {
             return res.json({ isAdmin: true });
         }
-        
         const idToken = authHeader.split('Bearer ')[1];
         const decodedToken = await admin.auth().verifyIdToken(idToken);
         const email = decodedToken.email;
@@ -3621,14 +3721,10 @@ app.get('/api/check-admin', async (req, res) => {
     }
 });
 
-// ==================== AFFILIATE PROGRAM (PER-USER) ====================
-
-// Get all affiliates (public) or filtered by userId
 app.get('/api/affiliates', async (req, res) => {
   try {
     const userId = req.query.userId;
     let affiliates = [];
-    
     if (db && db.collection) {
       let query = db.collection('affiliates').orderBy('addedAt', 'desc');
       if (userId) {
@@ -3649,7 +3745,6 @@ app.get('/api/affiliates', async (req, res) => {
   }
 });
 
-// Add affiliate (any logged-in user)
 app.post('/api/affiliates', async (req, res) => {
   try {
     const authHeader = req.headers.authorization;
@@ -3662,19 +3757,16 @@ app.post('/api/affiliates', async (req, res) => {
       const decodedToken = await admin.auth().verifyIdToken(idToken);
       userId = decodedToken.uid;
     } catch (e) {
-      // In development, allow mock user
       if (!adminInitialized) {
         userId = 'mock-user-' + Date.now();
       } else {
         throw e;
       }
     }
-    
     const { url, title, image, description } = req.body;
     if (!url || !title) {
       return res.status(400).json({ error: 'URL and title are required' });
     }
-    
     const affiliateData = {
       userId,
       url,
@@ -3700,7 +3792,6 @@ app.post('/api/affiliates', async (req, res) => {
   }
 });
 
-// Delete affiliate (only if it belongs to the logged-in user or admin)
 app.delete('/api/affiliates/:id', async (req, res) => {
   try {
     const authHeader = req.headers.authorization;
@@ -3721,7 +3812,6 @@ app.delete('/api/affiliates/:id', async (req, res) => {
         throw e;
       }
     }
-    
     const id = req.params.id;
     let affiliate;
     if (db && db.collection) {
@@ -3732,11 +3822,9 @@ app.delete('/api/affiliates/:id', async (req, res) => {
       affiliate = (global.affiliates || []).find(a => a.id === id);
       if (!affiliate) return res.status(404).json({ error: 'Affiliate not found' });
     }
-    
     if (affiliate.userId !== userId && !isAdminUser) {
       return res.status(403).json({ error: 'You can only delete your own affiliates' });
     }
-    
     if (db && db.collection) {
       await db.collection('affiliates').doc(id).delete();
     } else {
@@ -3749,13 +3837,8 @@ app.delete('/api/affiliates/:id', async (req, res) => {
   }
 });
 
-// 🔥 FIXED: Helper to get affiliates for a specific user (shuffled)
 async function getAffiliatesByUser(userId, count = 3) {
-  // ✅ Return early if userId is missing
-  if (!userId) {
-    return [];
-  }
-
+  if (!userId) return [];
   let affiliates = [];
   if (db && db.collection) {
     const snapshot = await db.collection('affiliates')
@@ -3765,21 +3848,16 @@ async function getAffiliatesByUser(userId, count = 3) {
   } else {
     affiliates = (global.affiliates || []).filter(a => a.userId === userId);
   }
-  // Shuffle and return requested count
   const shuffled = affiliates.sort(() => 0.5 - Math.random());
   return shuffled.slice(0, count);
 }
 
-// ==================== SELLER INFO & PAYOUT ENDPOINTS ====================
-
-// Save seller information
 app.post('/api/seller-info', async (req, res) => {
   try {
     const { userId, name, email, upiId, bankAccount, bankIfsc, bankName, pan } = req.body;
     if (!userId || !name || !email) {
       return res.status(400).json({ error: 'Missing required fields' });
     }
-
     const sellerData = sanitizeFirestoreData({
       userId,
       name,
@@ -3793,7 +3871,6 @@ app.post('/api/seller-info', async (req, res) => {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     });
-
     if (db && db.collection) {
       await db.collection('sellerInfo').doc(userId).set(sellerData, { merge: true });
       console.log(`✅ Seller info saved for user: ${userId}`);
@@ -3809,19 +3886,16 @@ app.post('/api/seller-info', async (req, res) => {
   }
 });
 
-// Get seller info for a user
 app.get('/api/seller-info/:userId', async (req, res) => {
   try {
     const userId = req.params.userId;
     let sellerInfo = null;
-
     if (db && db.collection) {
       const doc = await db.collection('sellerInfo').doc(userId).get();
       if (doc.exists) sellerInfo = doc.data();
     } else {
       sellerInfo = global.sellerInfo?.[userId] || null;
     }
-
     res.json({ success: true, sellerInfo });
   } catch (error) {
     console.error('Error fetching seller info:', error);
@@ -3829,14 +3903,12 @@ app.get('/api/seller-info/:userId', async (req, res) => {
   }
 });
 
-// Request a payout
 app.post('/api/request-payout', async (req, res) => {
   try {
     const { userId, amount } = req.body;
     if (!userId || !amount || amount < 100) {
       return res.status(400).json({ error: 'Invalid payout request' });
     }
-
     let sellerInfo = null;
     if (db && db.collection) {
       const doc = await db.collection('sellerInfo').doc(userId).get();
@@ -3847,26 +3919,21 @@ app.post('/api/request-payout', async (req, res) => {
     if (!sellerInfo) {
       return res.status(400).json({ error: 'Please complete seller information first' });
     }
-
     let totalEarnings = 0;
     let totalPaidOut = 0;
-
     if (db && db.collection) {
       const salesSnapshot = await db.collection('sales').where('sellerId', '==', userId).get();
       totalEarnings = salesSnapshot.docs.reduce((sum, doc) => sum + (doc.data().sellerEarnings || 0), 0);
-
       const payoutsSnapshot = await db.collection('payouts').where('sellerId', '==', userId).get();
       totalPaidOut = payoutsSnapshot.docs.reduce((sum, doc) => sum + (doc.data().amount || 0), 0);
     } else {
       totalEarnings = 500;
       totalPaidOut = 0;
     }
-
     const available = totalEarnings - totalPaidOut;
     if (available < amount) {
       return res.status(400).json({ error: `Insufficient balance. Available: ₹${available}` });
     }
-
     const payoutRequest = sanitizeFirestoreData({
       sellerId: userId,
       amount,
@@ -3874,7 +3941,6 @@ app.post('/api/request-payout', async (req, res) => {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     });
-
     if (db && db.collection) {
       await db.collection('payouts').add(payoutRequest);
       console.log(`✅ Payout request created for user ${userId}: ₹${amount}`);
@@ -3882,7 +3948,6 @@ app.post('/api/request-payout', async (req, res) => {
       if (!global.payouts) global.payouts = [];
       global.payouts.push({ id: 'mock-' + Date.now(), ...payoutRequest });
     }
-
     res.json({ success: true, message: 'Payout request submitted' });
   } catch (error) {
     console.error('Error requesting payout:', error);
@@ -3890,12 +3955,10 @@ app.post('/api/request-payout', async (req, res) => {
   }
 });
 
-// Get payout history for a user
 app.get('/api/user/:userId/payouts', async (req, res) => {
   try {
     const userId = req.params.userId;
     let payouts = [];
-
     if (db && db.collection) {
       const snapshot = await db.collection('payouts')
         .where('sellerId', '==', userId)
@@ -3906,7 +3969,6 @@ app.get('/api/user/:userId/payouts', async (req, res) => {
     } else {
       payouts = (global.payouts || []).filter(p => p.sellerId === userId);
     }
-
     res.json({ success: true, payouts });
   } catch (error) {
     console.error('Error fetching payouts:', error);
@@ -3914,34 +3976,21 @@ app.get('/api/user/:userId/payouts', async (req, res) => {
   }
 });
 
-// Delete prompt
 app.delete('/api/prompt/:id', async (req, res) => {
   try {
     const promptId = req.params.id;
     const userId = req.query.userId;
-    
-    if (!userId) {
-      return res.status(401).json({ error: 'Authentication required' });
-    }
-    
+    if (!userId) return res.status(401).json({ error: 'Authentication required' });
     if (db && db.collection) {
       const promptDoc = await db.collection('uploads').doc(promptId).get();
-      
-      if (!promptDoc.exists) {
-        return res.status(404).json({ error: 'Prompt not found' });
-      }
-      
+      if (!promptDoc.exists) return res.status(404).json({ error: 'Prompt not found' });
       const promptData = promptDoc.data();
-      
       if (promptData.userId !== userId && promptData.userId !== 'anonymous') {
         return res.status(403).json({ error: 'You do not have permission to delete this prompt' });
       }
-      
       await db.collection('uploads').doc(promptId).delete();
-      
       cache.del(`prompt-${promptId}`);
       cache.del(`uploads-page-1`);
-      
       res.json({ success: true, message: 'Prompt deleted successfully' });
     } else {
       const index = mockPrompts.findIndex(p => p.id === promptId);
@@ -3956,7 +4005,6 @@ app.delete('/api/prompt/:id', async (req, res) => {
   }
 });
 
-// Health check endpoint
 app.get('/health', (req, res) => {
   res.json({ 
     status: 'OK', 
@@ -3969,11 +4017,16 @@ app.get('/health', (req, res) => {
       enabled: true,
       clientId: process.env.ADSENSE_CLIENT_ID || 'ca-pub-5992381116749724'
     },
-    adsterra: {
+    monetag: {
       enabled: true,
-      nativeAd: 'aca55beb03e2d8b514ae3f122920bdf0',
-      desktopBanner: '8719e4636a7c41462203d84e956177c4',
-      mobileBanner: '37e3a123e9b664f6f0b0efed6c7ee71f'
+      siteId: MONETAG_SITE_ID ? 'configured' : 'missing',
+      zones: {
+        top: MONETAG_ZONE_TOP ? 'configured' : 'missing',
+        middle: MONETAG_ZONE_MIDDLE ? 'configured' : 'missing',
+        bottom: MONETAG_ZONE_BOTTOM ? 'configured' : 'missing',
+        sticky: MONETAG_ZONE_STICKY ? 'configured' : 'missing',
+        exit: MONETAG_ZONE_EXIT ? 'configured' : 'missing'
+      }
     },
     features: {
       comments: true,
@@ -4006,32 +4059,21 @@ app.get('/health', (req, res) => {
   });
 });
 
-// Video streaming endpoint - NOW REDIRECTS TO R2
 app.get('/api/video/:videoId', async (req, res) => {
   try {
     const videoId = req.params.videoId;
-    
     let promptData;
     if (db && db.collection) {
       const doc = await db.collection('uploads').doc(videoId).get();
-      if (doc.exists) {
-        promptData = doc.data();
-      }
+      if (doc.exists) promptData = doc.data();
     } else {
       promptData = mockPrompts.find(p => p.id === videoId);
     }
-    
     if (!promptData) return res.status(404).send('Video not found');
-
     const videoUrl = promptData.videoUrl || promptData.mediaUrl;
-    // If it's an R2 URL, redirect to it (no server streaming)
     if (videoUrl && videoUrl.includes('r2.dev')) {
       return res.redirect(videoUrl);
     }
-
-    // Fallback: if the URL is still Firebase, we can’t stream it via R2,
-    // so we return a 404 (or you can keep the old streaming logic for migration)
-    // But since we are migrating, we will serve a placeholder.
     res.status(404).send('Video not available on R2. Please re-upload.');
   } catch (error) {
     console.error('Video streaming error:', error);
@@ -4039,11 +4081,9 @@ app.get('/api/video/:videoId', async (req, res) => {
   }
 });
 
-// Thumbnail endpoint - REDIRECT TO R2
 app.get('/api/thumbnail/:promptId', async (req, res) => {
   try {
     const promptId = req.params.promptId;
-    
     if (db && db.collection) {
       const doc = await db.collection('uploads').doc(promptId).get();
       if (doc.exists) {
@@ -4061,13 +4101,10 @@ app.get('/api/thumbnail/:promptId', async (req, res) => {
   }
 });
 
-// AdSense Migration Endpoint
 app.get('/admin/migrate-adsense', async (req, res) => {
   try {
     console.log('🚀 Starting AdSense migration via admin endpoint...');
-    
     const migratedCount = await migrateExistingPromptsForAdSense();
-    
     res.json({
       success: true,
       message: `🎉 Successfully migrated ${migratedCount} prompts for AdSense monetization`,
@@ -4084,10 +4121,8 @@ app.get('/admin/migrate-adsense', async (req, res) => {
   }
 });
 
-// Dynamic Robots.txt
 app.get('/robots.txt', (req, res) => {
   const domain = req.get('host');
-  
   let protocol = 'https';
   if (req.secure) {
     protocol = 'https';
@@ -4098,9 +4133,7 @@ app.get('/robots.txt', (req, res) => {
   } else {
     protocol = req.protocol;
   }
-  
   const currentBaseUrl = `${protocol}://${domain}`;
-  
   const robotsTxt = `User-agent: *
 Allow: /
 Disallow: /admin/
@@ -4110,17 +4143,14 @@ Sitemap: https://www.toolsprompt.com/sitemap.xml
 Sitemap: https://www.toolsprompt.com/sitemap-posts.xml
 Sitemap: https://www.toolsprompt.com/sitemap-news.xml
 Sitemap: https://www.toolsprompt.com/sitemap-pages.xml`;
-
   res.set('Content-Type', 'text/plain');
   res.set('Cache-Control', 'public, max-age=3600');
   res.send(robotsTxt);
 });
 
-// Dynamic Sitemap Index
 app.get('/sitemap.xml', async (req, res) => {
   try {
     const baseUrl = process.env.BASE_URL || `https://${req.get('host')}`;
-    
     const sitemapIndex = `<?xml version="1.0" encoding="UTF-8"?>
 <sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <sitemap>
@@ -4136,21 +4166,17 @@ app.get('/sitemap.xml', async (req, res) => {
     <lastmod>${new Date().toISOString()}</lastmod>
   </sitemap>
 </sitemapindex>`;
-
     res.set('Content-Type', 'application/xml');
     res.send(sitemapIndex);
-    
   } catch (error) {
     console.error('❌ Sitemap index error:', error);
     res.status(500).send('Error generating sitemap');
   }
 });
 
-// Pages Sitemap
 app.get('/sitemap-pages.xml', async (req, res) => {
   try {
     const baseUrl = process.env.BASE_URL || `https://${req.get('host')}`;
-    
     const pages = [
       { loc: baseUrl + '/', lastmod: new Date().toISOString(), changefreq: 'daily', priority: '1.0' },
       { loc: baseUrl + '/index.html', lastmod: new Date().toISOString(), changefreq: 'daily', priority: '0.9' },
@@ -4159,29 +4185,24 @@ app.get('/sitemap-pages.xml', async (req, res) => {
       { loc: baseUrl + '/login.html', lastmod: new Date().toISOString(), changefreq: 'daily', priority: '0.5' },
       { loc: baseUrl + '/dashboard.html', lastmod: new Date().toISOString(), changefreq: 'daily', priority: '0.7' }
     ];
-
     const sitemap = SitemapGenerator.generateSitemap(pages);
     res.set('Content-Type', 'application/xml');
     res.send(sitemap);
-    
   } catch (error) {
     console.error('❌ Pages sitemap error:', error);
     res.status(500).send('Error generating pages sitemap');
   }
 });
 
-// Posts Sitemap
 app.get('/sitemap-posts.xml', async (req, res) => {
   try {
     const baseUrl = process.env.BASE_URL || `https://${req.get('host')}`;
     let prompts = [];
-
     if (db) {
       const snapshot = await db.collection('uploads')
         .orderBy('updatedAt', 'desc')
         .limit(1500)
         .get();
-
       prompts = snapshot.docs.map(doc => {
         const data = doc.data();
         return {
@@ -4194,18 +4215,15 @@ app.get('/sitemap-posts.xml', async (req, res) => {
     } else {
       prompts = mockPrompts;
     }
-
     const urls = prompts.map(prompt => ({
       loc: `${baseUrl}/prompt/${prompt.id}`,
       lastmod: prompt.updatedAt && prompt.updatedAt !== prompt.createdAt ? prompt.updatedAt : prompt.createdAt,
       changefreq: 'weekly',
       priority: '0.8'
     }));
-
     const sitemap = SitemapGenerator.generateSitemap(urls);
     res.set('Content-Type', 'application/xml');
     res.send(sitemap);
-    
   } catch (error) {
     console.error('❌ Posts sitemap error:', error);
     const baseUrl = process.env.BASE_URL || `https://${req.get('host')}`;
@@ -4216,18 +4234,15 @@ app.get('/sitemap-posts.xml', async (req, res) => {
   }
 });
 
-// News Sitemap
 app.get('/sitemap-news.xml', async (req, res) => {
   try {
     const baseUrl = process.env.BASE_URL || `https://${req.get('host')}`;
     let news = [];
-
     if (db && db.collection) {
       const snapshot = await db.collection('news')
         .orderBy('publishedAt', 'desc')
         .limit(500)
         .get();
-
       news = snapshot.docs.map(doc => {
         const data = doc.data();
         return {
@@ -4239,24 +4254,20 @@ app.get('/sitemap-news.xml', async (req, res) => {
     } else {
       news = global.mockNews;
     }
-
     const newsUrls = news.map(newsItem => ({
       loc: `${baseUrl}/news/${newsItem.id}`,
       lastmod: newsItem.updatedAt || newsItem.publishedAt || new Date().toISOString(),
       title: newsItem.title
     }));
-
     const sitemap = SitemapGenerator.generateNewsSitemap(newsUrls);
     res.set('Content-Type', 'application/xml');
     res.send(sitemap);
-    
   } catch (error) {
     console.error('❌ News sitemap error:', error);
     res.status(500).send('Error generating news sitemap');
   }
 });
 
-// ==================== UPLOAD ENDPOINT (REWRITTEN FOR R2) ====================
 app.post('/api/upload', async (req, res) => {
   console.log('📤 Upload request received');
   const busboy = Busboy({ headers: req.headers, limits: { fileSize: 100 * 1024 * 1024 } });
@@ -4313,7 +4324,6 @@ app.post('/api/upload', async (req, res) => {
       const isImage = mediaFileType.startsWith('image/');
       if (!isVideo && !isImage) return res.status(400).json({ error: 'File must be an image or video' });
 
-      // ===== UPLOAD TO R2 =====
       const timestamp = Date.now();
       const uniqueId = uuidv4();
       const mediaExtension = uploadedMediaFileName.split('.').pop();
@@ -4329,12 +4339,10 @@ app.post('/api/upload', async (req, res) => {
         thumbnailUrl = await uploadToR2(thumbnailBuffer, thumbKey, thumbnailFileType);
       }
 
-      // ===== If no thumbnail, use a placeholder for videos =====
       if (isVideo && !thumbnailUrl) {
         thumbnailUrl = 'https://via.placeholder.com/300x400/ff6b6b/ffffff?text=Video+Reel';
       }
 
-      // ===== Save to Firestore (same as before) =====
       let category = fields.category || 'general';
       if (!fields.category) category = isVideo ? 'video' : 'general';
 
@@ -4414,7 +4422,6 @@ app.post('/api/upload', async (req, res) => {
         detectedPlatform: detectedPlatform
       });
 
-      // ==================== ACTIVITY FEED ENTRY ====================
       const activity = {
         id: uuidv4(),
         type: 'upload',
@@ -4476,30 +4483,23 @@ app.get('/api/prompt/:id/text', async (req, res) => {
   }
 });
 
-// Get news articles
 app.get('/api/news', async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
     const category = req.query.category;
-    
     const cacheKey = `news-${page}-${limit}-${category || 'all'}`;
     const cached = cache.get(cacheKey);
-    if (cached) {
-      return res.json(cached);
-    }
+    if (cached) return res.json(cached);
 
     let news = [];
-
     if (db && db.collection) {
       let query = db.collection('news')
         .orderBy('publishedAt', 'desc')
         .limit(500);
-      
       if (category && category !== 'all') {
         query = query.where('category', '==', category);
       }
-
       const snapshot = await query.get();
       news = snapshot.docs.map(doc => ({
         id: doc.id,
@@ -4508,7 +4508,6 @@ app.get('/api/news', async (req, res) => {
       }));
     } else {
       news = global.mockNews;
-      
       if (category && category !== 'all') {
         news = news.filter(item => item.category === category);
       }
@@ -4525,40 +4524,27 @@ app.get('/api/news', async (req, res) => {
       totalCount: news.length,
       hasMore: endIndex < news.length
     };
-
     cache.set(cacheKey, result, 1200);
-    
     res.json(result);
-
   } catch (error) {
     console.error('Error fetching news:', error);
     res.status(500).json({ error: 'Failed to fetch news' });
   }
 });
 
-// Individual news page
 app.get('/news/:id', async (req, res) => {
   try {
     const newsId = req.params.id;
-    
     const cacheKey = `news-${newsId}`;
     const cached = cache.get(cacheKey);
-    if (cached) {
-      return res.set('Content-Type', 'text/html').send(cached);
-    }
+    if (cached) return res.set('Content-Type', 'text/html').send(cached);
 
     let newsData;
-
     if (db && db.collection) {
       const doc = await db.collection('news').doc(newsId).get();
-      
-      if (!doc.exists) {
-        return sendNewsNotFound(res, newsId);
-      }
-
+      if (!doc.exists) return sendNewsNotFound(res, newsId);
       const news = doc.data();
       newsData = createNewsData(news, doc.id);
-      
       const shouldUpdateView = Math.random() < 0.3;
       if (shouldUpdateView) {
         await db.collection('news').doc(newsId).update({
@@ -4570,29 +4556,21 @@ app.get('/news/:id', async (req, res) => {
       const mockNews = global.mockNews.find(n => n.id === newsId) || global.mockNews[0];
       newsData = createNewsData(mockNews, newsId);
     }
-
     const html = generateNewsHTML(newsData);
-    
     cache.set(cacheKey, html, 1200);
-    
     res.set('Content-Type', 'text/html');
     res.send(html);
-
   } catch (error) {
     console.error('❌ Error serving news page:', error);
     sendNewsErrorPage(res, error);
   }
 });
 
-// COMMENT SYSTEM API ENDPOINTS - MOCK ONLY, NO FIRESTORE
-
-// Get comments for a prompt (mock)
+// COMMENT SYSTEM - MOCK ONLY
 app.get('/api/prompt/:id/comments', async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
-    
-    // Return mock empty comments - no Firestore
     res.json({
       comments: [],
       currentPage: page,
@@ -4606,20 +4584,15 @@ app.get('/api/prompt/:id/comments', async (req, res) => {
   }
 });
 
-// Post a new comment (mock only)
 app.post('/api/prompt/:id/comments', async (req, res) => {
   try {
     const { content, authorName, authorEmail } = req.body;
-    
     if (!content || !content.trim()) {
       return res.status(400).json({ error: 'Comment content is required' });
     }
-    
     if (content.length > 1000) {
       return res.status(400).json({ error: 'Comment is too long (max 1000 characters)' });
     }
-    
-    // Mock response - no database
     res.json({
       success: true,
       comment: {
@@ -4638,10 +4611,8 @@ app.post('/api/prompt/:id/comments', async (req, res) => {
   }
 });
 
-// Like a comment (mock only)
 app.post('/api/comment/:commentId/like', async (req, res) => {
   try {
-    // Mock response - no database
     res.json({ success: true, message: 'Comment liked (mock)' });
   } catch (error) {
     console.error('Error liking comment:', error);
@@ -4649,58 +4620,44 @@ app.post('/api/comment/:commentId/like', async (req, res) => {
   }
 });
 
-// Engagement API Endpoints - MOCK ONLY, NO FIRESTORE
-
-// Track view count (mock)
 app.post('/api/prompt/:id/view', async (req, res) => {
   res.json({ success: true, message: 'View counted (mock)' });
 });
 
-// Like/Unlike prompt (mock)
 app.post('/api/prompt/:id/like', async (req, res) => {
   const { action } = req.body;
   res.json({ success: true, action });
 });
 
-// Track prompt use (mock)
 app.post('/api/prompt/:id/use', async (req, res) => {
   res.json({ success: true, message: 'Use counted (mock)' });
 });
 
-// Track prompt copy actions (mock)
 app.post('/api/prompt/:id/copy', async (req, res) => {
   res.json({ success: true, message: 'Copy tracked (mock)' });
 });
 
-// Get user engagement status (mock)
 app.get('/api/prompt/:id/user-engagement', async (req, res) => {
   res.json({ userLiked: false, userUsed: false, userCopied: false });
 });
 
-// Engagement Analytics API Endpoint (mock)
 app.get('/api/prompt/:id/engagement', async (req, res) => {
   const engagement = await EngagementAnalytics.getPromptEngagement(req.params.id, db);
   res.json(engagement);
 });
 
-// Search API endpoint
 app.get('/api/search', async (req, res) => {
   try {
     const { q: query, category, sort, page = 1, limit = 12 } = req.query;
-    
     const cacheKey = `search-${query || 'all'}-${category || 'all'}-${page}-${limit}`;
     const cached = cache.get(cacheKey);
-    if (cached) {
-      return res.json(cached);
-    }
-    
-    let prompts = [];
+    if (cached) return res.json(cached);
 
+    let prompts = [];
     if (db && db.collection) {
       const snapshot = await db.collection('uploads')
         .limit(500)
         .get();
-      
       prompts = snapshot.docs.map(doc => {
         const data = doc.data();
         return {
@@ -4715,49 +4672,38 @@ app.get('/api/search', async (req, res) => {
         };
       }).filter(prompt => {
         if (!query) return true;
-        
         const searchTerm = query.toLowerCase();
         const title = (prompt.title || '').toLowerCase();
         const promptText = (prompt.promptText || '').toLowerCase();
         const keywords = prompt.keywords || [];
-        
         return title.includes(searchTerm) ||
                promptText.includes(searchTerm) ||
-               keywords.some(keyword => 
-                 keyword.toLowerCase().includes(searchTerm)
-               );
+               keywords.some(keyword => keyword.toLowerCase().includes(searchTerm));
       });
     } else {
       prompts = mockPrompts.filter(prompt => {
         let matches = true;
-        
         if (query) {
           const searchTerm = query.toLowerCase();
           const title = (prompt.title || '').toLowerCase();
           const promptText = (prompt.promptText || '').toLowerCase();
           const keywords = prompt.keywords || [];
-          
           matches = matches && (
             title.includes(searchTerm) ||
             promptText.includes(searchTerm) ||
             keywords.some(keyword => keyword.toLowerCase().includes(searchTerm))
           );
         }
-        
         if (category && category !== 'all') {
           matches = matches && prompt.category === category;
         }
-        
         return matches;
       });
     }
-    
     prompts = sortPrompts(prompts, sort);
-    
     const startIndex = (page - 1) * limit;
     const endIndex = startIndex + limit;
     const paginatedPrompts = prompts.slice(startIndex, endIndex);
-    
     const result = {
       prompts: paginatedPrompts,
       totalCount: prompts.length,
@@ -4769,24 +4715,16 @@ app.get('/api/search', async (req, res) => {
         videos: prompts.filter(p => p.isVideo || p.fileType === 'video').length
       }
     };
-    
     cache.set(cacheKey, result, 1200);
-    
     res.json(result);
-    
   } catch (error) {
     console.error('Search error:', error);
-    res.status(500).json({ 
-      error: 'Search failed', 
-      details: error.message 
-    });
+    res.status(500).json({ error: 'Search failed', details: error.message });
   }
 });
 
-// Helper function for sorting
 function sortPrompts(prompts, sortBy) {
   const sorted = [...prompts];
-  
   switch (sortBy) {
     case 'popular':
       return sorted.sort((a, b) => {
@@ -4812,27 +4750,21 @@ function sortPrompts(prompts, sortBy) {
   }
 }
 
-// API Routes - Get uploads with caching and limits
 app.get('/api/uploads', async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 12;
     const type = req.query.type;
-    
     const cacheKey = `uploads-page-${page}-limit-${limit}-type-${type || 'all'}`;
     const cached = cache.get(cacheKey);
-    if (cached) {
-      return res.json(cached);
-    }
-    
-    let allUploads = [];
+    if (cached) return res.json(cached);
 
+    let allUploads = [];
     if (db && db.collection) {
       const snapshot = await db.collection('uploads')
         .orderBy('createdAt', 'desc')
         .limit(500)
         .get();
-
       allUploads = [];
       snapshot.forEach(doc => {
         const data = doc.data();
@@ -4900,9 +4832,7 @@ app.get('/api/uploads', async (req, res) => {
         total: AIModelManager.getPhotoModelCount() + AIModelManager.getVideoModelCount()
       }
     };
-
     cache.set(cacheKey, result, 1200);
-    
     res.json(result);
   } catch (error) {
     console.error('Error fetching uploads:', error);
@@ -4940,46 +4870,32 @@ app.get('/api/uploads', async (req, res) => {
         total: AIModelManager.getPhotoModelCount() + AIModelManager.getVideoModelCount()
       }
     };
-    
     res.json(result);
   }
 });
 
-// API endpoint to get list of blog posts
 app.get('/api/blog-posts', (req, res) => {
     const blogDir = path.join(__dirname, 'blog');
-    
-    if (!fs.existsSync(blogDir)) {
-        return res.json({ posts: [] });
-    }
-    
+    if (!fs.existsSync(blogDir)) return res.json({ posts: [] });
     try {
         const files = fs.readdirSync(blogDir);
         const htmlFiles = files.filter(file => file.endsWith('.html'));
-        
         const posts = htmlFiles.map(filename => {
             const filePath = path.join(blogDir, filename);
             const stats = fs.statSync(filePath);
             const content = fs.readFileSync(filePath, 'utf8');
-            
             const titleMatch = content.match(/<title>(.*?)<\/title>/);
             const title = titleMatch ? titleMatch[1] : filename.replace('.html', '');
-            
             const descMatch = content.match(/<meta name="description" content="(.*?)">/);
             const description = descMatch ? descMatch[1] : 'No description available';
-            
             const dateMatch = content.match(/<meta name="date" content="(.*?)">/);
             const date = dateMatch ? dateMatch[1] : stats.birthtime.toISOString().split('T')[0];
-            
             const authorMatch = content.match(/<meta name="author" content="(.*?)">/);
             const author = authorMatch ? authorMatch[1] : 'Tools Prompt';
-            
             const categoryMatch = content.match(/<meta name="category" content="(.*?)">/);
             const category = categoryMatch ? categoryMatch[1] : 'General';
-            
             const excerptMatch = content.match(/<p>(.*?)<\/p>/);
             const excerpt = excerptMatch ? excerptMatch[1] : description;
-            
             return {
                 filename,
                 title,
@@ -4992,26 +4908,14 @@ app.get('/api/blog-posts', (req, res) => {
                 modified: stats.mtime
             };
         });
-        
         posts.sort((a, b) => new Date(b.date) - new Date(a.date));
-        
-        res.json({ 
-            success: true, 
-            posts,
-            count: posts.length
-        });
-        
+        res.json({ success: true, posts, count: posts.length });
     } catch (error) {
         console.error('Error reading blog directory:', error);
-        res.status(500).json({ 
-            success: false, 
-            error: 'Failed to read blog posts',
-            posts: [] 
-        });
+        res.status(500).json({ success: false, error: 'Failed to read blog posts', posts: [] });
     }
 });
 
-// Serve individual blog posts
 app.use('/blog', express.static(path.join(__dirname, 'blog')));
 
 // ==================== INDIVIDUAL PROMPT PAGE ====================
@@ -5024,7 +4928,6 @@ app.get('/prompt/:id', async (req, res) => {
 
     let promptData;
     let hasPurchased = false;
-
     const authHeader = req.headers.authorization;
     let user = null;
     if (authHeader && authHeader.startsWith('Bearer ')) {
@@ -5055,7 +4958,6 @@ app.get('/prompt/:id', async (req, res) => {
       promptData = createPromptData(mockPrompt, promptId, hasPurchased);
     }
 
-    // ===== GET AFFILIATES FOR THIS PROMPT'S CREATOR =====
     const creatorId = promptData.userId;
     const affiliates = await getAffiliatesByUser(creatorId, 3);
 
@@ -5069,36 +4971,26 @@ app.get('/prompt/:id', async (req, res) => {
   }
 });
 
-// Category pages for SEO
 app.get('/category/:category', async (req, res) => {
   try {
     const category = req.params.category;
     const baseUrl = process.env.BASE_URL || `https://${req.get('host')}`;
-    
     const cacheKey = `category-${category}`;
     const cached = cache.get(cacheKey);
-    if (cached) {
-      return res.set('Content-Type', 'text/html').send(cached);
-    }
-    
+    if (cached) return res.set('Content-Type', 'text/html').send(cached);
     const html = generateCategoryHTML(category, baseUrl);
-    
     cache.set(cacheKey, html, 1200);
-    
     res.set('Content-Type', 'text/html');
     res.send(html);
-
   } catch (error) {
     console.error('❌ Error serving category page:', error);
     sendErrorPage(res, error);
   }
 });
 
-// AI Models API Endpoint
 app.get('/api/ai-models', (req, res) => {
   try {
     const type = req.query.type;
-    
     let response = {
       success: true,
       counts: {
@@ -5107,7 +4999,6 @@ app.get('/api/ai-models', (req, res) => {
         total: AIModelManager.getPhotoModelCount() + AIModelManager.getVideoModelCount()
       }
     };
-    
     if (type === 'photo') {
       response.models = AIModelManager.getAllPhotoModels();
     } else if (type === 'video') {
@@ -5116,7 +5007,6 @@ app.get('/api/ai-models', (req, res) => {
       response.photoModels = AIModelManager.getAllPhotoModels();
       response.videoModels = AIModelManager.getAllVideoModels();
     }
-    
     res.json(response);
   } catch (error) {
     console.error('Error fetching AI models:', error);
@@ -5124,28 +5014,19 @@ app.get('/api/ai-models', (req, res) => {
   }
 });
 
-// AI Model Info API Endpoint
 app.get('/api/ai-model/:modelId', (req, res) => {
   try {
     const modelId = req.params.modelId;
     const type = req.query.type || 'auto';
-    
     let modelInfo = null;
-    
     if (type === 'photo' || type === 'auto') {
       modelInfo = AIModelManager.getPhotoModelInfo(modelId);
     }
-    
     if (!modelInfo && (type === 'video' || type === 'auto')) {
       modelInfo = AIModelManager.getVideoModelInfo(modelId);
     }
-    
     if (modelInfo) {
-      res.json({
-        success: true,
-        model: modelInfo,
-        id: modelId
-      });
+      res.json({ success: true, model: modelInfo, id: modelId });
     } else {
       res.status(404).json({ error: 'Model not found' });
     }
@@ -5156,8 +5037,6 @@ app.get('/api/ai-model/:modelId', (req, res) => {
 });
 
 // ==================== CREDITS & AI GENERATION ====================
-
-// Get user credits
 app.get('/api/credits/:userId', async (req, res) => {
   try {
     const userId = req.params.userId;
@@ -5169,9 +5048,7 @@ app.get('/api/credits/:userId', async (req, res) => {
   }
 });
 
-// ---- UPDATED: /api/generate-image ----
 app.post('/api/generate-image', async (req, res) => {
-  // --- Authentication & credits ---
   let userId = null;
   const authHeader = req.headers.authorization;
   if (authHeader && authHeader.startsWith('Bearer ')) {
@@ -5190,14 +5067,12 @@ app.post('/api/generate-image', async (req, res) => {
       return res.status(403).json({ error: 'Insufficient credits. Please upgrade.' });
     }
   } else {
-    // Guest user: check quota
     const guestCheck = checkAndIncrementGuest(req, false);
     if (!guestCheck.allowed) {
       return res.status(403).json({ error: 'guest_limit_reached', remaining: 0 });
     }
   }
 
-  // --- Parse multipart request ---
   const busboy = Busboy({ headers: req.headers, limits: { fileSize: 10 * 1024 * 1024 } });
   let prompt = '';
   let imageBuffer = null, imageMimeType = null, imageFileName = null;
@@ -5218,7 +5093,6 @@ app.post('/api/generate-image', async (req, res) => {
       let finalPrompt = prompt.trim();
       if (!finalPrompt) return res.status(400).json({ error: 'Prompt is required' });
 
-      // --- Upload reference image to R2 (if provided) for image‑to‑image ---
       let imageUrl = null;
       if (imageBuffer) {
         const timestamp = Date.now();
@@ -5228,18 +5102,16 @@ app.post('/api/generate-image', async (req, res) => {
         imageUrl = await uploadToR2(imageBuffer, key, imageMimeType);
       }
 
-      // --- Prepare Agnes AI request (OpenAI‑compatible) ---
       const payload = {
         model: 'agnes-image-2.1-flash',
         prompt: finalPrompt,
-        size: '1K',              // or '2K', '3K', '4K'
-        ratio: '1:1',            // or '16:9', '3:4', etc.
+        size: '1K',
+        ratio: '1:1',
       };
       if (imageUrl) {
-        payload.image = [imageUrl];   // array of image URLs or base64
+        payload.image = [imageUrl];
       }
 
-      // --- Call Agnes AI image API with extended timeout and retry ---
       let agnesResponse = null;
       let attempts = 0;
       const maxAttempts = 3;
@@ -5256,15 +5128,14 @@ app.post('/api/generate-image', async (req, res) => {
                 'Authorization': `Bearer ${process.env.AGNES_API_KEY}`,
                 'Content-Type': 'application/json',
               },
-              timeout: 120000,   // 120 seconds (2 minutes)
+              timeout: 120000,
             }
           );
-          break; // success
+          break;
         } catch (err) {
           lastError = err;
           console.warn(`Agnes API attempt ${attempts} failed:`, err.message);
           if (attempts < maxAttempts) {
-            // Wait before retry (exponential backoff)
             const delay = Math.min(2000 * Math.pow(2, attempts - 1), 10000);
             await new Promise(resolve => setTimeout(resolve, delay));
           }
@@ -5275,7 +5146,6 @@ app.post('/api/generate-image', async (req, res) => {
         throw lastError || new Error('Agnes API failed after retries');
       }
 
-      // --- Extract image from response ---
       let imageUrlFinal = null;
       if (agnesResponse.data.data && Array.isArray(agnesResponse.data.data)) {
         const firstImage = agnesResponse.data.data[0];
@@ -5290,7 +5160,6 @@ app.post('/api/generate-image', async (req, res) => {
         throw new Error('No image data in Agnes response');
       }
 
-      // --- If it's a URL, fetch and convert to base64 ---
       if (imageUrlFinal.startsWith('http')) {
         const imgRes = await fetch(imageUrlFinal);
         const buffer = await imgRes.arrayBuffer();
@@ -5298,7 +5167,6 @@ app.post('/api/generate-image', async (req, res) => {
         imageUrlFinal = `data:${mime};base64,${Buffer.from(buffer).toString('base64')}`;
       }
 
-      // --- Deduct credit or increment guest ---
       if (userId) {
         await deductCredit(userId);
         const remainingCredits = (await getUserCredits(userId)).credits;
@@ -5324,8 +5192,6 @@ app.post('/api/generate-image', async (req, res) => {
 
     } catch (error) {
       console.error('Agnes image error:', error.response?.data || error.message);
-
-      // --- Fallback to Pollinations ---
       try {
         const pollinationsUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(finalPrompt)}?width=1024&height=1024&model=flux&nologo=true`;
         const fallbackRes = await axios.get(pollinationsUrl, { responseType: 'arraybuffer', timeout: 30000 });
@@ -5363,17 +5229,13 @@ app.post('/api/generate-image', async (req, res) => {
   req.pipe(busboy);
 });
 
-// ==================== AGNES AI VIDEO GENERATION (FREE API) ====================
-
-// ===== NEW: Auto-resolution based on duration =====
-// ---- UPDATED: /api/generate-agnes-video ----
+// ==================== AGNES AI VIDEO GENERATION ====================
 app.post('/api/generate-agnes-video', async (req, res) => {
     if (!AGNES_API_KEY) {
         console.error('Agnes API Key is not configured.');
         return res.status(500).json({ error: 'Server configuration error: Agnes API Key missing.' });
     }
 
-    // ---------- Authentication ----------
     let userId = null;
     const authHeader = req.headers.authorization;
     if (authHeader && authHeader.startsWith('Bearer ')) {
@@ -5389,20 +5251,17 @@ app.post('/api/generate-agnes-video', async (req, res) => {
     }
 
     if (userId) {
-        // Check credits
         const creditInfo = await getUserCredits(userId);
         if (creditInfo.credits <= 0) {
             return res.status(403).json({ error: 'Insufficient credits. Please upgrade.' });
         }
     } else {
-        // Guest check
         const guestCheck = checkAndIncrementGuest(req, false);
         if (!guestCheck.allowed) {
             return res.status(403).json({ error: 'guest_limit_reached', remaining: 0 });
         }
     }
 
-    // ---------- Busboy parsing ----------
     const busboy = Busboy({
         headers: req.headers,
         limits: { fileSize: 10 * 1024 * 1024 }
@@ -5448,45 +5307,34 @@ app.post('/api/generate-agnes-video', async (req, res) => {
             }
 
             const prompt = fields.prompt ? fields.prompt.trim() : '';
-            // Get duration from frontend (default 5s)
             let duration = parseFloat(fields.duration) || 5;
 
-            // ---------- Auto-select resolution based on duration ----------
             let width, height;
             let maxFrames;
 
             if (duration <= 7) {
-                // 1080p – up to ~7s
                 width = 1080;
-                height = 1920; // portrait
+                height = 1920;
                 maxFrames = 169;
             } else if (duration <= 17) {
-                // 720p – up to ~17s
                 width = 768;
-                height = 1152; // portrait
+                height = 1152;
                 maxFrames = 409;
             } else {
-                // 480p – up to ~40s (cap duration to 40s)
                 duration = Math.min(duration, 40);
                 width = 480;
-                height = 640; // portrait
+                height = 640;
                 maxFrames = 961;
             }
 
-            // 🔧 FIX: Round to nearest frame, not floor, to match requested duration
             const targetFrames = Math.round(duration * 24);
             let num_frames = Math.round((targetFrames - 1) / 8) * 8 + 1;
-            // Ensure at least 9 frames (minimum)
             num_frames = Math.max(9, num_frames);
-            // Cap to the max allowed by the resolution
             num_frames = Math.min(num_frames, maxFrames);
 
-            // Recalculate actual duration based on capped frames
             const actualDuration = (num_frames / 24).toFixed(1);
-
             console.log(`Requested ${duration}s, using ${num_frames} frames (${actualDuration}s) at ${width}x${height}`);
 
-            // Upload image to R2 if provided
             let imageUrl = null;
             if (imageBuffer) {
                 const timestamp = Date.now();
@@ -5497,7 +5345,6 @@ app.post('/api/generate-agnes-video', async (req, res) => {
                 console.log(`✅ Uploaded image for Agnes: ${imageUrl}`);
             }
 
-            // Build request data
             const requestData = {
                 model: 'agnes-video-v2.0',
                 prompt: prompt,
@@ -5510,15 +5357,13 @@ app.post('/api/generate-agnes-video', async (req, res) => {
                 requestData.image = imageUrl;
             }
 
-            // ---------- Use IP directly with Host header ----------
             const https = require('https');
             const agent = new https.Agent({
-                servername: AGNES_API_HOST  // SNI for SSL certificate
+                servername: AGNES_API_HOST
             });
 
             const url = `https://${AGNES_API_IP}/v1/videos`;
 
-            // Retry loop
             const maxRetries = 3;
             let lastError = null;
             let response = null;
@@ -5530,7 +5375,7 @@ app.post('/api/generate-agnes-video', async (req, res) => {
                         headers: {
                             'Authorization': `Bearer ${AGNES_API_KEY}`,
                             'Content-Type': 'application/json',
-                            'Host': AGNES_API_HOST      // Required for virtual host routing
+                            'Host': AGNES_API_HOST
                         },
                         httpsAgent: agent,
                         timeout: 60000
@@ -5578,7 +5423,6 @@ app.post('/api/generate-agnes-video', async (req, res) => {
                 throw new Error('Could not create video task.');
             }
 
-            // Deduct credit or increment guest
             if (userId) {
                 await deductCredit(userId);
                 const remainingCredits = (await getUserCredits(userId)).credits;
@@ -5621,27 +5465,18 @@ app.post('/api/generate-agnes-video', async (req, res) => {
 
 app.get('/api/poll-agnes-video', async (req, res) => {
     const { video_id } = req.query;
-
-    if (!video_id) {
-        return res.status(400).json({ error: 'video_id is required.' });
-    }
-
+    if (!video_id) return res.status(400).json({ error: 'video_id is required.' });
     if (!AGNES_API_KEY) {
         console.error('Agnes API Key is not configured.');
         return res.status(500).json({ error: 'Server configuration error: Agnes API Key missing.' });
     }
-
-    // ---------- Use IP directly ----------
     const https = require('https');
     const agent = new https.Agent({
         servername: AGNES_API_HOST
     });
-
     const url = `https://${AGNES_API_IP}/agnesapi`;
-
     const maxRetries = 3;
     let lastError = null;
-
     for (let attempt = 0; attempt < maxRetries; attempt++) {
         try {
             const response = await axios.get(url, {
@@ -5653,9 +5488,7 @@ app.get('/api/poll-agnes-video', async (req, res) => {
                 httpsAgent: agent,
                 timeout: 30000
             });
-
             return res.json(response.data);
-
         } catch (error) {
             lastError = error;
             if (error.code === 'ENOTFOUND' || error.code === 'ECONNREFUSED' || error.code === 'ECONNRESET') {
@@ -5667,17 +5500,13 @@ app.get('/api/poll-agnes-video', async (req, res) => {
             break;
         }
     }
-
-    // Error handling
     let statusCode = 500;
     let errorMessage = 'Failed to poll video status.';
     let retryAfter = null;
     let details = lastError?.message || 'Unknown error';
-
     if (lastError && lastError.response) {
         const status = lastError.response.status;
         const data = lastError.response.data;
-
         if (status === 429) {
             statusCode = 429;
             errorMessage = 'Rate limit exceeded for status checks. Please wait a moment.';
@@ -5694,9 +5523,7 @@ app.get('/api/poll-agnes-video', async (req, res) => {
         details = 'DNS resolution failed for Agnes API after retries.';
         console.error(details);
     }
-
     console.error('Error polling Agnes video status:', details);
-
     res.status(statusCode).json({
         error: errorMessage,
         retryAfter: retryAfter,
@@ -5704,7 +5531,6 @@ app.get('/api/poll-agnes-video', async (req, res) => {
     });
 });
 
-// Top-up credits: create Razorpay order for ₹20 (50 credits)
 app.post('/api/top-up-credits', async (req, res) => {
   try {
     const authHeader = req.headers.authorization;
@@ -5714,21 +5540,18 @@ app.post('/api/top-up-credits', async (req, res) => {
     const idToken = authHeader.split('Bearer ')[1];
     const decodedToken = await admin.auth().verifyIdToken(idToken);
     const userId = decodedToken.uid;
-
     if (!razorpay) {
-      // Demo mode
       return res.json({
         success: true,
         orderId: 'order_demo_topup_' + Date.now(),
-        amount: 2000, // 20 INR in paise
+        amount: 2000,
         currency: 'INR',
         isDemo: true,
         keyId: razorpayKeyId || 'rzp_live_SXMEZ6fYLjDmzD'
       });
     }
-
     const options = {
-      amount: 2000, // ₹20
+      amount: 2000,
       currency: 'INR',
       notes: {
         userId: userId,
@@ -5752,26 +5575,21 @@ app.post('/api/top-up-credits', async (req, res) => {
   }
 });
 
-// Verify top-up payment
 app.post('/api/verify-topup', async (req, res) => {
   try {
     const { orderId, paymentId, signature, userId } = req.body;
     if (!razorpay) {
-      // Demo mode: add credits
       await addCredits(userId, 50);
       return res.json({ success: true, message: 'Added 50 credits (demo)' });
     }
-
     const crypto = require('crypto');
     const generatedSignature = crypto
       .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
       .update(orderId + '|' + paymentId)
       .digest('hex');
-
     if (generatedSignature !== signature) {
       return res.status(400).json({ error: 'Invalid payment signature' });
     }
-
     await addCredits(userId, 50);
     res.json({ success: true, message: 'Added 50 credits' });
   } catch (error) {
@@ -5780,12 +5598,9 @@ app.post('/api/verify-topup', async (req, res) => {
   }
 });
 
-// ==================== NEW: SOCIAL FEED / CHAT / ACTIVITY ENDPOINTS ====================
-
-// Store connected SSE clients
+// ==================== SOCIAL FEED / CHAT / ACTIVITY ====================
 let chatClients = [];
 
-// SSE stream endpoint
 app.get('/api/chat/stream', async (req, res) => {
   res.writeHead(200, {
     'Content-Type': 'text/event-stream',
@@ -5793,86 +5608,63 @@ app.get('/api/chat/stream', async (req, res) => {
     'Connection': 'keep-alive',
     'Access-Control-Allow-Origin': '*'
   });
-
-  // Send initial recent messages (last 50)
   const recentMessages = await getRecentMessages(50);
   res.write(`data: ${JSON.stringify({ type: 'init', messages: recentMessages })}\n\n`);
-
-  // Add client to list
   const clientId = Date.now() + '-' + Math.random();
   chatClients.push({ id: clientId, res });
-
-  // Remove client on close
   req.on('close', () => {
     chatClients = chatClients.filter(c => c.id !== clientId);
   });
-
-  // Keep alive
   const keepAlive = setInterval(() => {
     res.write(': keepalive\n\n');
   }, 30000);
-
   req.on('end', () => clearInterval(keepAlive));
 });
 
-// Get chat messages (for initial load)
 app.get('/api/chat/messages', async (req, res) => {
   const limit = parseInt(req.query.limit) || 50;
   const messages = await getRecentMessages(limit);
   res.json({ messages });
 });
 
-// Send a chat message
 app.post('/api/chat/send', async (req, res) => {
   const { userId, userName, content, parentId, sticker } = req.body;
   if (!content && !sticker) {
     return res.status(400).json({ error: 'Message content or sticker required' });
   }
-
   const message = {
     id: uuidv4(),
     userId: userId || 'anonymous',
     userName: userName || 'Anonymous',
     content: content || '',
-    parentId: parentId || null, // for replies
+    parentId: parentId || null,
     sticker: sticker || null,
     reactions: {},
     timestamp: new Date().toISOString()
   };
-
-  // Save to Firestore
   if (db && db.collection) {
     await db.collection('chat_messages').doc(message.id).set(message);
   } else {
-    // demo mode: store in memory
     if (!global.chatMessages) global.chatMessages = [];
     global.chatMessages.push(message);
   }
-
-  // Broadcast to all clients
   broadcastChatMessage(message);
-
   res.json({ success: true, message });
 });
 
-// Add/update a reaction
 app.post('/api/chat/react', async (req, res) => {
   const { messageId, userId, emoji } = req.body;
   if (!messageId || !emoji) {
     return res.status(400).json({ error: 'Missing messageId or emoji' });
   }
-
-  // Update Firestore
   if (db && db.collection) {
     const msgRef = db.collection('chat_messages').doc(messageId);
     await msgRef.update({
       [`reactions.${emoji}`]: admin.firestore.FieldValue.arrayUnion(userId || 'anonymous')
     });
     const updated = await msgRef.get();
-    // Broadcast updated reactions
     broadcastChatMessage({ type: 'reaction', messageId, reactions: updated.data().reactions });
   } else {
-    // demo mode
     const msg = global.chatMessages?.find(m => m.id === messageId);
     if (msg) {
       if (!msg.reactions) msg.reactions = {};
@@ -5883,18 +5675,15 @@ app.post('/api/chat/react', async (req, res) => {
       broadcastChatMessage({ type: 'reaction', messageId, reactions: msg.reactions });
     }
   }
-
   res.json({ success: true });
 });
 
-// Get activity feed
 app.get('/api/activity', async (req, res) => {
   const limit = parseInt(req.query.limit) || 20;
   const items = await getRecentActivity(limit);
   res.json({ items });
 });
 
-// ===== Helper functions for chat & activity =====
 async function getRecentMessages(limit = 50) {
   if (db && db.collection) {
     const snapshot = await db.collection('chat_messages')
@@ -5933,17 +5722,11 @@ function broadcastActivity(activity) {
   });
 }
 
-// ==================== PWA PUSH NOTIFICATIONS (FCM) ====================
-
-// Store subscription token
+// ==================== PUSH NOTIFICATIONS ====================
 app.post('/api/push/subscribe', async (req, res) => {
   try {
     const { userId, token, userAgent } = req.body;
-    if (!userId || !token) {
-      return res.status(400).json({ error: 'Missing userId or token' });
-    }
-
-    // Store token in Firestore under the user's document
+    if (!userId || !token) return res.status(400).json({ error: 'Missing userId or token' });
     if (db && db.collection) {
       const userRef = db.collection('users').doc(userId);
       await userRef.set({
@@ -5954,7 +5737,6 @@ app.post('/api/push/subscribe', async (req, res) => {
       }, { merge: true });
       console.log(`✅ Push token saved for user ${userId}`);
     } else {
-      // Demo mode: store in memory
       if (!global.pushTokens) global.pushTokens = {};
       global.pushTokens[userId] = token;
     }
@@ -5965,12 +5747,10 @@ app.post('/api/push/subscribe', async (req, res) => {
   }
 });
 
-// Unsubscribe (remove token)
 app.post('/api/push/unsubscribe', async (req, res) => {
   try {
     const { userId, token } = req.body;
     if (!userId) return res.status(400).json({ error: 'Missing userId' });
-
     if (db && db.collection) {
       const userRef = db.collection('users').doc(userId);
       await userRef.update({
@@ -5988,14 +5768,11 @@ app.post('/api/push/unsubscribe', async (req, res) => {
   }
 });
 
-// Helper function to send push notification to a user
 async function sendPushNotification(userId, title, body, data = {}) {
   if (!db && !global.pushTokens) {
     console.log('Push tokens not available');
     return;
   }
-
-  // Get token from DB
   let token = null;
   if (db && db.collection) {
     const doc = await db.collection('users').doc(userId).get();
@@ -6008,18 +5785,14 @@ async function sendPushNotification(userId, title, body, data = {}) {
   } else {
     token = global.pushTokens[userId];
   }
-
   if (!token) {
     console.log(`No push token for user ${userId}`);
     return;
   }
-
-  // Use FCM via firebase-admin
   if (!adminInitialized) {
     console.log('Firebase Admin not initialized, cannot send push');
     return;
   }
-
   try {
     const message = {
       notification: {
@@ -6036,15 +5809,12 @@ async function sendPushNotification(userId, title, body, data = {}) {
         },
       },
     };
-
     const response = await admin.messaging().send(message);
     console.log(`✅ Push notification sent to ${userId}: ${response}`);
   } catch (error) {
     console.error('Error sending push notification:', error);
-    // If token invalid, remove it
     if (error.code === 'messaging/invalid-registration-token' ||
         error.code === 'messaging/registration-token-not-registered') {
-      // Remove token from DB
       if (db && db.collection) {
         await db.collection('users').doc(userId).update({
           pushToken: null,
@@ -6058,7 +5828,6 @@ async function sendPushNotification(userId, title, body, data = {}) {
   }
 }
 
-// Send push to multiple users (for new prompts)
 async function sendPushToAllUsers(title, body, data = {}) {
   if (!db) return;
   try {
@@ -6066,15 +5835,11 @@ async function sendPushToAllUsers(title, body, data = {}) {
       .where('pushEnabled', '==', true)
       .where('pushToken', '!=', null)
       .get();
-    
     const tokens = snapshot.docs.map(doc => ({
       userId: doc.id,
       token: doc.data().pushToken,
     }));
-
     if (tokens.length === 0) return;
-
-    // Use FCM batch messaging
     if (admin.messaging) {
       const messages = tokens.map(({ token }) => ({
         notification: { title, body },
@@ -6084,13 +5849,10 @@ async function sendPushToAllUsers(title, body, data = {}) {
           fcm_options: { link: data.link || 'https://www.toolsprompt.com/' },
         },
       }));
-
-      // Send in chunks of 500
       for (let i = 0; i < messages.length; i += 500) {
         const chunk = messages.slice(i, i + 500);
         const response = await admin.messaging().sendEach(chunk);
         console.log(`✅ Sent ${chunk.length} push notifications:`, response);
-        // Handle failures (invalid tokens) - you can remove them
         if (response.failureCount > 0) {
           for (let j = 0; j < response.responses.length; j++) {
             const resp = response.responses[j];
@@ -6112,16 +5874,13 @@ async function sendPushToAllUsers(title, body, data = {}) {
   }
 }
 
-// ==================== REFERRAL SYSTEM HELPER FUNCTIONS ====================
-
-// Generate a random 6-character alphanumeric referral code
+// ==================== REFERRAL SYSTEM ====================
 function generateReferralCode() {
   return Math.random().toString(36).substring(2, 8).toUpperCase();
 }
 
-// Ensure every user has a referral code on first sign‑up
 async function ensureUserReferralCode(userId) {
-  if (!db) return 'DEMO123'; // fallback for demo mode
+  if (!db) return 'DEMO123';
   const userRef = db.collection('users').doc(userId);
   const doc = await userRef.get();
   if (!doc.exists) {
@@ -6144,18 +5903,13 @@ async function ensureUserReferralCode(userId) {
   }
 }
 
-// ==================== REFERRAL API ENDPOINTS ====================
-
-// Process referral after sign-up
 app.post('/api/process-referral', async (req, res) => {
   try {
- console.log('📌 /api/process-referral called with:', req.body);
+    console.log('📌 /api/process-referral called with:', req.body);
     const { userId, referralCode } = req.body;
     if (!userId || !referralCode) {
       return res.status(400).json({ error: 'Missing userId or referralCode' });
     }
-
-    // 1. Check the new user's document
     const userRef = db.collection('users').doc(userId);
     const userDoc = await userRef.get();
     if (!userDoc.exists) {
@@ -6165,8 +5919,6 @@ app.post('/api/process-referral', async (req, res) => {
     if (userData.referralProcessed === true) {
       return res.json({ success: false, message: 'Referral already processed' });
     }
-
-    // 2. Find the referrer by referralCode
     const referrerSnapshot = await db.collection('users')
       .where('referralCode', '==', referralCode)
       .get();
@@ -6175,17 +5927,11 @@ app.post('/api/process-referral', async (req, res) => {
     }
     const referrerDoc = referrerSnapshot.docs[0];
     const referrerId = referrerDoc.id;
-
-    // 3. Prevent self‑referral
     if (referrerId === userId) {
       return res.status(400).json({ error: 'Cannot refer yourself' });
     }
-
-    // 4. Give credits
-    await addCredits(referrerId, 10);   // referrer gets 10 credits
-    await addCredits(userId, 5);        // referee gets 5 credits
-
-    // 5. Mark as processed and increment referrer's count
+    await addCredits(referrerId, 10);
+    await addCredits(userId, 5);
     await userRef.update({
       referralProcessed: true,
       referredBy: referrerId,
@@ -6194,7 +5940,6 @@ app.post('/api/process-referral', async (req, res) => {
     await db.collection('users').doc(referrerId).update({
       referralCount: admin.firestore.FieldValue.increment(1)
     });
-
     res.json({ success: true, message: 'Referral credits awarded' });
   } catch (error) {
     console.error('Referral processing error:', error);
@@ -6202,7 +5947,6 @@ app.post('/api/process-referral', async (req, res) => {
   }
 });
 
-// Get current user's referral link and stats
 app.get('/api/referral-link', async (req, res) => {
   try {
     const authHeader = req.headers.authorization;
@@ -6212,15 +5956,10 @@ app.get('/api/referral-link', async (req, res) => {
     const idToken = authHeader.split('Bearer ')[1];
     const decoded = await admin.auth().verifyIdToken(idToken);
     const userId = decoded.uid;
-
-    // Ensure user has a referral code
     const code = await ensureUserReferralCode(userId);
-
-    // Also get referral count and credits
     const userDoc = await db.collection('users').doc(userId).get();
     const data = userDoc.data();
     const credits = await getUserCredits(userId);
-
     res.json({
       success: true,
       referralCode: code,
@@ -6235,7 +5974,6 @@ app.get('/api/referral-link', async (req, res) => {
 });
 
 // ==================== HELPER FUNCTIONS FOR PROMPT PAGE GENERATION ====================
-
 function createNewsData(news, id) {
   const safeNews = news || {};
   return {
@@ -6342,9 +6080,27 @@ function createPromptData(prompt, id, hasPurchased = false) {
   return promptData;
 }
 
-// ==================== CSS AND HTML FOR PROMPT PAGE ====================
+// ===== generateAffiliateHTML (FIX: added missing helper) =====
+function generateAffiliateHTML(affiliate) {
+  if (!affiliate) return '';
+  return `
+    <div class="affiliate-container">
+      <div class="ad-label">🌟 Sponsored</div>
+      <a href="${affiliate.url}" target="_blank" rel="noopener sponsored" class="affiliate-link">
+        ${affiliate.image ? `<img src="${affiliate.image}" alt="${affiliate.title}" class="affiliate-image" onerror="this.style.display='none'">` : ''}
+        <div class="affiliate-info">
+          <h4>${affiliate.title}</h4>
+          ${affiliate.description ? `<p>${affiliate.description}</p>` : ''}
+          <span class="affiliate-cta">View Product →</span>
+        </div>
+      </a>
+    </div>
+  `;
+}
 
-// Mini Browser CSS
+// ==================== CSS AND HTML FOR PROMPT PAGE ====================
+// CSS constants (already defined globally – these are not redeclared inside the function)
+
 const miniBrowserCSS = `
 .mini-browser-container {
     position: fixed;
@@ -6551,7 +6307,6 @@ const miniBrowserCSS = `
 }
 `;
 
-// Platform Comparison CSS
 const platformComparisonCSS = `
 .platform-comparison {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -6921,7 +6676,6 @@ const platformComparisonCSS = `
 }
 `;
 
-// Comment System CSS
 const commentSystemCSS = `
 .comment-section {
     margin-top: 2rem;
@@ -7171,1840 +6925,7 @@ const commentSystemCSS = `
 }
 `;
 
-// Mini Browser HTML
-const miniBrowserHTML = `
-<div class="mini-browser-container" id="miniBrowser">
-    <div class="mini-browser-header" id="miniBrowserHeader">
-        <div class="mini-browser-title">
-            <i class="fas fa-compact-disc"></i> <span class="title-text">Quick Unique Best Match</span>
-        </div>
-        <div class="mini-browser-controls">
-            <button class="mini-browser-btn" onclick="refreshMiniBrowser()" title="Refresh">
-                <i class="fas fa-redo"></i>
-            </button>
-            <button class="mini-browser-btn" onclick="toggleMiniBrowserSize()" title="Expand/Collapse">
-                <i class="fas fa-expand"></i>
-            </button>
-            <button class="mini-browser-btn" onclick="closeMiniBrowser()" title="Close">
-                <i class="fas fa-times"></i>
-            </button>
-        </div>
-    </div>
-    <div class="mini-browser-content">
-        <div class="mini-browser-loading" id="miniBrowserLoading">
-            <div class="spinner"></div>
-            <div>Loading tools prompt...</div>
-        </div>
-        <iframe 
-            src="https://www.toolsprompt.com" 
-            class="mini-browser-iframe" 
-            id="miniBrowserIframe"
-            onload="hideMiniBrowserLoading()"
-            allow="fullscreen"
-            referrerpolicy="strict-origin-when-cross-origin"
-            sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox"
-        ></iframe>
-    </div>
-</div>
-
-<button class="mini-browser-toggle" id="miniBrowserToggle" onclick="toggleMiniBrowser()">
-    <i class="fas fa-plus"></i>
-</button>
-`;
-
-// Mini Browser JavaScript
-const miniBrowserJS = `
-let isMiniBrowserOpen = false;
-let isMiniBrowserExpanded = false;
-let isDragging = false;
-let dragOffset = { x: 0, y: 0 };
-
-function autoOpenMiniBrowser() {
-    console.log('Auto-opening mini browser...');
-    
-    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-    
-    setTimeout(() => {
-        if (!isMobile || window.innerWidth > 480) {
-            toggleMiniBrowser();
-        } else {
-            console.log('Mobile device detected - mini browser auto-open disabled');
-            showMobileNotification();
-        }
-    }, 1500);
-}
-
-function showMobileNotification() {
-    const notification = document.createElement('div');
-    notification.innerHTML = \`
-        <div style="
-            position: fixed;
-            bottom: 60px;
-            right: 10px;
-            background: #4e54c8;
-            color: white;
-            padding: 8px 12px;
-            border-radius: 8px;
-            font-size: 0.8rem;
-            z-index: 10001;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
-            max-width: 150px;
-        ">
-            <i class="fas fa-compass"></i> Quick Browser Available
-            <br>
-            <small>Tap the + button</small>
-        </div>
-    \`;
-    document.body.appendChild(notification);
-    
-    setTimeout(() => {
-        if (notification.parentNode) {
-            notification.parentNode.removeChild(notification);
-        }
-    }, 3000);
-}
-
-function toggleMiniBrowser() {
-    console.log('Toggle mini browser called');
-    const miniBrowser = document.getElementById('miniBrowser');
-    const toggleBtn = document.getElementById('miniBrowserToggle');
-    
-    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-    
-    if (!isMiniBrowserOpen) {
-        miniBrowser.style.display = 'flex';
-        toggleBtn.innerHTML = '<i class="fas fa-times"></i>';
-        toggleBtn.style.background = '#ff6b6b';
-        isMiniBrowserOpen = true;
-        
-        if (isMobile && window.innerWidth <= 480) {
-            miniBrowser.style.width = '250px';
-            miniBrowser.style.height = '300px';
-        }
-        
-        showMiniBrowserLoading();
-        
-        const iframe = document.getElementById('miniBrowserIframe');
-        iframe.src = 'https://www.toolsprompt.com';
-    } else {
-        closeMiniBrowser();
-    }
-}
-
-function closeMiniBrowser() {
-    const miniBrowser = document.getElementById('miniBrowser');
-    const toggleBtn = document.getElementById('miniBrowserToggle');
-    
-    miniBrowser.style.display = 'none';
-    toggleBtn.innerHTML = '<i class="fas fa-plus"></i>';
-    toggleBtn.style.background = '#4e54c8';
-    isMiniBrowserOpen = false;
-    isMiniBrowserExpanded = false;
-    miniBrowser.classList.remove('expanded');
-    
-    const expandBtn = document.querySelector('.mini-browser-btn .fa-expand, .mini-browser-btn .fa-compress');
-    if (expandBtn) {
-        expandBtn.className = 'fas fa-expand';
-    }
-}
-
-function toggleMiniBrowserSize() {
-    const miniBrowser = document.getElementById('miniBrowser');
-    const expandBtn = document.querySelector('.mini-browser-controls .fa-expand, .mini-browser-controls .fa-compress');
-    
-    if (!isMiniBrowserExpanded) {
-        miniBrowser.classList.add('expanded');
-        if (expandBtn) expandBtn.className = 'fas fa-compress';
-        isMiniBrowserExpanded = true;
-    } else {
-        miniBrowser.classList.remove('expanded');
-        if (expandBtn) expandBtn.className = 'fas fa-expand';
-        isMiniBrowserExpanded = false;
-    }
-}
-
-function refreshMiniBrowser() {
-    const iframe = document.getElementById('miniBrowserIframe');
-    showMiniBrowserLoading();
-    iframe.src = 'https://www.toolsprompt.com';
-}
-
-function showMiniBrowserLoading() {
-    const loading = document.getElementById('miniBrowserLoading');
-    if (loading) loading.style.display = 'block';
-}
-
-function hideMiniBrowserLoading() {
-    const loading = document.getElementById('miniBrowserLoading');
-    if (loading) loading.style.display = 'none';
-}
-
-function initializeDragging() {
-    const header = document.getElementById('miniBrowserHeader');
-    const browser = document.getElementById('miniBrowser');
-    
-    if (!header || !browser) return;
-    
-    header.addEventListener('mousedown', startDrag);
-    header.addEventListener('touchstart', startDragTouch);
-    
-    function startDrag(e) {
-        if (isMiniBrowserExpanded) return;
-        
-        isDragging = true;
-        const rect = browser.getBoundingClientRect();
-        dragOffset.x = e.clientX - rect.left;
-        dragOffset.y = e.clientY - rect.top;
-        
-        document.addEventListener('mousemove', onDrag);
-        document.addEventListener('mouseup', stopDrag);
-        e.preventDefault();
-    }
-    
-    function startDragTouch(e) {
-        if (isMiniBrowserExpanded) return;
-        
-        isDragging = true;
-        const touch = e.touches[0];
-        const rect = browser.getBoundingClientRect();
-        dragOffset.x = touch.clientX - rect.left;
-        dragOffset.y = touch.clientY - rect.top;
-        
-        document.addEventListener('touchmove', onDragTouch);
-        document.addEventListener('touchend', stopDrag);
-        e.preventDefault();
-    }
-    
-    function onDrag(e) {
-        if (!isDragging) return;
-        
-        browser.style.position = 'fixed';
-        browser.style.left = (e.clientX - dragOffset.x) + 'px';
-        browser.style.top = (e.clientY - dragOffset.y) + 'px';
-        browser.style.right = 'auto';
-        browser.style.bottom = 'auto';
-    }
-    
-    function onDragTouch(e) {
-        if (!isDragging) return;
-        
-        const touch = e.touches[0];
-        browser.style.position = 'fixed';
-        browser.style.left = (touch.clientX - dragOffset.x) + 'px';
-        browser.style.top = (touch.clientY - dragOffset.y) + 'px';
-        browser.style.right = 'auto';
-        browser.style.bottom = 'auto';
-    }
-    
-    function stopDrag() {
-        isDragging = false;
-        document.removeEventListener('mousemove', onDrag);
-        document.removeEventListener('touchmove', onDragTouch);
-        document.removeEventListener('mouseup', stopDrag);
-        document.removeEventListener('touchend', stopDrag);
-    }
-}
-
-document.addEventListener('click', function(e) {
-    const miniBrowser = document.getElementById('miniBrowser');
-    const toggleBtn = document.getElementById('miniBrowserToggle');
-    
-    if (isMiniBrowserOpen && !isMiniBrowserExpanded && 
-        miniBrowser && !miniBrowser.contains(e.target) && 
-        e.target !== toggleBtn) {
-        closeMiniBrowser();
-    }
-});
-
-window.addEventListener('message', function(e) {
-    console.log('Message from iframe:', e.data);
-});
-
-document.addEventListener('DOMContentLoaded', function() {
-    console.log('DOM loaded, initializing mini browser');
-    initializeDragging();
-    autoOpenMiniBrowser();
-});
-
-document.addEventListener('keydown', function(e) {
-    if ((e.ctrlKey || e.metaKey) && e.key === 'b') {
-        e.preventDefault();
-        toggleMiniBrowser();
-    }
-    
-    if (e.key === 'Escape' && isMiniBrowserOpen) {
-        if (isMiniBrowserExpanded) {
-            toggleMiniBrowserSize();
-        } else {
-            closeMiniBrowser();
-        }
-    }
-});
-`;
-
-// Mini Browser Toggle Button
-const miniBrowserToggleButton = `
-<button class="engagement-btn" onclick="toggleMiniBrowser()" title="Open tools prompt Browser (Ctrl+B)">
-    <i class="fas fa-external-link-alt"></i> Quick Browse
-</button>
-`;
-
-// Comment System JavaScript
-function generateCommentSystemJS(promptData) {
-  return `
-let currentPage = 1;
-let isLoadingComments = false;
-let hasMoreComments = true;
-
-async function loadComments(page = 1) {
-    if (isLoadingComments) return;
-    
-    isLoadingComments = true;
-    const promptId = '${promptData.id}';
-    const commentsList = document.getElementById('commentsList');
-    const noComments = document.getElementById('noComments');
-    const loadMoreDiv = document.getElementById('loadMoreComments');
-    
-    try {
-        const response = await fetch('/api/prompt/' + promptId + '/comments?page=' + page + '&limit=10');
-        if (!response.ok) throw new Error('Failed to load comments');
-        
-        const data = await response.json();
-        
-        if (page === 1) {
-            commentsList.innerHTML = '';
-            noComments.style.display = 'none';
-        }
-        
-        if (data.comments && data.comments.length > 0) {
-            data.comments.forEach(comment => {
-                const commentElement = createCommentElement(comment);
-                commentsList.appendChild(commentElement);
-            });
-            
-            hasMoreComments = data.hasMore;
-            loadMoreDiv.style.display = hasMoreComments ? 'block' : 'none';
-            
-            if (page === 1 && data.totalCount > 0) {
-                const commentCount = document.querySelector('.comment-count');
-                if (commentCount) {
-                    commentCount.textContent = data.totalCount;
-                }
-            }
-        } else if (page === 1) {
-            noComments.style.display = 'block';
-            loadMoreDiv.style.display = 'none';
-        }
-        
-        currentPage = page;
-    } catch (error) {
-        console.error('Error loading comments:', error);
-        if (page === 1) {
-            noComments.innerHTML = '<p>Error loading comments. Please try again.</p>';
-            noComments.style.display = 'block';
-        }
-    } finally {
-        isLoadingComments = false;
-    }
-}
-
-function createCommentElement(comment) {
-    const commentDate = new Date(comment.createdAt);
-    const formattedDate = commentDate.toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-    });
-    
-    const avatarLetter = comment.authorName.charAt(0).toUpperCase();
-    
-    const element = document.createElement('div');
-    element.className = 'comment-item';
-    element.id = 'comment-' + comment.id;
-    element.innerHTML = 
-        '<div class="comment-header">' +
-            '<div class="comment-author">' +
-                '<div class="comment-avatar">' +
-                    avatarLetter +
-                '</div>' +
-                '<div class="comment-author-info">' +
-                    '<h4>' + comment.authorName + '</h4>' +
-                    '<div class="comment-date">' +
-                        '<i class="far fa-clock"></i> ' + formattedDate +
-                    '</div>' +
-                '</div>' +
-            '</div>' +
-            '<div class="comment-actions">' +
-                '<button class="like-comment-btn" ' +
-                        'onclick="likeComment(\\'' + comment.id + '\\')"' +
-                        'data-likes="' + (comment.likes || 0) + '">' +
-                    '<i class="far fa-heart"></i>' +
-                    '<span class="like-count">' + (comment.likes || 0) + '</span>' +
-                '</button>' +
-            '</div>' +
-        '</div>' +
-        '<p class="comment-content">' + comment.content + '</p>';
-    
-    return element;
-}
-
-document.getElementById('commentForm').addEventListener('submit', async function(e) {
-    e.preventDefault();
-    
-    const promptId = '${promptData.id}';
-    const form = e.target;
-    const submitBtn = form.querySelector('button[type="submit"]');
-    const originalBtnText = submitBtn.innerHTML;
-    
-    const formData = {
-        content: form.content.value.trim(),
-        authorName: form.authorName.value.trim() || 'Anonymous',
-        authorEmail: form.authorEmail.value.trim() || null
-    };
-    
-    if (!formData.content) {
-        alert('Please enter a comment');
-        return;
-    }
-    
-    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Posting...';
-    submitBtn.disabled = true;
-    
-    try {
-        const response = await fetch('/api/prompt/' + promptId + '/comments', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(formData)
-        });
-        
-        const result = await response.json();
-        
-        if (result.success) {
-            form.reset();
-            alert('Comment posted successfully!');
-            loadComments(1);
-            document.getElementById('commentSection').scrollIntoView({ 
-                behavior: 'smooth' 
-            });
-        } else {
-            alert(result.error || 'Failed to post comment');
-        }
-    } catch (error) {
-        console.error('Error posting comment:', error);
-        alert('Failed to post comment. Please try again.');
-    } finally {
-        submitBtn.innerHTML = originalBtnText;
-        submitBtn.disabled = false;
-    }
-});
-
-async function likeComment(commentId) {
-    const promptId = '${promptData.id}';
-    const likeBtn = document.querySelector('#comment-' + commentId + ' .like-comment-btn');
-    
-    if (likeBtn.classList.contains('liked')) {
-        return;
-    }
-    
-    try {
-        const response = await fetch('/api/comment/' + commentId + '/like', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ promptId })
-        });
-        
-        if (response.ok) {
-            likeBtn.classList.add('liked');
-            const likeCount = likeBtn.querySelector('.like-count');
-            const currentLikes = parseInt(likeCount.textContent);
-            likeCount.textContent = currentLikes + 1;
-        }
-    } catch (error) {
-        console.error('Error liking comment:', error);
-    }
-}
-
-document.getElementById('loadMoreBtn').addEventListener('click', function() {
-    if (hasMoreComments && !isLoadingComments) {
-        loadComments(currentPage + 1);
-    }
-});
-
-document.addEventListener('DOMContentLoaded', function() {
-    loadComments(1);
-    
-    const commentTextarea = document.getElementById('commentContent');
-    if (commentTextarea) {
-        const counter = document.createElement('div');
-        counter.style.color = '#666';
-        counter.style.fontSize = '0.85rem';
-        counter.style.textAlign = 'right';
-        counter.style.marginTop = '0.25rem';
-        counter.textContent = '0/1000';
-        
-        commentTextarea.parentNode.appendChild(counter);
-        
-        commentTextarea.addEventListener('input', function() {
-            counter.textContent = this.value.length + '/1000';
-            if (this.value.length > 1000) {
-                counter.style.color = '#ff6b6b';
-            } else {
-                counter.style.color = '#666';
-            }
-        });
-    }
-});
-`;
-}
-
-// Helper to generate affiliate HTML
-function generateAffiliateHTML(affiliate) {
-  if (!affiliate) return '';
-  return `
-    <div class="affiliate-container">
-      <div class="ad-label">🌟 Sponsored</div>
-      <a href="${affiliate.url}" target="_blank" rel="noopener sponsored" class="affiliate-link">
-        ${affiliate.image ? `<img src="${affiliate.image}" alt="${affiliate.title}" class="affiliate-image" onerror="this.style.display='none'">` : ''}
-        <div class="affiliate-info">
-          <h4>${affiliate.title}</h4>
-          ${affiliate.description ? `<p>${affiliate.description}</p>` : ''}
-          <span class="affiliate-cta">View Product →</span>
-        </div>
-      </a>
-    </div>
-  `;
-}
-
-// ==================== generateEnhancedPromptHTML (FIXED) ====================
-function generateEnhancedPromptHTML(promptData, affiliates) {
-  const prompt = promptData;
-  const baseUrl = 'https://www.toolsprompt.com';
-  const promptUrl = baseUrl + '/prompt/' + promptData.id;
-  const gaId = process.env.GOOGLE_ANALYTICS_ID || 'G-K4KXR4FZCP';
-  const isVideo = promptData.fileType === 'video' || promptData.videoUrl || promptData.category === 'video';
-  
-  const platformInfo = promptData.platformInfo || { name: 'AI Platform', strengths: [] };
-  
-  const googleAnalyticsCode = `
-    <script async src="https://www.googletagmanager.com/gtag/js?id=${gaId}"></script>
-    <script>
-      window.dataLayer = window.dataLayer || [];
-      function gtag(){dataLayer.push(arguments);}
-      gtag('js', new Date());
-      gtag('config', '${gaId}');
-    </script>
-  `;
-
-  // Generate Adsterra ads for prompt pages
-  const adsterraAds = generateAllAdsterraAds();
-
-  // ==================== CSS DEFINITIONS ====================
-  const miniBrowserCSS = `
-.mini-browser-container {
-    position: fixed;
-    bottom: 20px;
-    right: 20px;
-    width: 320px;
-    height: 450px;
-    background: white;
-    border-radius: 12px;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.3);
-    z-index: 10000;
-    display: none;
-    flex-direction: column;
-    overflow: hidden;
-    transition: all 0.3s ease;
-    border: 2px solid #4e54c8;
-    resize: both;
-    min-width: 300px;
-    min-height: 400px;
-}
-
-.mini-browser-container.expanded {
-    width: 90vw !important;
-    height: 90vh !important;
-    bottom: 5vh !important;
-    right: 5vw !important;
-    resize: none;
-}
-
-.mini-browser-header {
-    background: #4e54c8;
-    color: white;
-    padding: 12px 15px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    cursor: move;
-    user-select: none;
-    flex-shrink: 0;
-}
-
-.mini-browser-title {
-    font-size: 0.9rem;
-    font-weight: 600;
-}
-
-.mini-browser-controls {
-    display: flex;
-    gap: 8px;
-}
-
-.mini-browser-btn {
-    background: rgba(255,255,255,0.2);
-    border: none;
-    color: white;
-    width: 28px;
-    height: 28px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    font-size: 0.8rem;
-    transition: all 0.3s ease;
-}
-
-.mini-browser-btn:hover {
-    background: rgba(255,255,255,0.3);
-    transform: scale(1.1);
-}
-
-.mini-browser-content {
-    flex: 1;
-    background: white;
-    position: relative;
-    overflow: hidden;
-}
-
-.mini-browser-iframe {
-    width: 100%;
-    height: 100%;
-    border: none;
-    background: white;
-}
-
-.mini-browser-toggle {
-    position: fixed;
-    bottom: 20px;
-    right: 20px;
-    background: #4e54c8;
-    color: white;
-    border: none;
-    border-radius: 50%;
-    width: 60px;
-    height: 60px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    box-shadow: 0 4px 15px rgba(78, 84, 200, 0.4);
-    z-index: 9999;
-    transition: all 0.3s ease;
-    font-size: 1.5rem;
-}
-
-.mini-browser-toggle:hover {
-    transform: scale(1.1);
-    box-shadow: 0 6px 20px rgba(78, 84, 200, 0.6);
-}
-
-@media (max-width: 768px) {
-    .mini-browser-container {
-        width: 280px;
-        height: 350px;
-        bottom: 10px;
-        right: 10px;
-        min-width: 250px;
-        min-height: 300px;
-    }
-    
-    .mini-browser-container.expanded {
-        width: 95vw !important;
-        height: 70vh !important;
-        bottom: 5vh !important;
-        right: 2.5vw !important;
-    }
-    
-    .mini-browser-toggle {
-        width: 45px;
-        height: 45px;
-        bottom: 10px;
-        right: 10px;
-        font-size: 1.1rem;
-    }
-}
-
-@media (max-width: 480px) {
-    .mini-browser-container {
-        width: 250px;
-        height: 300px;
-        bottom: 8px;
-        right: 8px;
-        min-width: 220px;
-        min-height: 250px;
-    }
-    
-    .mini-browser-container.expanded {
-        width: 98vw !important;
-        height: 60vh !important;
-        bottom: 5vh !important;
-        right: 1vw !important;
-    }
-    
-    .mini-browser-toggle {
-        width: 40px;
-        height: 40px;
-        bottom: 8px;
-        right: 8px;
-        font-size: 1rem;
-    }
-    
-    .title-text {
-        display: none;
-    }
-}
-
-.mini-browser-loading {
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: white;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    color: #666;
-    z-index: 10;
-}
-
-.mini-browser-loading .spinner {
-    border: 3px solid #f3f3f3;
-    border-top: 3px solid #4e54c8;
-    border-radius: 50%;
-    width: 40px;
-    height: 40px;
-    animation: spin 1s linear infinite;
-    margin-bottom: 15px;
-}
-
-@keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
-}
-
-.mini-browser-iframe {
-    opacity: 1;
-    transition: opacity 0.3s ease;
-}
-
-.mini-browser-iframe[style*="display: none"] {
-    opacity: 0;
-}
-`;
-
-  const platformComparisonCSS = `
-.platform-comparison {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
-    padding: 2rem;
-    border-radius: 15px;
-    margin: 2rem 0;
-    position: relative;
-    overflow: hidden;
-}
-
-.platform-comparison::before {
-    content: '';
-    position: absolute;
-    top: -50%;
-    right: -50%;
-    width: 100%;
-    height: 200%;
-    background: rgba(255,255,255,0.1);
-    transform: rotate(45deg);
-}
-
-.platform-comparison h3 {
-    position: relative;
-    z-index: 1;
-    margin-bottom: 1rem;
-    font-size: 1.5rem;
-    color: white;
-}
-
-.platform-comparison p {
-    position: relative;
-    z-index: 1;
-    opacity: 0.9;
-    margin-bottom: 1.5rem;
-}
-
-.comparison-table-container {
-    position: relative;
-    z-index: 1;
-    overflow-x: auto;
-    margin: 1.5rem 0;
-    background: rgba(255,255,255,0.1);
-    border-radius: 10px;
-    padding: 1rem;
-    backdrop-filter: blur(10px);
-}
-
-.platform-comparison-table {
-    width: 100%;
-    border-collapse: collapse;
-    min-width: 600px;
-}
-
-.platform-comparison-table th {
-    background: rgba(255,255,255,0.2);
-    color: white;
-    font-weight: 600;
-    text-align: left;
-    padding: 1rem;
-    border-bottom: 2px solid rgba(255,255,255,0.3);
-}
-
-.platform-comparison-table td {
-    padding: 1rem;
-    border-bottom: 1px solid rgba(255,255,255,0.1);
-    color: rgba(255,255,255,0.9);
-}
-
-.platform-comparison-table tr:hover {
-    background: rgba(255,255,255,0.1);
-}
-
-.platform-comparison-table tr.primary-platform {
-    background: rgba(255,255,255,0.15);
-    border-left: 4px solid #4e54c8;
-}
-
-.primary-badge {
-    background: #4e54c8;
-    color: white;
-    padding: 2px 8px;
-    border-radius: 12px;
-    font-size: 0.7rem;
-    margin-left: 8px;
-    vertical-align: middle;
-}
-
-.price-tag {
-    display: inline-block;
-    padding: 4px 12px;
-    border-radius: 20px;
-    font-size: 0.8rem;
-    font-weight: 600;
-}
-
-.price-free {
-    background: #20bf6b;
-    color: white;
-}
-
-.price-paid {
-    background: #ff9f43;
-    color: white;
-}
-
-.category-badge {
-    display: inline-block;
-    padding: 4px 12px;
-    border-radius: 20px;
-    font-size: 0.8rem;
-    font-weight: 600;
-    background: rgba(255,255,255,0.2);
-    color: white;
-}
-
-.category-professional {
-    background: #4e54c8;
-}
-
-.category-artistic {
-    background: #9b59b6;
-}
-
-.category-open-source {
-    background: #2c3e50;
-}
-
-.category-free {
-    background: #20bf6b;
-}
-
-.category-commercial {
-    background: #2980b9;
-}
-
-.category-editing {
-    background: #e67e22;
-}
-
-.category-design {
-    background: #f1c40f;
-    color: #333;
-}
-
-.category-versatile {
-    background: #3498db;
-}
-
-.category-mobile {
-    background: #e91e63;
-}
-
-.category-nft {
-    background: #8e44ad;
-}
-
-.category-real-time {
-    background: #16a085;
-}
-
-.category-video {
-    background: #ff6b6b;
-}
-
-.category-animation {
-    background: #f39c12;
-}
-
-.category-social {
-    background: #00acc1;
-}
-
-.category-marketing {
-    background: #d35400;
-}
-
-.category-avatar {
-    background: #c0392b;
-}
-
-.category-cinematic {
-    background: #1abc9c;
-}
-
-.category-motion {
-    background: #d35400;
-}
-
-.category-3d {
-    background: #2ecc71;
-}
-
-.category-expressive {
-    background: #e74c3c;
-}
-
-.category-storytelling {
-    background: #9b59b6;
-}
-
-.comparison-tips {
-    position: relative;
-    z-index: 1;
-    background: rgba(255,255,255,0.1);
-    padding: 1.5rem;
-    border-radius: 10px;
-    margin-top: 1.5rem;
-    backdrop-filter: blur(10px);
-}
-
-.comparison-tips ul {
-    margin: 0;
-    padding-left: 1.5rem;
-}
-
-.comparison-tips li {
-    margin-bottom: 0.5rem;
-    opacity: 0.9;
-}
-
-.model-specific-tips {
-    background: #f8f9fa;
-    padding: 2rem;
-    border-radius: 15px;
-    margin: 2rem 0;
-    border: 2px solid #e9ecef;
-}
-
-.model-specific-tips h4 {
-    color: #4e54c8;
-    margin-bottom: 1.5rem;
-    font-size: 1.3rem;
-}
-
-.model-tips-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-    gap: 1.5rem;
-    margin-top: 1rem;
-}
-
-.model-tip {
-    background: white;
-    padding: 1.5rem;
-    border-radius: 10px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-    border-top: 4px solid #4e54c8;
-    transition: transform 0.3s ease;
-}
-
-.model-tip:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 8px 20px rgba(0,0,0,0.15);
-}
-
-.model-tip h5 {
-    color: #4e54c8;
-    margin-bottom: 1rem;
-    font-size: 1.1rem;
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-}
-
-.model-tip ul {
-    margin: 0;
-    padding-left: 1.2rem;
-}
-
-.model-tip li {
-    margin-bottom: 0.5rem;
-    color: #555;
-    font-size: 0.9rem;
-}
-
-.model-tip code {
-    background: #f1f3f9;
-    padding: 2px 6px;
-    border-radius: 4px;
-    font-family: 'Courier New', monospace;
-    color: #4e54c8;
-    font-size: 0.85rem;
-}
-
-.tools-grid-enhanced {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-    gap: 1.5rem;
-    margin-top: 1rem;
-}
-
-.tool-card-enhanced {
-    background: white;
-    padding: 1.5rem;
-    border-radius: 12px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-    border-left: 4px solid #4e54c8;
-    transition: all 0.3s ease;
-    position: relative;
-    overflow: hidden;
-}
-
-.tool-card-enhanced:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 8px 20px rgba(0,0,0,0.15);
-}
-
-.tool-card-enhanced.primary-tool {
-    border-left: 4px solid #20bf6b;
-    background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
-}
-
-.tool-card-enhanced.primary-tool::before {
-    content: '★ Recommended';
-    position: absolute;
-    top: 10px;
-    right: 10px;
-    background: #20bf6b;
-    color: white;
-    padding: 4px 8px;
-    border-radius: 12px;
-    font-size: 0.7rem;
-    font-weight: 600;
-}
-
-.tool-card-enhanced h4 {
-    color: #4e54c8;
-    margin-bottom: 0.75rem;
-    font-size: 1.2rem;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-}
-
-.tool-rating {
-    display: flex;
-    gap: 2px;
-}
-
-.tool-rating i {
-    color: #ffd700;
-    font-size: 0.9rem;
-}
-
-.tool-card-enhanced p {
-    color: #555;
-    margin-bottom: 1rem;
-    font-size: 0.95rem;
-    line-height: 1.5;
-}
-
-.tool-tags {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-    margin-top: 1rem;
-}
-
-.tool-tag {
-    background: rgba(78, 84, 200, 0.1);
-    color: #4e54c8;
-    padding: 4px 10px;
-    border-radius: 15px;
-    font-size: 0.75rem;
-    font-weight: 500;
-}
-`;
-
-  const commentSystemCSS = `
-.comment-section {
-    margin-top: 2rem;
-    padding: 1.5rem;
-    background: white;
-    border-radius: 12px;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-}
-
-.comment-section h2 {
-    color: #4e54c8;
-    margin-bottom: 1.5rem;
-    font-size: 1.5rem;
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-}
-
-.comment-form {
-    background: #f8f9fa;
-    padding: 1.5rem;
-    border-radius: 10px;
-    margin-bottom: 2rem;
-}
-
-.comment-form h3 {
-    color: #2d334a;
-    margin-bottom: 1rem;
-    font-size: 1.2rem;
-}
-
-.form-group {
-    margin-bottom: 1rem;
-}
-
-.form-group label {
-    display: block;
-    margin-bottom: 0.5rem;
-    color: #555;
-    font-weight: 500;
-}
-
-.form-group input,
-.form-group textarea {
-    width: 100%;
-    padding: 12px;
-    border: 1px solid #ddd;
-    border-radius: 8px;
-    font-size: 1rem;
-    transition: all 0.3s ease;
-}
-
-.form-group input:focus,
-.form-group textarea:focus {
-    outline: none;
-    border-color: #4e54c8;
-    box-shadow: 0 0 0 3px rgba(78, 84, 200, 0.1);
-}
-
-.form-group textarea {
-    min-height: 120px;
-    resize: vertical;
-    font-family: inherit;
-}
-
-.comment-submit-btn {
-    background: linear-gradient(135deg, #4e54c8 0%, #8f94fb 100%);
-    color: white;
-    border: none;
-    padding: 12px 24px;
-    border-radius: 8px;
-    font-size: 1rem;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.comment-submit-btn:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(78, 84, 200, 0.3);
-}
-
-.comments-list {
-    margin-top: 2rem;
-}
-
-.comment-item {
-    background: white;
-    border: 1px solid #e9ecef;
-    border-radius: 10px;
-    padding: 1.5rem;
-    margin-bottom: 1rem;
-    transition: all 0.3s ease;
-}
-
-.comment-item:hover {
-    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-    transform: translateY(-2px);
-}
-
-.comment-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    margin-bottom: 1rem;
-    flex-wrap: wrap;
-    gap: 1rem;
-}
-
-.comment-author {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-}
-
-.comment-avatar {
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    background: linear-gradient(135deg, #4e54c8 0%, #8f94fb 100%);
-    color: white;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-weight: bold;
-    font-size: 1.1rem;
-}
-
-.comment-author-info h4 {
-    margin: 0;
-    color: #2d334a;
-    font-size: 1.1rem;
-}
-
-.comment-author-info .comment-date {
-    color: #666;
-    font-size: 0.85rem;
-    margin-top: 0.25rem;
-}
-
-.comment-actions {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-}
-
-.like-comment-btn {
-    background: none;
-    border: 1px solid #e9ecef;
-    color: #666;
-    padding: 6px 12px;
-    border-radius: 6px;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 0.9rem;
-}
-
-.like-comment-btn:hover {
-    border-color: #4e54c8;
-    color: #4e54c8;
-}
-
-.like-comment-btn.liked {
-    background: #ffeaea;
-    border-color: #ff6b6b;
-    color: #ff6b6b;
-}
-
-.comment-content {
-    color: #2d334a;
-    line-height: 1.6;
-    margin: 0;
-    white-space: pre-wrap;
-    word-wrap: break-word;
-}
-
-.comment-stats {
-    display: flex;
-    gap: 1rem;
-    margin-top: 1rem;
-    color: #666;
-    font-size: 0.9rem;
-}
-
-.load-more-comments {
-    text-align: center;
-    margin-top: 2rem;
-}
-
-.load-more-btn {
-    background: #f8f9fa;
-    border: 2px solid #4e54c8;
-    color: #4e54c8;
-    padding: 10px 20px;
-    border-radius: 8px;
-    cursor: pointer;
-    font-weight: 600;
-    transition: all 0.3s ease;
-}
-
-.load-more-btn:hover {
-    background: #4e54c8;
-    color: white;
-}
-
-.no-comments {
-    text-align: center;
-    padding: 3rem;
-    color: #666;
-    background: #f8f9fa;
-    border-radius: 10px;
-    border: 2px dashed #ddd;
-}
-
-@media (max-width: 768px) {
-    .comment-section {
-        padding: 1rem;
-    }
-    
-    .comment-header {
-        flex-direction: column;
-        gap: 0.75rem;
-    }
-    
-    .comment-author {
-        width: 100%;
-    }
-    
-    .comment-actions {
-        width: 100%;
-        justify-content: flex-end;
-    }
-    
-    .comment-item {
-        padding: 1rem;
-    }
-    
-    .comment-form {
-        padding: 1rem;
-    }
-}
-`;
-
-  const downloadAppCSS = `
-/* Floating Download App Button */
-.floating-download-btn {
- display: none !important;
-    position: fixed;
-    bottom: 30px;
-    left: 50%;
-    transform: translateX(-50%);
-    background: linear-gradient(135deg, #4e54c8 0%, #8f94fb 100%);
-    color: white;
-    border: none;
-    border-radius: 50px;
-    padding: 14px 28px;
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    cursor: pointer;
-    z-index: 10000;
-    font-size: 1rem;
-    font-weight: bold;
-    box-shadow: 0 8px 25px rgba(78, 84, 200, 0.4);
-    transition: all 0.3s ease;
-    backdrop-filter: blur(10px);
-    background: rgba(78, 84, 200, 0.95);
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    font-family: 'Segoe UI', sans-serif;
-}
-
-.floating-download-btn:hover {
-    transform: translateX(-50%) scale(1.05);
-    box-shadow: 0 12px 35px rgba(78, 84, 200, 0.6);
-    background: linear-gradient(135deg, #3b41b5 0%, #7c82f0 100%);
-}
-
-.floating-download-btn:active {
-    transform: translateX(-50%) scale(0.98);
-}
-
-.floating-download-btn i {
-    font-size: 1.2rem;
-    animation: bounce 2s infinite;
-}
-
-.floating-download-btn .btn-text {
-    letter-spacing: 0.5px;
-}
-
-.floating-download-btn .btn-badge {
-    background: #ff6b6b;
-    color: white;
-    border-radius: 20px;
-    padding: 2px 8px;
-    font-size: 0.7rem;
-    margin-left: 8px;
-    font-weight: normal;
-}
-
-@keyframes bounce {
-    0%, 100% {
-        transform: translateY(0);
-    }
-    50% {
-        transform: translateY(-3px);
-    }
-}
-
-/* Slide up animation for button */
-@keyframes slideUpFade {
-    from {
-        opacity: 0;
-        transform: translateX(-50%) translateY(30px);
-    }
-    to {
-        opacity: 1;
-        transform: translateX(-50%) translateY(0);
-    }
-}
-
-.floating-download-btn {
-    animation: slideUpFade 0.5s ease-out;
-}
-
-@media (max-width: 768px) {
-    .floating-download-btn {
-        padding: 12px 20px;
-        font-size: 0.85rem;
-        gap: 8px;
-        bottom: 20px;
-    }
-    
-    .floating-download-btn i {
-        font-size: 1rem;
-    }
-}
-
-@media (max-width: 480px) {
-    .floating-download-btn {
-        padding: 10px 16px;
-        font-size: 0.75rem;
-        gap: 6px;
-        bottom: 15px;
-    }
-    
-    .floating-download-btn i {
-        font-size: 0.9rem;
-    }
-}
-
-/* Hide on certain pages if needed */
-.floating-download-btn.hidden {
-    display: none;
-}
-
-@keyframes pulse {
-    0% { transform: translateX(-50%) scale(1); box-shadow: 0 8px 25px rgba(78, 84, 200, 0.4); }
-    50% { transform: translateX(-50%) scale(1.08); box-shadow: 0 12px 35px rgba(78, 84, 200, 0.7); }
-    100% { transform: translateX(-50%) scale(1); box-shadow: 0 8px 25px rgba(78, 84, 200, 0.4); }
-}
-`;
-
-  const aiGeneratorCSS = `
-/* Sticky AI Generator Bar */
-.ai-generator-bar {
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    background: rgba(255, 255, 255, 0.98);
-    backdrop-filter: blur(10px);
-    border-top: 1px solid #e9ecef;
-    padding: 8px 12px;
-    display: none;
-    align-items: center;
-    gap: 8px;
-    z-index: 9999;
-    box-shadow: 0 -4px 20px rgba(0,0,0,0.1);
-    transition: transform 0.3s ease;
-    flex-wrap: nowrap; /* prevent wrapping */
-}
-.ai-generator-bar.active {
-    display: flex;
-}
-.ai-generator-input {
-    flex: 1 1 auto;
-    min-width: 60px;
-    max-height: 80px;
-    padding: 8px 12px;
-    border: 2px solid #e9ecef;
-    border-radius: 24px;
-    font-size: 0.9rem;
-    resize: none;
-    outline: none;
-    transition: border-color 0.3s ease;
-    font-family: inherit;
-    background: white;
-    line-height: 1.4;
-}
-.ai-generator-input:focus {
-    border-color: #4e54c8;
-}
-.ai-generator-actions {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    flex-shrink: 0;
-}
-.ai-image-upload-btn {
-    background: #f1f3f5;
-    border: none;
-    width: 38px;
-    height: 38px;
-    border-radius: 50%;
-    font-size: 1.2rem;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: all 0.3s ease;
-    color: #495057;
-    flex-shrink: 0;
-}
-.ai-image-upload-btn:hover {
-    background: #4e54c8;
-    color: white;
-    transform: scale(1.05);
-}
-.ai-generate-btn {
-    background: linear-gradient(135deg, #4e54c8, #8f94fb);
-    border: none;
-    width: 38px;
-    height: 38px;
-    border-radius: 50%;
-    color: white;
-    font-size: 1.1rem;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: all 0.3s ease;
-    box-shadow: 0 4px 12px rgba(78,84,200,0.3);
-    flex-shrink: 0;
-}
-.ai-generate-btn:hover {
-    transform: scale(1.05);
-    box-shadow: 0 6px 20px rgba(78,84,200,0.5);
-}
-.ai-generate-btn:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-    transform: none;
-}
-.ai-credit-display {
-    font-size: 0.75rem;
-    color: #495057;
-    padding: 0 4px;
-    white-space: nowrap;
-    display: flex;
-    align-items: center;
-    gap: 3px;
-    flex-shrink: 0;
-}
-.ai-credit-display .credits-num {
-    font-weight: 700;
-    color: #4e54c8;
-}
-.ai-file-input {
-    display: none;
-}
-.ai-image-preview {
-    display: none;
-    position: relative;
-    width: 34px;
-    height: 34px;
-    border-radius: 8px;
-    overflow: hidden;
-    flex-shrink: 0;
-    border: 2px solid #4e54c8;
-}
-.ai-image-preview img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-}
-.ai-image-preview .remove-image {
-    position: absolute;
-    top: -6px;
-    right: -6px;
-    background: #ff6b6b;
-    color: white;
-    border: none;
-    border-radius: 50%;
-    width: 18px;
-    height: 18px;
-    font-size: 10px;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-/* ===== SEGMENTED CONTROL ===== */
-.ai-mode-toggle-group {
-    display: flex;
-    background: #e9ecef;
-    border-radius: 20px;
-    padding: 2px;
-    gap: 0;
-    flex-shrink: 0;
-    border: 1px solid #dee2e6;
-}
-.ai-mode-option {
-    background: transparent;
-    border: none;
-    padding: 4px 10px;
-    border-radius: 18px;
-    font-size: 0.75rem;
-    font-weight: 600;
-    color: #495057;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    white-space: nowrap;
-}
-.ai-mode-option i {
-    font-size: 0.9rem;
-}
-.ai-mode-option.active {
-    background: white;
-    color: #4e54c8;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-}
-.ai-mode-option:hover:not(.active) {
-    background: rgba(255,255,255,0.5);
-}
-.ai-mode-option:active {
-    transform: scale(0.95);
-}
-
-/* Generated Image Modal */
-.generated-modal {
-    display: none;
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0,0,0,0.85);
-    z-index: 99999;
-    align-items: center;
-    justify-content: center;
-    padding: 20px;
-}
-.generated-modal.active {
-    display: flex;
-}
-.generated-modal-content {
-    max-width: 90%;
-    max-height: 90%;
-    position: relative;
-}
-.generated-modal-content img {
-    max-width: 100%;
-    max-height: 90vh;
-    border-radius: 12px;
-    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
-}
-.generated-modal-close {
-    position: absolute;
-    top: -40px;
-    right: -40px;
-    background: white;
-    border: none;
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    font-size: 1.5rem;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: #333;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-}
-.generated-modal-close:hover {
-    background: #ff6b6b;
-    color: white;
-}
-.generated-modal-download {
-    position: absolute;
-    bottom: -50px;
-    left: 50%;
-    transform: translateX(-50%);
-    background: #4e54c8;
-    color: white;
-    border: none;
-    padding: 10px 24px;
-    border-radius: 30px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: background 0.3s ease;
-}
-.generated-modal-download:hover {
-    background: #3f44b8;
-}
-
-/* ========== MOBILE RESPONSIVENESS ========== */
-@media (max-width: 768px) {
-    .ai-generator-bar {
-        flex-wrap: wrap;
-        padding: 6px 8px;
-        gap: 6px;
-        bottom: 0 !important;
-    }
-    .ai-generator-input {
-        flex: 1 1 100%;
-        min-height: 38px;
-        font-size: 0.85rem;
-        padding: 8px 12px;
-        border-radius: 20px;
-    }
-    .ai-generator-actions {
-        flex-wrap: wrap;
-        justify-content: flex-end;
-        gap: 4px;
-        width: 100%;
-    }
-    .duration-option {
-        padding: 2px 6px !important;
-        gap: 3px !important;
-    }
-    .duration-option input[type="range"] {
-        width: 40px !important;
-        height: 4px !important;
-    }
-    .duration-option span {
-        font-size: 0.6rem !important;
-        min-width: 20px !important;
-    }
-    .ai-image-upload-btn, .ai-generate-btn {
-        width: 30px !important;
-        height: 30px !important;
-        font-size: 0.8rem !important;
-    }
-    .ai-mode-option {
-        padding: 2px 6px !important;
-        font-size: 0.6rem !important;
-    }
-    .ai-mode-option span {
-        display: none; /* hide text, only icons */
-    }
-    .ai-mode-option i {
-        font-size: 0.9rem !important;
-    }
-    .ai-credit-display {
-        font-size: 0.6rem !important;
-        padding: 0 2px;
-    }
-    .ai-image-preview {
-        width: 28px;
-        height: 28px;
-    }
-    .ai-image-preview .remove-image {
-        width: 16px;
-        height: 16px;
-        font-size: 8px;
-        top: -4px;
-        right: -4px;
-    }
-}
-
-@media (max-width: 480px) {
-    .ai-generator-bar {
-        padding: 4px 6px;
-        gap: 4px;
-        bottom: 56px;
-    }
-    .ai-generator-input {
-        min-height: 32px;
-        font-size: 0.75rem;
-        padding: 4px 10px;
-        border-radius: 16px;
-        flex: 1 1 100%;
-    }
-    .ai-generator-actions {
-        gap: 3px;
-    }
-    .duration-option input[type="range"] {
-        width: 32px !important;
-    }
-    .ai-image-upload-btn, .ai-generate-btn {
-        width: 26px !important;
-        height: 26px !important;
-        font-size: 0.7rem !important;
-    }
-    .ai-mode-option span {
-        display: none;
-    }
-    .ai-mode-option i {
-        font-size: 1rem !important;
-    }
-    .ai-credit-display {
-        font-size: 0.55rem;
-    }
-    .ai-credit-display .credits-num {
-        font-size: 0.65rem;
-    }
-    .ai-image-preview {
-        width: 24px;
-        height: 24px;
-    }
-}
-`;
-
-  const socialBadgesCSS = `
+const socialBadgesCSS = `
 /* Sticky Social Badges Container - Left Side */
 .social-badges-container {
     position: fixed;
@@ -9182,7 +7103,7 @@ function generateEnhancedPromptHTML(promptData, affiliates) {
 }
 `;
 
-  const socialFeedCSS = `
+const socialFeedCSS = `
 /* Social Feed Container - Right Side, Centered */
 .social-feed-container {
     position: fixed;
@@ -9532,1774 +7453,3284 @@ margin-right: 5vw;
 }
 `;
 
-  // ==================== HTML DEFINITIONS ====================
-  const miniBrowserHTML = `
-<div class="mini-browser-container" id="miniBrowser">
-    <div class="mini-browser-header" id="miniBrowserHeader">
-        <div class="mini-browser-title">
-            <i class="fas fa-compact-disc"></i> <span class="title-text">Quick Unique Best Match</span>
-        </div>
-        <div class="mini-browser-controls">
-            <button class="mini-browser-btn" onclick="refreshMiniBrowser()" title="Refresh">
-                <i class="fas fa-redo"></i>
-            </button>
-            <button class="mini-browser-btn" onclick="toggleMiniBrowserSize()" title="Expand/Collapse">
-                <i class="fas fa-expand"></i>
-            </button>
-            <button class="mini-browser-btn" onclick="closeMiniBrowser()" title="Close">
-                <i class="fas fa-times"></i>
-            </button>
-        </div>
-    </div>
-    <div class="mini-browser-content">
-        <div class="mini-browser-loading" id="miniBrowserLoading">
-            <div class="spinner"></div>
-            <div>Loading tools prompt...</div>
-        </div>
-        <iframe 
-            src="https://www.toolsprompt.com" 
-            class="mini-browser-iframe" 
-            id="miniBrowserIframe"
-            onload="hideMiniBrowserLoading()"
-            allow="fullscreen"
-            referrerpolicy="strict-origin-when-cross-origin"
-            sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox"
-        ></iframe>
-    </div>
-</div>
+function generateEnhancedPromptHTML(promptData, affiliates) {
+  // ---------- Helper: generate affiliate HTML ----------
+  function generateAffiliateHTML(affiliate) {
+    if (!affiliate) return '';
+    return `
+      <div class="affiliate-container">
+        <div class="ad-label">🌟 Sponsored</div>
+        <a href="${affiliate.url}" target="_blank" rel="noopener sponsored" class="affiliate-link">
+          ${affiliate.image ? `<img src="${affiliate.image}" alt="${affiliate.title}" class="affiliate-image" onerror="this.style.display='none'">` : ''}
+          <div class="affiliate-info">
+            <h4>${affiliate.title}</h4>
+            ${affiliate.description ? `<p>${affiliate.description}</p>` : ''}
+            <span class="affiliate-cta">View Product →</span>
+          </div>
+        </a>
+      </div>
+    `;
+  }
 
-<button class="mini-browser-toggle" id="miniBrowserToggle" onclick="toggleMiniBrowser()">
-    <i class="fas fa-plus"></i>
-</button>
-`;
+  // ---------- CSS constants ----------
+  const miniBrowserCSS = `
+  .mini-browser-container {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      width: 320px;
+      height: 450px;
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+      z-index: 10000;
+      display: none;
+      flex-direction: column;
+      overflow: hidden;
+      transition: all 0.3s ease;
+      border: 2px solid #4e54c8;
+      resize: both;
+      min-width: 300px;
+      min-height: 400px;
+  }
+
+  .mini-browser-container.expanded {
+      width: 90vw !important;
+      height: 90vh !important;
+      bottom: 5vh !important;
+      right: 5vw !important;
+      resize: none;
+  }
+
+  .mini-browser-header {
+      background: #4e54c8;
+      color: white;
+      padding: 12px 15px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      cursor: move;
+      user-select: none;
+      flex-shrink: 0;
+  }
+
+  .mini-browser-title {
+      font-size: 0.9rem;
+      font-weight: 600;
+  }
+
+  .mini-browser-controls {
+      display: flex;
+      gap: 8px;
+  }
+
+  .mini-browser-btn {
+      background: rgba(255,255,255,0.2);
+      border: none;
+      color: white;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      font-size: 0.8rem;
+      transition: all 0.3s ease;
+  }
+
+  .mini-browser-btn:hover {
+      background: rgba(255,255,255,0.3);
+      transform: scale(1.1);
+  }
+
+  .mini-browser-content {
+      flex: 1;
+      background: white;
+      position: relative;
+      overflow: hidden;
+  }
+
+  .mini-browser-iframe {
+      width: 100%;
+      height: 100%;
+      border: none;
+      background: white;
+  }
+
+  .mini-browser-toggle {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      background: #4e54c8;
+      color: white;
+      border: none;
+      border-radius: 50%;
+      width: 60px;
+      height: 60px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      box-shadow: 0 4px 15px rgba(78, 84, 200, 0.4);
+      z-index: 9999;
+      transition: all 0.3s ease;
+      font-size: 1.5rem;
+  }
+
+  .mini-browser-toggle:hover {
+      transform: scale(1.1);
+      box-shadow: 0 6px 20px rgba(78, 84, 200, 0.6);
+  }
+
+  @media (max-width: 768px) {
+      .mini-browser-container {
+          width: 280px;
+          height: 350px;
+          bottom: 10px;
+          right: 10px;
+          min-width: 250px;
+          min-height: 300px;
+      }
+      .mini-browser-container.expanded {
+          width: 95vw !important;
+          height: 70vh !important;
+          bottom: 5vh !important;
+          right: 2.5vw !important;
+      }
+      .mini-browser-toggle {
+          width: 45px;
+          height: 45px;
+          bottom: 10px;
+          right: 10px;
+          font-size: 1.1rem;
+      }
+  }
+
+  @media (max-width: 480px) {
+      .mini-browser-container {
+          width: 250px;
+          height: 300px;
+          bottom: 8px;
+          right: 8px;
+          min-width: 220px;
+          min-height: 250px;
+      }
+      .mini-browser-container.expanded {
+          width: 98vw !important;
+          height: 60vh !important;
+          bottom: 5vh !important;
+          right: 1vw !important;
+      }
+      .mini-browser-toggle {
+          width: 40px;
+          height: 40px;
+          bottom: 8px;
+          right: 8px;
+          font-size: 1rem;
+      }
+      .title-text { display: none; }
+  }
+
+  .mini-browser-loading {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: white;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      color: #666;
+      z-index: 10;
+  }
+
+  .mini-browser-loading .spinner {
+      border: 3px solid #f3f3f3;
+      border-top: 3px solid #4e54c8;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      animation: spin 1s linear infinite;
+      margin-bottom: 15px;
+  }
+
+  @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+  }
+
+  .mini-browser-iframe {
+      opacity: 1;
+      transition: opacity 0.3s ease;
+  }
+
+  .mini-browser-iframe[style*="display: none"] {
+      opacity: 0;
+  }
+  `;
+
+  const platformComparisonCSS = `
+  .platform-comparison {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 2rem;
+      border-radius: 15px;
+      margin: 2rem 0;
+      position: relative;
+      overflow: hidden;
+  }
+
+  .platform-comparison::before {
+      content: '';
+      position: absolute;
+      top: -50%;
+      right: -50%;
+      width: 100%;
+      height: 200%;
+      background: rgba(255,255,255,0.1);
+      transform: rotate(45deg);
+  }
+
+  .platform-comparison h3 {
+      position: relative;
+      z-index: 1;
+      margin-bottom: 1rem;
+      font-size: 1.5rem;
+      color: white;
+  }
+
+  .platform-comparison p {
+      position: relative;
+      z-index: 1;
+      opacity: 0.9;
+      margin-bottom: 1.5rem;
+  }
+
+  .comparison-table-container {
+      position: relative;
+      z-index: 1;
+      overflow-x: auto;
+      margin: 1.5rem 0;
+      background: rgba(255,255,255,0.1);
+      border-radius: 10px;
+      padding: 1rem;
+      backdrop-filter: blur(10px);
+  }
+
+  .platform-comparison-table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 600px;
+  }
+
+  .platform-comparison-table th {
+      background: rgba(255,255,255,0.2);
+      color: white;
+      font-weight: 600;
+      text-align: left;
+      padding: 1rem;
+      border-bottom: 2px solid rgba(255,255,255,0.3);
+  }
+
+  .platform-comparison-table td {
+      padding: 1rem;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+      color: rgba(255,255,255,0.9);
+  }
+
+  .platform-comparison-table tr:hover {
+      background: rgba(255,255,255,0.1);
+  }
+
+  .platform-comparison-table tr.primary-platform {
+      background: rgba(255,255,255,0.15);
+      border-left: 4px solid #4e54c8;
+  }
+
+  .primary-badge {
+      background: #4e54c8;
+      color: white;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-size: 0.7rem;
+      margin-left: 8px;
+      vertical-align: middle;
+  }
+
+  .price-tag {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 0.8rem;
+      font-weight: 600;
+  }
+
+  .price-free { background: #20bf6b; color: white; }
+  .price-paid { background: #ff9f43; color: white; }
+
+  .category-badge {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      background: rgba(255,255,255,0.2);
+      color: white;
+  }
+
+  .category-professional { background: #4e54c8; }
+  .category-artistic { background: #9b59b6; }
+  .category-open-source { background: #2c3e50; }
+  .category-free { background: #20bf6b; }
+  .category-commercial { background: #2980b9; }
+  .category-editing { background: #e67e22; }
+  .category-design { background: #f1c40f; color: #333; }
+  .category-versatile { background: #3498db; }
+  .category-mobile { background: #e91e63; }
+  .category-nft { background: #8e44ad; }
+  .category-real-time { background: #16a085; }
+  .category-video { background: #ff6b6b; }
+  .category-animation { background: #f39c12; }
+  .category-social { background: #00acc1; }
+  .category-marketing { background: #d35400; }
+  .category-avatar { background: #c0392b; }
+  .category-cinematic { background: #1abc9c; }
+  .category-motion { background: #d35400; }
+  .category-3d { background: #2ecc71; }
+  .category-expressive { background: #e74c3c; }
+  .category-storytelling { background: #9b59b6; }
+
+  .comparison-tips {
+      position: relative;
+      z-index: 1;
+      background: rgba(255,255,255,0.1);
+      padding: 1.5rem;
+      border-radius: 10px;
+      margin-top: 1.5rem;
+      backdrop-filter: blur(10px);
+  }
+
+  .comparison-tips ul {
+      margin: 0;
+      padding-left: 1.5rem;
+  }
+
+  .comparison-tips li {
+      margin-bottom: 0.5rem;
+      opacity: 0.9;
+  }
+
+  .model-specific-tips {
+      background: #f8f9fa;
+      padding: 2rem;
+      border-radius: 15px;
+      margin: 2rem 0;
+      border: 2px solid #e9ecef;
+  }
+
+  .model-specific-tips h4 {
+      color: #4e54c8;
+      margin-bottom: 1.5rem;
+      font-size: 1.3rem;
+  }
+
+  .model-tips-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 1.5rem;
+      margin-top: 1rem;
+  }
+
+  .model-tip {
+      background: white;
+      padding: 1.5rem;
+      border-radius: 10px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      border-top: 4px solid #4e54c8;
+      transition: transform 0.3s ease;
+  }
+
+  .model-tip:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+  }
+
+  .model-tip h5 {
+      color: #4e54c8;
+      margin-bottom: 1rem;
+      font-size: 1.1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+  }
+
+  .model-tip ul {
+      margin: 0;
+      padding-left: 1.2rem;
+  }
+
+  .model-tip li {
+      margin-bottom: 0.5rem;
+      color: #555;
+      font-size: 0.9rem;
+  }
+
+  .model-tip code {
+      background: #f1f3f9;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: 'Courier New', monospace;
+      color: #4e54c8;
+      font-size: 0.85rem;
+  }
+
+  .tools-grid-enhanced {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 1.5rem;
+      margin-top: 1rem;
+  }
+
+  .tool-card-enhanced {
+      background: white;
+      padding: 1.5rem;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      border-left: 4px solid #4e54c8;
+      transition: all 0.3s ease;
+      position: relative;
+      overflow: hidden;
+  }
+
+  .tool-card-enhanced:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+  }
+
+  .tool-card-enhanced.primary-tool {
+      border-left: 4px solid #20bf6b;
+      background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
+  }
+
+  .tool-card-enhanced.primary-tool::before {
+      content: '★ Recommended';
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background: #20bf6b;
+      color: white;
+      padding: 4px 8px;
+      border-radius: 12px;
+      font-size: 0.7rem;
+      font-weight: 600;
+  }
+
+  .tool-card-enhanced h4 {
+      color: #4e54c8;
+      margin-bottom: 0.75rem;
+      font-size: 1.2rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+  }
+
+  .tool-rating {
+      display: flex;
+      gap: 2px;
+  }
+
+  .tool-rating i {
+      color: #ffd700;
+      font-size: 0.9rem;
+  }
+
+  .tool-card-enhanced p {
+      color: #555;
+      margin-bottom: 1rem;
+      font-size: 0.95rem;
+      line-height: 1.5;
+  }
+
+  .tool-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-top: 1rem;
+  }
+
+  .tool-tag {
+      background: rgba(78, 84, 200, 0.1);
+      color: #4e54c8;
+      padding: 4px 10px;
+      border-radius: 15px;
+      font-size: 0.75rem;
+      font-weight: 500;
+  }
+  `;
+
+  const commentSystemCSS = `
+  .comment-section {
+      margin-top: 2rem;
+      padding: 1.5rem;
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+  }
+
+  .comment-section h2 {
+      color: #4e54c8;
+      margin-bottom: 1.5rem;
+      font-size: 1.5rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+  }
+
+  .comment-form {
+      background: #f8f9fa;
+      padding: 1.5rem;
+      border-radius: 10px;
+      margin-bottom: 2rem;
+  }
+
+  .comment-form h3 {
+      color: #2d334a;
+      margin-bottom: 1rem;
+      font-size: 1.2rem;
+  }
+
+  .form-group {
+      margin-bottom: 1rem;
+  }
+
+  .form-group label {
+      display: block;
+      margin-bottom: 0.5rem;
+      color: #555;
+      font-weight: 500;
+  }
+
+  .form-group input,
+  .form-group textarea {
+      width: 100%;
+      padding: 12px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      font-size: 1rem;
+      transition: all 0.3s ease;
+  }
+
+  .form-group input:focus,
+  .form-group textarea:focus {
+      outline: none;
+      border-color: #4e54c8;
+      box-shadow: 0 0 0 3px rgba(78, 84, 200, 0.1);
+  }
+
+  .form-group textarea {
+      min-height: 120px;
+      resize: vertical;
+      font-family: inherit;
+  }
+
+  .comment-submit-btn {
+      background: linear-gradient(135deg, #4e54c8 0%, #8f94fb 100%);
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+  }
+
+  .comment-submit-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(78, 84, 200, 0.3);
+  }
+
+  .comments-list {
+      margin-top: 2rem;
+  }
+
+  .comment-item {
+      background: white;
+      border: 1px solid #e9ecef;
+      border-radius: 10px;
+      padding: 1.5rem;
+      margin-bottom: 1rem;
+      transition: all 0.3s ease;
+  }
+
+  .comment-item:hover {
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      transform: translateY(-2px);
+  }
+
+  .comment-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 1rem;
+      flex-wrap: wrap;
+      gap: 1rem;
+  }
+
+  .comment-author {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+  }
+
+  .comment-avatar {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #4e54c8 0%, #8f94fb 100%);
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      font-size: 1.1rem;
+  }
+
+  .comment-author-info h4 {
+      margin: 0;
+      color: #2d334a;
+      font-size: 1.1rem;
+  }
+
+  .comment-author-info .comment-date {
+      color: #666;
+      font-size: 0.85rem;
+      margin-top: 0.25rem;
+  }
+
+  .comment-actions {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+  }
+
+  .like-comment-btn {
+      background: none;
+      border: 1px solid #e9ecef;
+      color: #666;
+      padding: 6px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.9rem;
+  }
+
+  .like-comment-btn:hover {
+      border-color: #4e54c8;
+      color: #4e54c8;
+  }
+
+  .like-comment-btn.liked {
+      background: #ffeaea;
+      border-color: #ff6b6b;
+      color: #ff6b6b;
+  }
+
+  .comment-content {
+      color: #2d334a;
+      line-height: 1.6;
+      margin: 0;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+  }
+
+  .comment-stats {
+      display: flex;
+      gap: 1rem;
+      margin-top: 1rem;
+      color: #666;
+      font-size: 0.9rem;
+  }
+
+  .load-more-comments {
+      text-align: center;
+      margin-top: 2rem;
+  }
+
+  .load-more-btn {
+      background: #f8f9fa;
+      border: 2px solid #4e54c8;
+      color: #4e54c8;
+      padding: 10px 20px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: all 0.3s ease;
+  }
+
+  .load-more-btn:hover {
+      background: #4e54c8;
+      color: white;
+  }
+
+  .no-comments {
+      text-align: center;
+      padding: 3rem;
+      color: #666;
+      background: #f8f9fa;
+      border-radius: 10px;
+      border: 2px dashed #ddd;
+  }
+
+  @media (max-width: 768px) {
+      .comment-section { padding: 1rem; }
+      .comment-header { flex-direction: column; gap: 0.75rem; }
+      .comment-author { width: 100%; }
+      .comment-actions { width: 100%; justify-content: flex-end; }
+      .comment-item { padding: 1rem; }
+      .comment-form { padding: 1rem; }
+  }
+  `;
+
+  const downloadAppCSS = `
+  /* Floating Download App Button */
+  .floating-download-btn {
+   display: none !important;
+      position: fixed;
+      bottom: 30px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: linear-gradient(135deg, #4e54c8 0%, #8f94fb 100%);
+      color: white;
+      border: none;
+      border-radius: 50px;
+      padding: 14px 28px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      cursor: pointer;
+      z-index: 10000;
+      font-size: 1rem;
+      font-weight: bold;
+      box-shadow: 0 8px 25px rgba(78, 84, 200, 0.4);
+      transition: all 0.3s ease;
+      backdrop-filter: blur(10px);
+      background: rgba(78, 84, 200, 0.95);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      font-family: 'Segoe UI', sans-serif;
+  }
+
+  .floating-download-btn:hover {
+      transform: translateX(-50%) scale(1.05);
+      box-shadow: 0 12px 35px rgba(78, 84, 200, 0.6);
+      background: linear-gradient(135deg, #3b41b5 0%, #7c82f0 100%);
+  }
+
+  .floating-download-btn:active {
+      transform: translateX(-50%) scale(0.98);
+  }
+
+  .floating-download-btn i {
+      font-size: 1.2rem;
+      animation: bounce 2s infinite;
+  }
+
+  .floating-download-btn .btn-text {
+      letter-spacing: 0.5px;
+  }
+
+  .floating-download-btn .btn-badge {
+      background: #ff6b6b;
+      color: white;
+      border-radius: 20px;
+      padding: 2px 8px;
+      font-size: 0.7rem;
+      margin-left: 8px;
+      font-weight: normal;
+  }
+
+  @keyframes bounce {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-3px); }
+  }
+
+  @keyframes slideUpFade {
+      from { opacity: 0; transform: translateX(-50%) translateY(30px); }
+      to { opacity: 1; transform: translateX(-50%) translateY(0); }
+  }
+
+  .floating-download-btn {
+      animation: slideUpFade 0.5s ease-out;
+  }
+
+  @media (max-width: 768px) {
+      .floating-download-btn {
+          padding: 12px 20px;
+          font-size: 0.85rem;
+          gap: 8px;
+          bottom: 20px;
+      }
+      .floating-download-btn i { font-size: 1rem; }
+  }
+
+  @media (max-width: 480px) {
+      .floating-download-btn {
+          padding: 10px 16px;
+          font-size: 0.75rem;
+          gap: 6px;
+          bottom: 15px;
+      }
+      .floating-download-btn i { font-size: 0.9rem; }
+  }
+
+  .floating-download-btn.hidden { display: none; }
+
+  @keyframes pulse {
+      0% { transform: translateX(-50%) scale(1); box-shadow: 0 8px 25px rgba(78, 84, 200, 0.4); }
+      50% { transform: translateX(-50%) scale(1.08); box-shadow: 0 12px 35px rgba(78, 84, 200, 0.7); }
+      100% { transform: translateX(-50%) scale(1); box-shadow: 0 8px 25px rgba(78, 84, 200, 0.4); }
+  }
+  `;
+
+  const aiGeneratorCSS = `
+  /* Sticky AI Generator Bar */
+  .ai-generator-bar {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: rgba(255, 255, 255, 0.98);
+      backdrop-filter: blur(10px);
+      border-top: 1px solid #e9ecef;
+      padding: 8px 12px;
+      display: none;
+      align-items: center;
+      gap: 8px;
+      z-index: 10000;   /* increased to be above sticky ad */
+      box-shadow: 0 -4px 20px rgba(0,0,0,0.1);
+      transition: transform 0.3s ease;
+      flex-wrap: nowrap;
+  }
+  .ai-generator-bar.active {
+      display: flex;
+  }
+  .ai-generator-input {
+      flex: 1 1 auto;
+      min-width: 60px;
+      max-height: 80px;
+      padding: 8px 12px;
+      border: 2px solid #e9ecef;
+      border-radius: 24px;
+      font-size: 0.9rem;
+      resize: none;
+      outline: none;
+      transition: border-color 0.3s ease;
+      font-family: inherit;
+      background: white;
+      line-height: 1.4;
+  }
+  .ai-generator-input:focus {
+      border-color: #4e54c8;
+  }
+  .ai-generator-actions {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-shrink: 0;
+  }
+  .ai-image-upload-btn {
+      background: #f1f3f5;
+      border: none;
+      width: 38px;
+      height: 38px;
+      border-radius: 50%;
+      font-size: 1.2rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.3s ease;
+      color: #495057;
+      flex-shrink: 0;
+  }
+  .ai-image-upload-btn:hover {
+      background: #4e54c8;
+      color: white;
+      transform: scale(1.05);
+  }
+  .ai-generate-btn {
+      background: linear-gradient(135deg, #4e54c8, #8f94fb);
+      border: none;
+      width: 38px;
+      height: 38px;
+      border-radius: 50%;
+      color: white;
+      font-size: 1.1rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.3s ease;
+      box-shadow: 0 4px 12px rgba(78,84,200,0.3);
+      flex-shrink: 0;
+  }
+  .ai-generate-btn:hover {
+      transform: scale(1.05);
+      box-shadow: 0 6px 20px rgba(78,84,200,0.5);
+  }
+  .ai-generate-btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none;
+  }
+  .ai-credit-display {
+      font-size: 0.75rem;
+      color: #495057;
+      padding: 0 4px;
+      white-space: nowrap;
+      display: flex;
+      align-items: center;
+      gap: 3px;
+      flex-shrink: 0;
+  }
+  .ai-credit-display .credits-num {
+      font-weight: 700;
+      color: #4e54c8;
+  }
+  .ai-file-input { display: none; }
+  .ai-image-preview {
+      display: none;
+      position: relative;
+      width: 34px;
+      height: 34px;
+      border-radius: 8px;
+      overflow: hidden;
+      flex-shrink: 0;
+      border: 2px solid #4e54c8;
+  }
+  .ai-image-preview img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+  }
+  .ai-image-preview .remove-image {
+      position: absolute;
+      top: -6px;
+      right: -6px;
+      background: #ff6b6b;
+      color: white;
+      border: none;
+      border-radius: 50%;
+      width: 18px;
+      height: 18px;
+      font-size: 10px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+  }
+
+  .ai-mode-toggle-group {
+      display: flex;
+      background: #e9ecef;
+      border-radius: 20px;
+      padding: 2px;
+      gap: 0;
+      flex-shrink: 0;
+      border: 1px solid #dee2e6;
+  }
+  .ai-mode-option {
+      background: transparent;
+      border: none;
+      padding: 4px 10px;
+      border-radius: 18px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: #495057;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      white-space: nowrap;
+  }
+  .ai-mode-option i { font-size: 0.9rem; }
+  .ai-mode-option.active {
+      background: white;
+      color: #4e54c8;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  }
+  .ai-mode-option:hover:not(.active) {
+      background: rgba(255,255,255,0.5);
+  }
+  .ai-mode-option:active {
+      transform: scale(0.95);
+  }
+
+  .generated-modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0,0,0,0.85);
+      z-index: 99999;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+  }
+  .generated-modal.active { display: flex; }
+  .generated-modal-content {
+      max-width: 90%;
+      max-height: 90%;
+      position: relative;
+  }
+  .generated-modal-content img {
+      max-width: 100%;
+      max-height: 90vh;
+      border-radius: 12px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+  }
+  .generated-modal-close {
+      position: absolute;
+      top: -40px;
+      right: -40px;
+      background: white;
+      border: none;
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      font-size: 1.5rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #333;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+  }
+  .generated-modal-close:hover {
+      background: #ff6b6b;
+      color: white;
+  }
+  .generated-modal-download {
+      position: absolute;
+      bottom: -50px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #4e54c8;
+      color: white;
+      border: none;
+      padding: 10px 24px;
+      border-radius: 30px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.3s ease;
+  }
+  .generated-modal-download:hover {
+      background: #3f44b8;
+  }
+
+  @media (max-width: 768px) {
+      .ai-generator-bar {
+          flex-wrap: wrap;
+          padding: 6px 8px;
+          gap: 6px;
+          bottom: 0 !important;
+      }
+      .ai-generator-input {
+          flex: 1 1 100%;
+          min-height: 38px;
+          font-size: 0.85rem;
+          padding: 8px 12px;
+          border-radius: 20px;
+      }
+      .ai-generator-actions {
+          flex-wrap: wrap;
+          justify-content: flex-end;
+          gap: 4px;
+          width: 100%;
+      }
+      .duration-option { padding: 2px 6px !important; gap: 3px !important; }
+      .duration-option input[type="range"] { width: 40px !important; height: 4px !important; }
+      .duration-option span { font-size: 0.6rem !important; min-width: 20px !important; }
+      .ai-image-upload-btn, .ai-generate-btn { width: 30px !important; height: 30px !important; font-size: 0.8rem !important; }
+      .ai-mode-option { padding: 2px 6px !important; font-size: 0.6rem !important; }
+      .ai-mode-option span { display: none; }
+      .ai-mode-option i { font-size: 0.9rem !important; }
+      .ai-credit-display { font-size: 0.6rem !important; padding: 0 2px; }
+      .ai-image-preview { width: 28px; height: 28px; }
+      .ai-image-preview .remove-image { width: 16px; height: 16px; font-size: 8px; top: -4px; right: -4px; }
+  }
+
+  @media (max-width: 480px) {
+      .ai-generator-bar {
+          padding: 4px 6px;
+          gap: 4px;
+          bottom: 56px;
+      }
+      .ai-generator-input {
+          min-height: 32px;
+          font-size: 0.75rem;
+          padding: 4px 10px;
+          border-radius: 16px;
+          flex: 1 1 100%;
+      }
+      .ai-generator-actions { gap: 3px; }
+      .duration-option input[type="range"] { width: 32px !important; }
+      .ai-image-upload-btn, .ai-generate-btn { width: 26px !important; height: 26px !important; font-size: 0.7rem !important; }
+      .ai-mode-option span { display: none; }
+      .ai-mode-option i { font-size: 1rem !important; }
+      .ai-credit-display { font-size: 0.55rem; }
+      .ai-credit-display .credits-num { font-size: 0.65rem; }
+      .ai-image-preview { width: 24px; height: 24px; }
+  }
+  `;
+
+  const socialBadgesCSS = `
+  /* Sticky Social Badges Container - Left Side */
+  .social-badges-container {
+      position: fixed;
+      left: 20px;
+      top: 50%;
+      transform: translateY(-50%);
+      z-index: 9998;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+  }
+
+  /* Toggle button */
+  .social-badges-toggle {
+      background: rgba(255, 255, 255, 0.95);
+      border: none;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+      transition: all 0.3s ease;
+      color: #4e54c8;
+      font-size: 1.2rem;
+      margin-bottom: 6px;
+      backdrop-filter: blur(5px);
+      border: 2px solid rgba(255, 255, 255, 0.3);
+  }
+  .social-badges-toggle:hover {
+      transform: scale(1.1);
+      box-shadow: 0 6px 20px rgba(78, 84, 200, 0.4);
+  }
+
+  /* Each badge */
+  .social-badge {
+      background: rgba(255, 255, 255, 0.95);
+      border-radius: 50px;
+      padding: 10px 12px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-decoration: none;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+      transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+      cursor: pointer;
+      min-width: 44px;
+      min-height: 44px;
+      font-family: 'Segoe UI', sans-serif;
+      border: 2px solid rgba(255, 255, 255, 0.2);
+      backdrop-filter: blur(5px);
+      animation: social-shake 5s ease-in-out infinite;
+      transform-origin: center;
+      color: white;
+      opacity: 1;
+      transform: scale(1) translateY(0);
+      pointer-events: auto;
+  }
+
+  .social-badges-container.collapsed .social-badge {
+      opacity: 0;
+      transform: scale(0.5) rotateY(90deg) translateY(-40px);
+      pointer-events: none;
+      animation: none;
+  }
+
+  .social-badges-container.collapsed .social-badges-toggle i {
+      transform: rotate(180deg);
+  }
+
+  .social-badge:hover {
+      transform: scale(1.1);
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
+      border-color: rgba(255, 255, 255, 0.5);
+      animation: none;
+  }
+
+  .social-badge i {
+      font-size: 1.8rem;
+      margin-bottom: 4px;
+      text-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  }
+
+  .social-badge .followers-text {
+      font-size: 0.65rem;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      text-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+      white-space: nowrap;
+  }
+
+  .instagram-badge {
+      background: linear-gradient(135deg, #405de6, #5851db, #833ab4, #c13584, #e1306c, #fd1d1d);
+      background-size: 200% 200%;
+      animation: social-shake 5s ease-in-out infinite, gradient-shift 3s ease infinite;
+  }
+
+  .youtube-badge {
+      background: linear-gradient(135deg, #ff0000, #cc0000);
+      background-size: 200% 200%;
+      animation: social-shake 5s ease-in-out infinite 0.5s, gradient-shift 3s ease infinite 0.5s;
+  }
+
+  .whatsapp-badge {
+      background: linear-gradient(135deg, #25d366, #128c7e);
+      background-size: 200% 200%;
+      animation: social-shake 5s ease-in-out infinite 1s, gradient-shift 3s ease infinite 1s;
+  }
+
+  @keyframes social-shake {
+      0%, 88% { transform: scale(1); }
+      90% { transform: scale(1.15); }
+      92% { transform: scale(0.85); }
+      94% { transform: scale(1.05); }
+      96% { transform: scale(0.95); }
+      98% { transform: scale(1.02); }
+      100% { transform: scale(1); }
+  }
+
+  @keyframes gradient-shift {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+  }
+
+  @media (max-width: 768px) {
+      .social-badges-container { left: 10px; gap: 6px; }
+      .social-badges-toggle { width: 34px; height: 34px; font-size: 1rem; }
+      .social-badge { padding: 8px 10px; min-width: 38px; min-height: 38px; }
+      .social-badge i { font-size: 1.4rem; }
+      .social-badge .followers-text { font-size: 0.5rem; }
+  }
+
+  @media (max-width: 480px) {
+      .social-badges-container { left: 6px; gap: 4px; }
+      .social-badges-toggle { width: 28px; height: 28px; font-size: 0.8rem; }
+      .social-badge { padding: 6px 8px; min-width: 32px; min-height: 32px; }
+      .social-badge i { font-size: 1.2rem; }
+      .social-badge .followers-text { font-size: 0.45rem; }
+  }
+  `;
+
+  const socialFeedCSS = `
+  /* Social Feed Container - Right Side, Centered */
+  .social-feed-container {
+      position: fixed;
+      right: 0;
+      top: 50%;
+      transform: translateY(-50%);
+      z-index: 9999;
+      display: flex;
+      align-items: center;
+      direction: rtl; /* panel appears to the left of toggle */
+  }
+  .social-feed-toggle {
+      background: #4e54c8;
+      color: white;
+      border: none;
+      border-radius: 8px 0 0 8px;
+      padding: 12px 8px;
+      cursor: pointer;
+      font-size: 1.2rem;
+      transition: all 0.3s ease;
+      box-shadow: -2px 0 10px rgba(0,0,0,0.2);
+      touch-action: manipulation;
+      z-index: 10000;
+      min-width: 44px;
+      min-height: 44px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+  }
+  .social-feed-toggle:hover {
+      background: #3f44b8;
+      transform: scale(1.05);
+  }
+  .social-feed-toggle:active {
+      transform: scale(0.95);
+  }
+  .social-feed-panel {
+      width: 0;
+      height: 0;
+      background: white;
+      border-radius: 8px 0 0 8px;
+      box-shadow: -5px 0 20px rgba(0,0,0,0.15);
+      overflow: hidden;
+      transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      display: flex;
+      flex-direction: column;
+      opacity: 0;
+      direction: ltr; /* reset for content */
+  }
+  .social-feed-container.expanded .social-feed-panel {
+      width: 400px;
+      height: 60vh;
+      max-height: 80vh;
+      opacity: 1;
+  }
+
+  @media (max-width: 768px) {
+      .social-feed-container {
+          top: 50%;
+          transform: translateY(-50%);
+          right: 0;
+          left: auto;
+          bottom: auto;
+          flex-direction: row;
+          align-items: center;
+          height: auto;
+      }
+      .social-feed-toggle {
+          border-radius: 8px 0 0 8px;
+          padding: 12px 8px;
+          position: static;
+          bottom: auto;
+          right: auto;
+          width: auto;
+          height: auto;
+          box-shadow: -2px 0 10px rgba(0,0,0,0.2);
+          font-size: 1.2rem;
+          min-width: 44px;
+          min-height: 44px;
+      }
+      .social-feed-container.expanded .social-feed-panel {
+          width: 90vw;
+          height: 90vh;
+          max-height: 90vh;
+          right: 0;
+          bottom: auto;
+          top: auto;
+          border-radius: 0;
+      }
+  }
+  @media (max-width: 480px) {
+      .social-feed-container.expanded .social-feed-panel {
+         width: 90vw;
+          height: 90vh;
+          max-height: 90vh;
+          border-radius: 0;
+  margin-right: 5vw;
+      }
+  }
+      .social-feed-panel {
+          border-radius: 12px 12px 0 0;
+          width: 100%;
+          height: 0;
+          opacity: 0;
+          transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      }
+  }
+
+  .feed-header {
+      padding: 12px 16px;
+      border-bottom: 1px solid #e9ecef;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: #f8f9fa;
+  }
+  .feed-header h3 { margin: 0; font-size: 1.1rem; color: #4e54c8; }
+  .feed-close { background: none; border: none; font-size: 1.2rem; cursor: pointer; color: #666; }
+
+  .feed-tabs {
+      display: flex;
+      background: #f8f9fa;
+      border-bottom: 1px solid #e9ecef;
+  }
+  .feed-tab {
+      flex: 1;
+      padding: 10px;
+      background: none;
+      border: none;
+      border-bottom: 2px solid transparent;
+      cursor: pointer;
+      font-weight: 500;
+      transition: all 0.3s ease;
+  }
+  .feed-tab.active {
+      border-bottom-color: #4e54c8;
+      color: #4e54c8;
+  }
+  .feed-tab:hover { background: rgba(78,84,200,0.05); }
+
+  .feed-content {
+      flex: 1;
+      overflow: hidden;
+      position: relative;
+  }
+  .feed-tab-content {
+      display: none;
+      height: 100%;
+      overflow-y: auto;
+      padding: 10px;
+  }
+  .feed-tab-content.active { display: block; }
+
+  .chat-message {
+      position: relative;
+      transition: background 0.2s ease;
+  }
+  .chat-message:hover .msg-actions {
+      display: flex;
+  }
+  .msg-actions {
+      position: absolute;
+      right: 5px;
+      top: 5px;
+      display: none;
+      flex-direction: row;
+      gap: 4px;
+      background: rgba(255,255,255,0.9);
+      border-radius: 20px;
+      padding: 4px 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  }
+  .msg-actions button {
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-size: 1rem;
+      padding: 2px 6px;
+      border-radius: 12px;
+      transition: background 0.2s;
+  }
+  .msg-actions button:hover {
+      background: #e9ecef;
+  }
+  .msg-reply-context {
+      font-size: 0.8rem;
+      color: #666;
+      background: #f1f3f4;
+      padding: 2px 8px;
+      border-radius: 8px;
+      margin-bottom: 4px;
+      border-left: 3px solid #4e54c8;
+  }
+  .msg-sticker {
+      font-size: 2.5rem;
+      line-height: 1.2;
+      padding: 4px 0;
+  }
+
+  .chat-messages {
+      height: calc(100% - 80px);
+      overflow-y: auto;
+      padding: 10px;
+  }
+  .chat-message {
+      margin-bottom: 12px;
+      padding: 8px 12px;
+      border-radius: 12px;
+      background: #f1f3f4;
+      max-width: 85%;
+      word-wrap: break-word;
+      position: relative;
+  }
+  .chat-message.own {
+      background: #4e54c8;
+      color: white;
+      margin-left: auto;
+  }
+  .chat-message .msg-user { font-size: 0.8rem; font-weight: 600; margin-bottom: 2px; }
+  .chat-message .msg-time { font-size: 0.7rem; color: #999; float: right; }
+  .chat-message .msg-content { line-height: 1.4; }
+  .chat-message .msg-reactions { margin-top: 4px; display: flex; gap: 6px; flex-wrap: wrap; }
+  .chat-message .msg-reactions span { background: rgba(0,0,0,0.1); padding: 2px 6px; border-radius: 12px; font-size: 0.8rem; cursor: pointer; }
+  .chat-message .msg-actions { position: absolute; right: -30px; top: 0; display: none; }
+  .chat-message:hover .msg-actions { display: flex; flex-direction: column; gap: 4px; }
+  .chat-message .msg-actions button { background: none; border: none; cursor: pointer; font-size: 0.9rem; color: #666; }
+
+  .chat-input-area {
+      padding: 8px 10px;
+      border-top: 1px solid #e9ecef;
+      background: #f8f9fa;
+  }
+  .reply-indicator {
+      background: #e9ecef;
+      padding: 6px 10px;
+      border-radius: 8px;
+      margin-bottom: 6px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.8rem;
+  }
+  .chat-input-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+  }
+  .chat-input-row input {
+      flex: 1;
+      padding: 8px 12px;
+      border: 1px solid #ddd;
+      border-radius: 20px;
+      outline: none;
+  }
+  .chat-input-row button {
+      background: #4e54c8;
+      color: white;
+      border: none;
+      border-radius: 50%;
+      width: 36px;
+      height: 36px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: background 0.3s ease;
+  }
+  .chat-input-row button:hover { background: #3f44b8; }
+  .sticker-btn { background: #e9ecef; color: #666; }
+
+  .sticker-picker {
+      display: none;
+      position: absolute;
+      bottom: 60px;
+      left: 0;
+      background: white;
+      border: 1px solid #e9ecef;
+      border-radius: 12px;
+      padding: 10px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      grid-template-columns: repeat(4, 1fr);
+      gap: 6px;
+  }
+  .sticker-picker.open { display: grid; }
+  .sticker-picker button {
+      background: none;
+      border: none;
+      font-size: 2rem;
+      cursor: pointer;
+      transition: transform 0.2s ease;
+  }
+  .sticker-picker button:hover { transform: scale(1.2); }
+
+  .reaction-picker {
+      display: none;
+      position: absolute;
+      background: white;
+      border-radius: 20px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+      padding: 6px 10px;
+      gap: 6px;
+      z-index: 10;
+  }
+  .reaction-picker.open { display: flex; }
+  .reaction-picker button {
+      background: none;
+      border: none;
+      font-size: 1.6rem;
+      cursor: pointer;
+      transition: transform 0.2s ease;
+  }
+  .reaction-picker button:hover { transform: scale(1.3); }
+
+  .activity-item {
+      padding: 10px;
+      border-bottom: 1px solid #e9ecef;
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+  }
+  .activity-item .act-icon { font-size: 1.5rem; color: #4e54c8; }
+  .activity-item .act-content { flex: 1; }
+  .activity-item .act-content h4 { margin: 0; font-size: 0.95rem; }
+  .activity-item .act-content p { margin: 2px 0; font-size: 0.85rem; color: #666; }
+  .activity-item .act-time { font-size: 0.7rem; color: #999; }
+
+  .floating-hearts {
+      position: fixed;
+      pointer-events: none;
+      z-index: 99999;
+      font-size: 2rem;
+      animation: floatUp 1.5s ease-out forwards;
+  }
+  @keyframes floatUp {
+      0% { opacity: 1; transform: translateY(0) scale(0.8); }
+      100% { opacity: 0; transform: translateY(-150px) scale(1.2); }
+  }
+  `;
+
+  // ---------- HTML snippets ----------
+  const miniBrowserHTML = `
+  <div class="mini-browser-container" id="miniBrowser">
+      <div class="mini-browser-header" id="miniBrowserHeader">
+          <div class="mini-browser-title">
+              <i class="fas fa-compact-disc"></i> <span class="title-text">Quick Unique Best Match</span>
+          </div>
+          <div class="mini-browser-controls">
+              <button class="mini-browser-btn" onclick="refreshMiniBrowser()" title="Refresh">
+                  <i class="fas fa-redo"></i>
+              </button>
+              <button class="mini-browser-btn" onclick="toggleMiniBrowserSize()" title="Expand/Collapse">
+                  <i class="fas fa-expand"></i>
+              </button>
+              <button class="mini-browser-btn" onclick="closeMiniBrowser()" title="Close">
+                  <i class="fas fa-times"></i>
+              </button>
+          </div>
+      </div>
+      <div class="mini-browser-content">
+          <div class="mini-browser-loading" id="miniBrowserLoading">
+              <div class="spinner"></div>
+              <div>Loading tools prompt...</div>
+          </div>
+          <iframe 
+              src="https://www.toolsprompt.com" 
+              class="mini-browser-iframe" 
+              id="miniBrowserIframe"
+              onload="hideMiniBrowserLoading()"
+              allow="fullscreen"
+              referrerpolicy="strict-origin-when-cross-origin"
+              sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox"
+          ></iframe>
+      </div>
+  </div>
+
+  <button class="mini-browser-toggle" id="miniBrowserToggle" onclick="toggleMiniBrowser()">
+      <i class="fas fa-plus"></i>
+  </button>
+  `;
 
   const socialBadgesHTML = `
-<!-- Sticky Social Badges with Toggle -->
-<div class="social-badges-container" id="socialBadgesContainer">
-    <button class="social-badges-toggle" id="socialToggleBtn" aria-label="Toggle social badges">
-        <i class="fas fa-chevron-up"></i>
-    </button>
-    <a href="https://instagram.com/toolsprompt" target="_blank" class="social-badge instagram-badge" rel="noopener noreferrer">
-        <i class="fab fa-instagram"></i>
-        <span class="followers-text">Follow on Insta</span>
-    </a>
-    <a href="https://youtube.com/@toolsprompt" target="_blank" class="social-badge youtube-badge" rel="noopener noreferrer">
-        <i class="fab fa-youtube"></i>
-        <span class="followers-text">Subscribe On YT</span>
-    </a>
-    <a href="https://wa.me/yourwhatsappnumber" target="_blank" class="social-badge whatsapp-badge" rel="noopener noreferrer">
-        <i class="fab fa-whatsapp"></i>
-        <span class="followers-text">Join Whatsapp</span>
-    </a>
-</div>
-`;
+  <!-- Sticky Social Badges with Toggle -->
+  <div class="social-badges-container" id="socialBadgesContainer">
+      <button class="social-badges-toggle" id="socialToggleBtn" aria-label="Toggle social badges">
+          <i class="fas fa-chevron-up"></i>
+      </button>
+      <a href="https://instagram.com/toolsprompt" target="_blank" class="social-badge instagram-badge" rel="noopener noreferrer">
+          <i class="fab fa-instagram"></i>
+          <span class="followers-text">Follow on Insta</span>
+      </a>
+      <a href="https://youtube.com/@toolsprompt" target="_blank" class="social-badge youtube-badge" rel="noopener noreferrer">
+          <i class="fab fa-youtube"></i>
+          <span class="followers-text">Subscribe On YT</span>
+      </a>
+      <a href="https://wa.me/yourwhatsappnumber" target="_blank" class="social-badge whatsapp-badge" rel="noopener noreferrer">
+          <i class="fab fa-whatsapp"></i>
+          <span class="followers-text">Join Whatsapp</span>
+      </a>
+  </div>
+  `;
 
   const downloadAppButtonHTMLWithStyle = `
-<!-- Floating Download App Button -->
-<style>${downloadAppCSS}</style>
-<button class="floating-download-btn" id="downloadAppBtn" onclick="downloadApp()">
-    <i class="fas fa-download"></i>
-    <span class="btn-text">Download App</span>
-    <span class="btn-badge">FREE</span>
-</button>
-`;
+  <!-- Floating Download App Button -->
+  <style>${downloadAppCSS}</style>
+  <button class="floating-download-btn" id="downloadAppBtn" onclick="downloadApp()">
+      <i class="fas fa-download"></i>
+      <span class="btn-text">Download App</span>
+      <span class="btn-badge">FREE</span>
+  </button>
+  `;
 
   const aiGeneratorHTML = `
-<!-- AI Generator Sticky Bar -->
-<div class="ai-generator-bar" id="aiGeneratorBar">
-    <textarea class="ai-generator-input" id="aiPromptInput" placeholder="Describe the image you want to generate..." rows="1"></textarea>
-    <div class="ai-generator-actions">
-        <div class="ai-image-preview" id="aiImagePreview">
-            <img id="aiPreviewImg" src="" alt="Uploaded preview">
-            <button class="remove-image" id="aiRemoveImage">&times;</button>
-        </div>
-        <button class="ai-image-upload-btn" id="aiImageUploadBtn" title="Upload an image for reference">
-            <i class="fas fa-plus"></i>
-        </button>
-        <input type="file" class="ai-file-input" id="aiFileInput" accept="image/*">
-        
-        <!-- NEW: Duration slider -->
-        <div class="duration-option" style="display:flex; align-items:center; gap:6px; background:#f8f9fa; padding:4px 10px; border-radius:20px; flex-shrink:0;">
-            <i class="fas fa-clock" style="color:#666; font-size:0.8rem;"></i>
-            <input type="range" id="aiDurationSlider" min="3" max="40" value="5" step="1" 
-                   style="width:60px; height:4px; background:#4e54c8; border-radius:2px; outline:none; cursor:pointer;">
-            <span id="aiDurationDisplay" style="font-size:0.7rem; font-weight:600; color:#4e54c8; min-width:28px; text-align:center;">5s</span>
-        </div>
-        
-        <!-- Mode Toggle -->
-        <div class="ai-mode-toggle-group">
-            <button class="ai-mode-option active" data-mode="image" id="aiModeImage">
-                <i class="fas fa-image"></i> <span>Image</span>
-            </button>
-            <button class="ai-mode-option" data-mode="video" id="aiModeVideo">
-                <i class="fas fa-video"></i> <span>Video</span>
-            </button>
-        </div>
-        
-        <span class="ai-credit-display" id="aiCreditDisplay">
-            <i class="fas fa-coins"></i> <span class="credits-num" id="aiCreditsCount">0</span> credits
-        </span>
-        <button class="ai-generate-btn" id="aiGenerateBtn" title="Generate Image">
-            <i class="fas fa-arrow-right"></i>
-        </button>
-    </div>
-</div>
+  <!-- AI Generator Sticky Bar -->
+  <div class="ai-generator-bar" id="aiGeneratorBar">
+      <textarea class="ai-generator-input" id="aiPromptInput" placeholder="Describe the image you want to generate..." rows="1"></textarea>
+      <div class="ai-generator-actions">
+          <div class="ai-image-preview" id="aiImagePreview">
+              <img id="aiPreviewImg" src="" alt="Uploaded preview">
+              <button class="remove-image" id="aiRemoveImage">&times;</button>
+          </div>
+          <button class="ai-image-upload-btn" id="aiImageUploadBtn" title="Upload an image for reference">
+              <i class="fas fa-plus"></i>
+          </button>
+          <input type="file" class="ai-file-input" id="aiFileInput" accept="image/*">
+          
+          <div class="duration-option" style="display:flex; align-items:center; gap:6px; background:#f8f9fa; padding:4px 10px; border-radius:20px; flex-shrink:0;">
+              <i class="fas fa-clock" style="color:#666; font-size:0.8rem;"></i>
+              <input type="range" id="aiDurationSlider" min="3" max="40" value="5" step="1" 
+                     style="width:60px; height:4px; background:#4e54c8; border-radius:2px; outline:none; cursor:pointer;">
+              <span id="aiDurationDisplay" style="font-size:0.7rem; font-weight:600; color:#4e54c8; min-width:28px; text-align:center;">5s</span>
+          </div>
+          
+          <div class="ai-mode-toggle-group">
+              <button class="ai-mode-option active" data-mode="image" id="aiModeImage">
+                  <i class="fas fa-image"></i> <span>Image</span>
+              </button>
+              <button class="ai-mode-option" data-mode="video" id="aiModeVideo">
+                  <i class="fas fa-video"></i> <span>Video</span>
+              </button>
+          </div>
+          
+          <span class="ai-credit-display" id="aiCreditDisplay">
+              <i class="fas fa-coins"></i> <span class="credits-num" id="aiCreditsCount">0</span> credits
+          </span>
+          <button class="ai-generate-btn" id="aiGenerateBtn" title="Generate Image">
+              <i class="fas fa-arrow-right"></i>
+          </button>
+      </div>
+  </div>
 
-<!-- Generated Image Modal -->
-<div class="generated-modal" id="generatedModal">
-    <div class="generated-modal-content">
-        <button class="generated-modal-close" id="generatedModalClose">&times;</button>
-        <img id="generatedImage" src="" alt="Generated Image">
-        <button class="generated-modal-download" id="generatedDownloadBtn">Download Image</button>
-    </div>
-</div>
+  <!-- Generated Image Modal -->
+  <div class="generated-modal" id="generatedModal">
+      <div class="generated-modal-content">
+          <button class="generated-modal-close" id="generatedModalClose">&times;</button>
+          <img id="generatedImage" src="" alt="Generated Image">
+          <button class="generated-modal-download" id="generatedDownloadBtn">Download Image</button>
+      </div>
+  </div>
 
-<!-- Upgrade Modal (for credits) -->
-<div class="buy-modal-overlay" id="upgradeModal" style="display:none;">
-    <div class="buy-modal" style="max-width:500px;">
-        <div class="modal-header">
-            <h2><i class="fas fa-gem"></i> Upgrade Credits</h2>
-            <button class="close-modal" id="upgradeModalClose">&times;</button>
-        </div>
-        <div class="buy-modal-content" style="grid-template-columns:1fr;padding:20px;">
-            <div style="text-align:center;">
-                <p>You have <strong id="upgradeCurrentCredits">0</strong> credits left.</p>
-                <p>Get <strong>50 credits</strong> for just <strong>₹20</strong>!</p>
-                <button class="buy-now-btn" id="upgradePayBtn" style="margin-top:20px;">
-                    <i class="fas fa-rupee-sign"></i> Pay ₹20 for 50 credits
-                </button>
-                <p class="secure-payment" style="margin-top:15px;">
-                    <i class="fas fa-lock"></i> Secure payment via Razorpay
-                </p>
-            </div>
-        </div>
-    </div>
-</div>
-`;
+  <!-- Upgrade Modal (for credits) -->
+  <div class="buy-modal-overlay" id="upgradeModal" style="display:none;">
+      <div class="buy-modal" style="max-width:500px;">
+          <div class="modal-header">
+              <h2><i class="fas fa-gem"></i> Upgrade Credits</h2>
+              <button class="close-modal" id="upgradeModalClose">&times;</button>
+          </div>
+          <div class="buy-modal-content" style="grid-template-columns:1fr;padding:20px;">
+              <div style="text-align:center;">
+                  <p>You have <strong id="upgradeCurrentCredits">0</strong> credits left.</p>
+                  <p>Get <strong>50 credits</strong> for just <strong>₹20</strong>!</p>
+                  <button class="buy-now-btn" id="upgradePayBtn" style="margin-top:20px;">
+                      <i class="fas fa-rupee-sign"></i> Pay ₹20 for 50 credits
+                  </button>
+                  <p class="secure-payment" style="margin-top:15px;">
+                      <i class="fas fa-lock"></i> Secure payment via Razorpay
+                  </p>
+              </div>
+          </div>
+      </div>
+  </div>
+  `;
 
   const socialFeedHTML = `
-<!-- Social Feed – Right Side, Centered -->
-<div class="social-feed-container" id="socialFeed">
-    <button class="social-feed-toggle" id="feedToggle" onclick="toggleFeed()" aria-label="Toggle community feed">
-        <i class="fas fa-chevron-left" id="feedToggleIcon"></i>
-    </button>
-    <div class="social-feed-panel">
-        <div class="feed-header">
-            <h3><i class="fas fa-users"></i>Community</h3>
-            <button class="feed-close" onclick="toggleFeed()"><i class="fas fa-times"></i></button>
-        </div>
-        <div class="feed-tabs">
-            <button class="feed-tab active" data-tab="chat">💬 Chat</button>
-            <button class="feed-tab" data-tab="feed">📢 Feed</button>
-            <button class="feed-tab" data-tab="suggest">💡 Suggest</button>
-        </div>
-        <div class="feed-content">
-            <!-- Chat Tab -->
-            <div class="feed-tab-content active" id="tab-chat">
-                <div class="chat-messages" id="chatMessages"></div>
-                <div class="chat-input-area">
-                    <div class="reply-indicator" id="replyIndicator" style="display:none;">
-                        Replying to <span id="replyUser"></span>: <span id="replyContent"></span>
-                        <button onclick="cancelReply()"><i class="fas fa-times"></i></button>
-                    </div>
-                    <div class="chat-input-row">
-                        <button class="sticker-btn" onclick="openStickerPicker()"><i class="fas fa-sticky-note"></i></button>
-                        <input type="text" id="chatInput" placeholder="Type a message...No Login Require" />
-                        <button onclick="sendChatMessage()"><i class="fas fa-paper-plane"></i></button>
-                    </div>
-                    <!-- Sticker Picker -->
-                    <div class="sticker-picker" id="stickerPicker">
-                        <button onclick="sendSticker('😊')">😊</button>
-                        <button onclick="sendSticker('😂')">😂</button>
-                        <button onclick="sendSticker('❤️')">❤️</button>
-                        <button onclick="sendSticker('🔥')">🔥</button>
-                        <button onclick="sendSticker('👍')">👍</button>
-                        <button onclick="sendSticker('🎉')">🎉</button>
-                        <button onclick="sendSticker('💯')">💯</button>
-                        <button onclick="sendSticker('🤩')">🤩</button>
-                    </div>
-                </div>
-            </div>
-            <!-- Feed Tab -->
-            <div class="feed-tab-content" id="tab-feed">
-                <div class="activity-feed" id="activityFeed"></div>
-            </div>
-            <!-- Suggest Tab -->
-            <div class="feed-tab-content" id="tab-suggest">
-                <div class="suggest-area">
-                    <p>Have a prompt idea? Share it with the community!</p>
-                    <textarea id="suggestInput" rows="3" placeholder="Describe the prompt you'd like to see..."></textarea>
-                    <button onclick="submitSuggestion()">Submit Suggestion</button>
-                    <div class="suggest-notes" id="suggestNotes"></div>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-`;
+  <!-- Social Feed – Right Side, Centered -->
+  <div class="social-feed-container" id="socialFeed">
+      <button class="social-feed-toggle" id="feedToggle" onclick="toggleFeed()" aria-label="Toggle community feed">
+          <i class="fas fa-chevron-left" id="feedToggleIcon"></i>
+      </button>
+      <div class="social-feed-panel">
+          <div class="feed-header">
+              <h3><i class="fas fa-users"></i>Community</h3>
+              <button class="feed-close" onclick="toggleFeed()"><i class="fas fa-times"></i></button>
+          </div>
+          <div class="feed-tabs">
+              <button class="feed-tab active" data-tab="chat">💬 Chat</button>
+              <button class="feed-tab" data-tab="feed">📢 Feed</button>
+              <button class="feed-tab" data-tab="suggest">💡 Suggest</button>
+          </div>
+          <div class="feed-content">
+              <!-- Chat Tab -->
+              <div class="feed-tab-content active" id="tab-chat">
+                  <div class="chat-messages" id="chatMessages"></div>
+                  <div class="chat-input-area">
+                      <div class="reply-indicator" id="replyIndicator" style="display:none;">
+                          Replying to <span id="replyUser"></span>: <span id="replyContent"></span>
+                          <button onclick="cancelReply()"><i class="fas fa-times"></i></button>
+                      </div>
+                      <div class="chat-input-row">
+                          <button class="sticker-btn" onclick="openStickerPicker()"><i class="fas fa-sticky-note"></i></button>
+                          <input type="text" id="chatInput" placeholder="Type a message...No Login Require" />
+                          <button onclick="sendChatMessage()"><i class="fas fa-paper-plane"></i></button>
+                      </div>
+                      <div class="sticker-picker" id="stickerPicker">
+                          <button onclick="sendSticker('😊')">😊</button>
+                          <button onclick="sendSticker('😂')">😂</button>
+                          <button onclick="sendSticker('❤️')">❤️</button>
+                          <button onclick="sendSticker('🔥')">🔥</button>
+                          <button onclick="sendSticker('👍')">👍</button>
+                          <button onclick="sendSticker('🎉')">🎉</button>
+                          <button onclick="sendSticker('💯')">💯</button>
+                          <button onclick="sendSticker('🤩')">🤩</button>
+                      </div>
+                  </div>
+              </div>
+              <!-- Feed Tab -->
+              <div class="feed-tab-content" id="tab-feed">
+                  <div class="activity-feed" id="activityFeed"></div>
+              </div>
+              <!-- Suggest Tab -->
+              <div class="feed-tab-content" id="tab-suggest">
+                  <div class="suggest-area">
+                      <p>Have a prompt idea? Share it with the community!</p>
+                      <textarea id="suggestInput" rows="3" placeholder="Describe the prompt you'd like to see..."></textarea>
+                      <button onclick="submitSuggestion()">Submit Suggestion</button>
+                      <div class="suggest-notes" id="suggestNotes"></div>
+                  </div>
+              </div>
+          </div>
+      </div>
+  </div>
+  `;
 
-  // ==================== JAVASCRIPT DEFINITIONS ====================
+  // ---------- JavaScript snippets ----------
   const miniBrowserJS = `
-let isMiniBrowserOpen = false;
-let isMiniBrowserExpanded = false;
-let isDragging = false;
-let dragOffset = { x: 0, y: 0 };
+  let isMiniBrowserOpen = false;
+  let isMiniBrowserExpanded = false;
+  let isDragging = false;
+  let dragOffset = { x: 0, y: 0 };
 
-function autoOpenMiniBrowser() {
-    console.log('Auto-opening mini browser...');
-    
-    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-    
-    setTimeout(() => {
-        if (!isMobile || window.innerWidth > 480) {
-            toggleMiniBrowser();
-        } else {
-            console.log('Mobile device detected - mini browser auto-open disabled');
-            showMobileNotification();
-        }
-    }, 1500);
-}
+  function autoOpenMiniBrowser() {
+      console.log('Auto-opening mini browser...');
+      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      setTimeout(() => {
+          if (!isMobile || window.innerWidth > 480) {
+              toggleMiniBrowser();
+          } else {
+              console.log('Mobile device detected - mini browser auto-open disabled');
+              showMobileNotification();
+          }
+      }, 1500);
+  }
 
-function showMobileNotification() {
-    const notification = document.createElement('div');
-    notification.innerHTML = \`
-        <div style="
-            position: fixed;
-            bottom: 60px;
-            right: 10px;
-            background: #4e54c8;
-            color: white;
-            padding: 8px 12px;
-            border-radius: 8px;
-            font-size: 0.8rem;
-            z-index: 10001;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
-            max-width: 150px;
-        ">
-            <i class="fas fa-compass"></i> Quick Browser Available
-            <br>
-            <small>Tap the + button</small>
-        </div>
-    \`;
-    document.body.appendChild(notification);
-    
-    setTimeout(() => {
-        if (notification.parentNode) {
-            notification.parentNode.removeChild(notification);
-        }
-    }, 3000);
-}
+  function showMobileNotification() {
+      const notification = document.createElement('div');
+      notification.innerHTML = \`
+          <div style="
+              position: fixed;
+              bottom: 60px;
+              right: 10px;
+              background: #4e54c8;
+              color: white;
+              padding: 8px 12px;
+              border-radius: 8px;
+              font-size: 0.8rem;
+              z-index: 10001;
+              box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+              max-width: 150px;
+          ">
+              <i class="fas fa-compass"></i> Quick Browser Available
+              <br>
+              <small>Tap the + button</small>
+          </div>
+      \`;
+      document.body.appendChild(notification);
+      setTimeout(() => {
+          if (notification.parentNode) {
+              notification.parentNode.removeChild(notification);
+          }
+      }, 3000);
+  }
 
-function toggleMiniBrowser() {
-    console.log('Toggle mini browser called');
-    const miniBrowser = document.getElementById('miniBrowser');
-    const toggleBtn = document.getElementById('miniBrowserToggle');
-    
-    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-    
-    if (!isMiniBrowserOpen) {
-        miniBrowser.style.display = 'flex';
-        toggleBtn.innerHTML = '<i class="fas fa-times"></i>';
-        toggleBtn.style.background = '#ff6b6b';
-        isMiniBrowserOpen = true;
-        
-        if (isMobile && window.innerWidth <= 480) {
-            miniBrowser.style.width = '250px';
-            miniBrowser.style.height = '300px';
-        }
-        
-        showMiniBrowserLoading();
-        
-        const iframe = document.getElementById('miniBrowserIframe');
-        iframe.src = 'https://www.toolsprompt.com';
-    } else {
-        closeMiniBrowser();
-    }
-}
+  function toggleMiniBrowser() {
+      console.log('Toggle mini browser called');
+      const miniBrowser = document.getElementById('miniBrowser');
+      const toggleBtn = document.getElementById('miniBrowserToggle');
+      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      if (!isMiniBrowserOpen) {
+          miniBrowser.style.display = 'flex';
+          toggleBtn.innerHTML = '<i class="fas fa-times"></i>';
+          toggleBtn.style.background = '#ff6b6b';
+          isMiniBrowserOpen = true;
+          if (isMobile && window.innerWidth <= 480) {
+              miniBrowser.style.width = '250px';
+              miniBrowser.style.height = '300px';
+          }
+          showMiniBrowserLoading();
+          const iframe = document.getElementById('miniBrowserIframe');
+          iframe.src = 'https://www.toolsprompt.com';
+      } else {
+          closeMiniBrowser();
+      }
+  }
 
-function closeMiniBrowser() {
-    const miniBrowser = document.getElementById('miniBrowser');
-    const toggleBtn = document.getElementById('miniBrowserToggle');
-    
-    miniBrowser.style.display = 'none';
-    toggleBtn.innerHTML = '<i class="fas fa-plus"></i>';
-    toggleBtn.style.background = '#4e54c8';
-    isMiniBrowserOpen = false;
-    isMiniBrowserExpanded = false;
-    miniBrowser.classList.remove('expanded');
-    
-    const expandBtn = document.querySelector('.mini-browser-btn .fa-expand, .mini-browser-btn .fa-compress');
-    if (expandBtn) {
-        expandBtn.className = 'fas fa-expand';
-    }
-}
+  function closeMiniBrowser() {
+      const miniBrowser = document.getElementById('miniBrowser');
+      const toggleBtn = document.getElementById('miniBrowserToggle');
+      miniBrowser.style.display = 'none';
+      toggleBtn.innerHTML = '<i class="fas fa-plus"></i>';
+      toggleBtn.style.background = '#4e54c8';
+      isMiniBrowserOpen = false;
+      isMiniBrowserExpanded = false;
+      miniBrowser.classList.remove('expanded');
+      const expandBtn = document.querySelector('.mini-browser-btn .fa-expand, .mini-browser-btn .fa-compress');
+      if (expandBtn) {
+          expandBtn.className = 'fas fa-expand';
+      }
+  }
 
-function toggleMiniBrowserSize() {
-    const miniBrowser = document.getElementById('miniBrowser');
-    const expandBtn = document.querySelector('.mini-browser-controls .fa-expand, .mini-browser-controls .fa-compress');
-    
-    if (!isMiniBrowserExpanded) {
-        miniBrowser.classList.add('expanded');
-        if (expandBtn) expandBtn.className = 'fas fa-compress';
-        isMiniBrowserExpanded = true;
-    } else {
-        miniBrowser.classList.remove('expanded');
-        if (expandBtn) expandBtn.className = 'fas fa-expand';
-        isMiniBrowserExpanded = false;
-    }
-}
+  function toggleMiniBrowserSize() {
+      const miniBrowser = document.getElementById('miniBrowser');
+      const expandBtn = document.querySelector('.mini-browser-controls .fa-expand, .mini-browser-controls .fa-compress');
+      if (!isMiniBrowserExpanded) {
+          miniBrowser.classList.add('expanded');
+          if (expandBtn) expandBtn.className = 'fas fa-compress';
+          isMiniBrowserExpanded = true;
+      } else {
+          miniBrowser.classList.remove('expanded');
+          if (expandBtn) expandBtn.className = 'fas fa-expand';
+          isMiniBrowserExpanded = false;
+      }
+  }
 
-function refreshMiniBrowser() {
-    const iframe = document.getElementById('miniBrowserIframe');
-    showMiniBrowserLoading();
-    iframe.src = 'https://www.toolsprompt.com';
-}
+  function refreshMiniBrowser() {
+      const iframe = document.getElementById('miniBrowserIframe');
+      showMiniBrowserLoading();
+      iframe.src = 'https://www.toolsprompt.com';
+  }
 
-function showMiniBrowserLoading() {
-    const loading = document.getElementById('miniBrowserLoading');
-    if (loading) loading.style.display = 'block';
-}
+  function showMiniBrowserLoading() {
+      const loading = document.getElementById('miniBrowserLoading');
+      if (loading) loading.style.display = 'block';
+  }
 
-function hideMiniBrowserLoading() {
-    const loading = document.getElementById('miniBrowserLoading');
-    if (loading) loading.style.display = 'none';
-}
+  function hideMiniBrowserLoading() {
+      const loading = document.getElementById('miniBrowserLoading');
+      if (loading) loading.style.display = 'none';
+  }
 
-function initializeDragging() {
-    const header = document.getElementById('miniBrowserHeader');
-    const browser = document.getElementById('miniBrowser');
-    
-    if (!header || !browser) return;
-    
-    header.addEventListener('mousedown', startDrag);
-    header.addEventListener('touchstart', startDragTouch);
-    
-    function startDrag(e) {
-        if (isMiniBrowserExpanded) return;
-        
-        isDragging = true;
-        const rect = browser.getBoundingClientRect();
-        dragOffset.x = e.clientX - rect.left;
-        dragOffset.y = e.clientY - rect.top;
-        
-        document.addEventListener('mousemove', onDrag);
-        document.addEventListener('mouseup', stopDrag);
-        e.preventDefault();
-    }
-    
-    function startDragTouch(e) {
-        if (isMiniBrowserExpanded) return;
-        
-        isDragging = true;
-        const touch = e.touches[0];
-        const rect = browser.getBoundingClientRect();
-        dragOffset.x = touch.clientX - rect.left;
-        dragOffset.y = touch.clientY - rect.top;
-        
-        document.addEventListener('touchmove', onDragTouch);
-        document.addEventListener('touchend', stopDrag);
-        e.preventDefault();
-    }
-    
-    function onDrag(e) {
-        if (!isDragging) return;
-        
-        browser.style.position = 'fixed';
-        browser.style.left = (e.clientX - dragOffset.x) + 'px';
-        browser.style.top = (e.clientY - dragOffset.y) + 'px';
-        browser.style.right = 'auto';
-        browser.style.bottom = 'auto';
-    }
-    
-    function onDragTouch(e) {
-        if (!isDragging) return;
-        
-        const touch = e.touches[0];
-        browser.style.position = 'fixed';
-        browser.style.left = (touch.clientX - dragOffset.x) + 'px';
-        browser.style.top = (touch.clientY - dragOffset.y) + 'px';
-        browser.style.right = 'auto';
-        browser.style.bottom = 'auto';
-    }
-    
-    function stopDrag() {
-        isDragging = false;
-        document.removeEventListener('mousemove', onDrag);
-        document.removeEventListener('touchmove', onDragTouch);
-        document.removeEventListener('mouseup', stopDrag);
-        document.removeEventListener('touchend', stopDrag);
-    }
-}
+  function initializeDragging() {
+      const header = document.getElementById('miniBrowserHeader');
+      const browser = document.getElementById('miniBrowser');
+      if (!header || !browser) return;
+      header.addEventListener('mousedown', startDrag);
+      header.addEventListener('touchstart', startDragTouch);
+      function startDrag(e) {
+          if (isMiniBrowserExpanded) return;
+          isDragging = true;
+          const rect = browser.getBoundingClientRect();
+          dragOffset.x = e.clientX - rect.left;
+          dragOffset.y = e.clientY - rect.top;
+          document.addEventListener('mousemove', onDrag);
+          document.addEventListener('mouseup', stopDrag);
+          e.preventDefault();
+      }
+      function startDragTouch(e) {
+          if (isMiniBrowserExpanded) return;
+          isDragging = true;
+          const touch = e.touches[0];
+          const rect = browser.getBoundingClientRect();
+          dragOffset.x = touch.clientX - rect.left;
+          dragOffset.y = touch.clientY - rect.top;
+          document.addEventListener('touchmove', onDragTouch);
+          document.addEventListener('touchend', stopDrag);
+          e.preventDefault();
+      }
+      function onDrag(e) {
+          if (!isDragging) return;
+          browser.style.position = 'fixed';
+          browser.style.left = (e.clientX - dragOffset.x) + 'px';
+          browser.style.top = (e.clientY - dragOffset.y) + 'px';
+          browser.style.right = 'auto';
+          browser.style.bottom = 'auto';
+      }
+      function onDragTouch(e) {
+          if (!isDragging) return;
+          const touch = e.touches[0];
+          browser.style.position = 'fixed';
+          browser.style.left = (touch.clientX - dragOffset.x) + 'px';
+          browser.style.top = (touch.clientY - dragOffset.y) + 'px';
+          browser.style.right = 'auto';
+          browser.style.bottom = 'auto';
+      }
+      function stopDrag() {
+          isDragging = false;
+          document.removeEventListener('mousemove', onDrag);
+          document.removeEventListener('touchmove', onDragTouch);
+          document.removeEventListener('mouseup', stopDrag);
+          document.removeEventListener('touchend', stopDrag);
+      }
+  }
 
-document.addEventListener('click', function(e) {
-    const miniBrowser = document.getElementById('miniBrowser');
-    const toggleBtn = document.getElementById('miniBrowserToggle');
-    
-    if (isMiniBrowserOpen && !isMiniBrowserExpanded && 
-        miniBrowser && !miniBrowser.contains(e.target) && 
-        e.target !== toggleBtn) {
-        closeMiniBrowser();
-    }
-});
+  document.addEventListener('click', function(e) {
+      const miniBrowser = document.getElementById('miniBrowser');
+      const toggleBtn = document.getElementById('miniBrowserToggle');
+      if (isMiniBrowserOpen && !isMiniBrowserExpanded && 
+          miniBrowser && !miniBrowser.contains(e.target) && 
+          e.target !== toggleBtn) {
+          closeMiniBrowser();
+      }
+  });
 
-window.addEventListener('message', function(e) {
-    console.log('Message from iframe:', e.data);
-});
+  window.addEventListener('message', function(e) {
+      console.log('Message from iframe:', e.data);
+  });
 
-document.addEventListener('DOMContentLoaded', function() {
-    console.log('DOM loaded, initializing mini browser');
-    initializeDragging();
-    autoOpenMiniBrowser();
-});
+  document.addEventListener('DOMContentLoaded', function() {
+      console.log('DOM loaded, initializing mini browser');
+      initializeDragging();
+      autoOpenMiniBrowser();
+  });
 
-document.addEventListener('keydown', function(e) {
-    if ((e.ctrlKey || e.metaKey) && e.key === 'b') {
-        e.preventDefault();
-        toggleMiniBrowser();
-    }
-    
-    if (e.key === 'Escape' && isMiniBrowserOpen) {
-        if (isMiniBrowserExpanded) {
-            toggleMiniBrowserSize();
-        } else {
-            closeMiniBrowser();
-        }
-    }
-});
-`;
+  document.addEventListener('keydown', function(e) {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'b') {
+          e.preventDefault();
+          toggleMiniBrowser();
+      }
+      if (e.key === 'Escape' && isMiniBrowserOpen) {
+          if (isMiniBrowserExpanded) {
+              toggleMiniBrowserSize();
+          } else {
+              closeMiniBrowser();
+          }
+      }
+  });
+  `;
 
   const downloadAppJS = `
-// ==================== DOWNLOAD APP FUNCTION ====================
+  function downloadApp() {
+      const appUrl = 'https://apk.e-droid.net/apk/app4057785-93607p.apk?v=2';
+      try {
+          fetch('/api/track-download', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                  promptId: '${promptData.id}',
+                  promptTitle: '${promptData.title.replace(/'/g, "\\'")}',
+                  timestamp: new Date().toISOString(),
+                  userAgent: navigator.userAgent
+              })
+          }).catch(err => console.log('Download tracking error:', err));
+      } catch(e) {}
+      showDownloadNotification();
+      window.open(appUrl, '_blank');
+  }
 
-function downloadApp() {
-    const appUrl = 'https://apk.e-droid.net/apk/app4057785-93607p.apk?v=2';
-    
-    // Track download click for analytics
-    try {
-        fetch('/api/track-download', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                promptId: '${promptData.id}',
-                promptTitle: '${promptData.title.replace(/'/g, "\\'")}',
-                timestamp: new Date().toISOString(),
-                userAgent: navigator.userAgent
-            })
-        }).catch(err => console.log('Download tracking error:', err));
-    } catch(e) {}
-    
-    // Show download started notification
-    showDownloadNotification();
-    
-    // Open download URL
-    window.open(appUrl, '_blank');
-}
+  function showDownloadNotification() {
+      const notification = document.createElement('div');
+      notification.className = 'download-notification';
+      notification.innerHTML = \`
+          <i class="fas fa-check-circle"></i>
+          <span>Download started! Check your browser.</span>
+      \`;
+      notification.style.cssText = \`
+          position: fixed;
+          bottom: 100px;
+          left: 50%;
+          transform: translateX(-50%);
+          background: #20bf6b;
+          color: white;
+          padding: 10px 20px;
+          border-radius: 50px;
+          z-index: 10001;
+          font-size: 0.9rem;
+          font-weight: 500;
+          box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+          animation: slideUpFade 0.3s ease;
+          white-space: nowrap;
+      \`;
+      document.body.appendChild(notification);
+      setTimeout(() => {
+          notification.style.opacity = '0';
+          notification.style.transform = 'translateX(-50%) translateY(-10px)';
+          setTimeout(() => notification.remove(), 300);
+      }, 3000);
+  }
 
-function showDownloadNotification() {
-    const notification = document.createElement('div');
-    notification.className = 'download-notification';
-    notification.innerHTML = \`
-        <i class="fas fa-check-circle"></i>
-        <span>Download started! Check your browser.</span>
-    \`;
-    notification.style.cssText = \`
-        position: fixed;
-        bottom: 100px;
-        left: 50%;
-        transform: translateX(-50%);
-        background: #20bf6b;
-        color: white;
-        padding: 10px 20px;
-        border-radius: 50px;
-        z-index: 10001;
-        font-size: 0.9rem;
-        font-weight: 500;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.2);
-        animation: slideUpFade 0.3s ease;
-        white-space: nowrap;
-    \`;
-    document.body.appendChild(notification);
-    
-    setTimeout(() => {
-        notification.style.opacity = '0';
-        notification.style.transform = 'translateX(-50%) translateY(-10px)';
-        setTimeout(() => notification.remove(), 300);
-    }, 3000);
-}
+  let lastScrollY = window.scrollY;
+  let hideTimeout;
+  function handleDownloadButtonVisibility() {
+      const downloadBtn = document.getElementById('downloadAppBtn');
+      if (!downloadBtn) return;
+      const currentScrollY = window.scrollY;
+      if (Math.abs(currentScrollY - lastScrollY) > 10) {
+          downloadBtn.style.opacity = '0.7';
+          clearTimeout(hideTimeout);
+          hideTimeout = setTimeout(() => {
+              downloadBtn.style.opacity = '1';
+          }, 300);
+      }
+      lastScrollY = currentScrollY;
+  }
+  window.addEventListener('scroll', handleDownloadButtonVisibility);
 
-// Optional: Hide button when user scrolls down (or keep sticky - your choice)
-let lastScrollY = window.scrollY;
-let hideTimeout;
-
-function handleDownloadButtonVisibility() {
-    const downloadBtn = document.getElementById('downloadAppBtn');
-    if (!downloadBtn) return;
-    
-    // Button stays sticky (doesn't move) - just ensure it's visible
-    // This keeps it always visible at bottom center
-    
-    // Optional: Add scroll-based animation
-    const currentScrollY = window.scrollY;
-    if (Math.abs(currentScrollY - lastScrollY) > 10) {
-        downloadBtn.style.opacity = '0.7';
-        clearTimeout(hideTimeout);
-        hideTimeout = setTimeout(() => {
-            downloadBtn.style.opacity = '1';
-        }, 300);
-    }
-    lastScrollY = currentScrollY;
-}
-
-window.addEventListener('scroll', handleDownloadButtonVisibility);
-
-// Add pulse effect on page load
-setTimeout(() => {
-    const btn = document.getElementById('downloadAppBtn');
-    if (btn) {
-        btn.style.animation = 'none';
-        setTimeout(() => {
-            btn.style.animation = 'slideUpFade 0.5s ease-out, pulse 0.5s ease-in-out 2';
-        }, 10);
-    }
-}, 500);
-`;
+  setTimeout(() => {
+      const btn = document.getElementById('downloadAppBtn');
+      if (btn) {
+          btn.style.animation = 'none';
+          setTimeout(() => {
+              btn.style.animation = 'slideUpFade 0.5s ease-out, pulse 0.5s ease-in-out 2';
+          }, 10);
+      }
+  }, 500);
+  `;
 
   const aiGeneratorJS = `
-// ==================== AI GENERATOR STICKY BAR ====================
-(function() {
-    const bar = document.getElementById('aiGeneratorBar');
-    const promptInput = document.getElementById('aiPromptInput');
-    const generateBtn = document.getElementById('aiGenerateBtn');
-    const uploadBtn = document.getElementById('aiImageUploadBtn');
-    const fileInput = document.getElementById('aiFileInput');
-    const previewContainer = document.getElementById('aiImagePreview');
-    const previewImg = document.getElementById('aiPreviewImg');
-    const removeImageBtn = document.getElementById('aiRemoveImage');
-    const creditDisplay = document.getElementById('aiCreditsCount');
-    const modal = document.getElementById('generatedModal');
-    const modalImg = document.getElementById('generatedImage');
-    const modalClose = document.getElementById('generatedModalClose');
-    const downloadBtn = document.getElementById('generatedDownloadBtn');
-    const upgradeModal = document.getElementById('upgradeModal');
-    const upgradeClose = document.getElementById('upgradeModalClose');
-    const upgradePayBtn = document.getElementById('upgradePayBtn');
-    const upgradeCurrent = document.getElementById('upgradeCurrentCredits');
+  (function() {
+      const bar = document.getElementById('aiGeneratorBar');
+      const promptInput = document.getElementById('aiPromptInput');
+      const generateBtn = document.getElementById('aiGenerateBtn');
+      const uploadBtn = document.getElementById('aiImageUploadBtn');
+      const fileInput = document.getElementById('aiFileInput');
+      const previewContainer = document.getElementById('aiImagePreview');
+      const previewImg = document.getElementById('aiPreviewImg');
+      const removeImageBtn = document.getElementById('aiRemoveImage');
+      const creditDisplay = document.getElementById('aiCreditsCount');
+      const modal = document.getElementById('generatedModal');
+      const modalImg = document.getElementById('generatedImage');
+      const modalClose = document.getElementById('generatedModalClose');
+      const downloadBtn = document.getElementById('generatedDownloadBtn');
+      const upgradeModal = document.getElementById('upgradeModal');
+      const upgradeClose = document.getElementById('upgradeModalClose');
+      const upgradePayBtn = document.getElementById('upgradePayBtn');
+      const upgradeCurrent = document.getElementById('upgradeCurrentCredits');
 
-    // ===== NEW: Mode toggle buttons =====
-    const modeImageBtn = document.getElementById('aiModeImage');
-    const modeVideoBtn = document.getElementById('aiModeVideo');
-    let currentMode = 'image'; // 'image' or 'video'
+      const modeImageBtn = document.getElementById('aiModeImage');
+      const modeVideoBtn = document.getElementById('aiModeVideo');
+      let currentMode = 'image';
+      let currentUserId = null;
+      let uploadedImage = null;
+      let isGenerating = false;
 
-    let currentUserId = null;
-    let uploadedImage = null; // base64 or File
-    let isGenerating = false;
+      bar.classList.add('active');
 
-    // Show bar only on prompt pages
-    bar.classList.add('active');
+      promptInput.addEventListener('input', function() {
+          this.style.height = 'auto';
+          this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+      });
 
-    // Auto-resize textarea
-    promptInput.addEventListener('input', function() {
-        this.style.height = 'auto';
-        this.style.height = Math.min(this.scrollHeight, 120) + 'px';
-    });
+      const durSlider = document.getElementById('aiDurationSlider');
+      const durDisplay = document.getElementById('aiDurationDisplay');
+      if (durSlider && durDisplay) {
+          durSlider.addEventListener('input', function() {
+              durDisplay.textContent = this.value + 's';
+          });
+      }
 
-    // Sync duration slider display
-    const durSlider = document.getElementById('aiDurationSlider');
-    const durDisplay = document.getElementById('aiDurationDisplay');
-    if (durSlider && durDisplay) {
-        durSlider.addEventListener('input', function() {
-            durDisplay.textContent = this.value + 's';
-        });
-    }
+      uploadBtn.addEventListener('click', () => fileInput.click());
+      fileInput.addEventListener('change', function(e) {
+          const file = this.files[0];
+          if (file) {
+              const reader = new FileReader();
+              reader.onload = function(ev) {
+                  previewImg.src = ev.target.result;
+                  previewContainer.style.display = 'block';
+                  uploadedImage = file;
+              };
+              reader.readAsDataURL(file);
+          }
+      });
+      removeImageBtn.addEventListener('click', function() {
+          previewContainer.style.display = 'none';
+          previewImg.src = '';
+          fileInput.value = '';
+          uploadedImage = null;
+      });
 
-    // Image upload
-    uploadBtn.addEventListener('click', () => fileInput.click());
-    fileInput.addEventListener('change', function(e) {
-        const file = this.files[0];
-        if (file) {
-            const reader = new FileReader();
-            reader.onload = function(ev) {
-                previewImg.src = ev.target.result;
-                previewContainer.style.display = 'block';
-                uploadedImage = file;
-            };
-            reader.readAsDataURL(file);
-        }
-    });
-    removeImageBtn.addEventListener('click', function() {
-        previewContainer.style.display = 'none';
-        previewImg.src = '';
-        fileInput.value = '';
-        uploadedImage = null;
-    });
+      async function fetchCredits() {
+          const user = await getCurrentUser();
+          if (!user) {
+              const stored = localStorage.getItem('guestUsage');
+              let usage = stored ? JSON.parse(stored) : null;
+              const today = new Date().toISOString().split('T')[0];
+              if (!usage || usage.date !== today) {
+                  usage = { date: today, count: 0 };
+                  localStorage.setItem('guestUsage', JSON.stringify(usage));
+              }
+              creditDisplay.innerHTML = \`<i class="fas fa-bolt"></i> \${Math.max(0, 3 - usage.count)} free without login\`;
+              return;
+          }
+          currentUserId = user.uid;
+          try {
+              const res = await fetch(\`/api/credits/\${user.uid}\`);
+              const data = await res.json();
+              if (data.success) {
+                  creditDisplay.textContent = data.credits;
+              }
+          } catch(e) {
+              console.error('Credit fetch error', e);
+          }
+      }
+      fetchCredits();
 
-    // Fetch credits on load
-    async function fetchCredits() {
-        const user = await getCurrentUser();
-        if (!user) {
-            const stored = localStorage.getItem('guestUsage');
-            let usage = stored ? JSON.parse(stored) : null;
-            const today = new Date().toISOString().split('T')[0];
-            if (!usage || usage.date !== today) {
-                usage = { date: today, count: 0 };
-                localStorage.setItem('guestUsage', JSON.stringify(usage));
-            }
-            creditDisplay.innerHTML = \`<i class="fas fa-bolt"></i> \${Math.max(0, 3 - usage.count)} free without login\`;
-            return;
-        }
-        currentUserId = user.uid;
-        try {
-            const res = await fetch(\`/api/credits/\${user.uid}\`);
-            const data = await res.json();
-            if (data.success) {
-                creditDisplay.textContent = data.credits;
-            }
-        } catch(e) {
-            console.error('Credit fetch error', e);
-        }
-    }
-    fetchCredits();
+      function setMode(mode) {
+          currentMode = mode;
+          modeImageBtn.classList.toggle('active', mode === 'image');
+          modeVideoBtn.classList.toggle('active', mode === 'video');
+          promptInput.placeholder = mode === 'image' 
+              ? 'Describe the image you want to generate...' 
+              : 'Describe the video you want to create...';
+          generateBtn.innerHTML = mode === 'image' 
+              ? '<i class="fas fa-arrow-right"></i>' 
+              : '<i class="fas fa-video"></i>';
+          fileInput.accept = 'image/*';
+      }
 
-    // ===== MODE TOGGLE LOGIC =====
-    function setMode(mode) {
-        currentMode = mode;
-        // Update UI
-        modeImageBtn.classList.toggle('active', mode === 'image');
-        modeVideoBtn.classList.toggle('active', mode === 'video');
-        // Update placeholder
-        promptInput.placeholder = mode === 'image' 
-            ? 'Describe the image you want to generate...' 
-            : 'Describe the video you want to create...';
-        // Update generate button icon
-        generateBtn.innerHTML = mode === 'image' 
-            ? '<i class="fas fa-arrow-right"></i>' 
-            : '<i class="fas fa-video"></i>';
-        // Update file input accept (both modes accept image for reference)
-        fileInput.accept = 'image/*';
-    }
+      modeImageBtn.addEventListener('click', function() {
+          if (currentMode === 'image') return;
+          setMode('image');
+      });
+      modeVideoBtn.addEventListener('click', function() {
+          if (currentMode === 'video') return;
+          setMode('video');
+      });
 
-    modeImageBtn.addEventListener('click', function() {
-        if (currentMode === 'image') return;
-        setMode('image');
-    });
-    modeVideoBtn.addEventListener('click', function() {
-        if (currentMode === 'video') return;
-        setMode('video');
-    });
+      generateBtn.addEventListener('click', async function() {
+          if (isGenerating) return;
+          const prompt = promptInput.value.trim();
+          if (!prompt) {
+              showNotification('Please enter a prompt.', 'error');
+              return;
+          }
 
-    // ===== GENERATE =====
-    generateBtn.addEventListener('click', async function() {
-        if (isGenerating) return;
-        const prompt = promptInput.value.trim();
-        if (!prompt) {
-            showNotification('Please enter a prompt.', 'error');
-            return;
-        }
+          let user = await getCurrentUser();
+          if (user) {
+              currentUserId = user.uid;
+          } else {
+              currentUserId = null;
+          }
 
-        // Check login and get user
-        let user = await getCurrentUser();
-        if (user) {
-            currentUserId = user.uid;
-        } else {
-            currentUserId = null;
-        }
+          if (user) {
+              const creditInfo = await fetch(\`/api/credits/\${user.uid}\`).then(r => r.json());
+              if (!creditInfo.success || creditInfo.credits <= 0) {
+                  upgradeCurrent.textContent = creditInfo.credits || 0;
+                  upgradeModal.style.display = 'flex';
+                  return;
+              }
+          } else {
+              const stored = localStorage.getItem('guestUsage');
+              let usage = stored ? JSON.parse(stored) : null;
+              const today = new Date().toISOString().split('T')[0];
+              if (!usage || usage.date !== today) {
+                  usage = { date: today, count: 0 };
+                  localStorage.setItem('guestUsage', JSON.stringify(usage));
+              }
+              if (usage.count >= 3) {
+                  showGuestLimitModal();
+                  return;
+              }
+          }
 
-        // Check credits for logged-in users
-        if (user) {
-            const creditInfo = await fetch(\`/api/credits/\${user.uid}\`).then(r => r.json());
-            if (!creditInfo.success || creditInfo.credits <= 0) {
-                upgradeCurrent.textContent = creditInfo.credits || 0;
-                upgradeModal.style.display = 'flex';
-                return;
-            }
-        } else {
-            // For guests, we proceed to the API which will handle the limit.
-            // Optionally, we can check localStorage here for immediate feedback,
-            // but the server will enforce the limit.
-            const stored = localStorage.getItem('guestUsage');
-            let usage = stored ? JSON.parse(stored) : null;
-            const today = new Date().toISOString().split('T')[0];
-            if (!usage || usage.date !== today) {
-                usage = { date: today, count: 0 };
-                localStorage.setItem('guestUsage', JSON.stringify(usage));
-            }
-            if (usage.count >= 3) {
-                showGuestLimitModal();
-                return;
-            }
-        }
+          isGenerating = true;
+          generateBtn.disabled = true;
+          generateBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
 
-        // Proceed with generation
-        isGenerating = true;
-        generateBtn.disabled = true;
-        generateBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+          let statusEl = document.getElementById('generationStatus');
+          if (!statusEl) {
+              statusEl = document.createElement('div');
+              statusEl.id = 'generationStatus';
+              statusEl.style.cssText = 'font-size:0.9rem; color:#666; margin-top:5px; text-align:center;';
+              bar.parentNode.insertBefore(statusEl, bar.nextSibling);
+          }
+          statusEl.textContent = '⏳ Starting...';
 
-        // Create or get status element
-        let statusEl = document.getElementById('generationStatus');
-        if (!statusEl) {
-            statusEl = document.createElement('div');
-            statusEl.id = 'generationStatus';
-            statusEl.style.cssText = 'font-size:0.9rem; color:#666; margin-top:5px; text-align:center;';
-            bar.parentNode.insertBefore(statusEl, bar.nextSibling);
-        }
-        statusEl.textContent = '⏳ Starting...';
+          try {
+              const formData = new FormData();
+              formData.append('prompt', prompt);
+              if (uploadedImage) {
+                  formData.append('image', uploadedImage);
+              }
+              if (currentMode === 'video') {
+                  const durationVal = document.getElementById('aiDurationSlider')?.value || 5;
+                  formData.append('duration', durationVal);
+              }
 
-        try {
-            const formData = new FormData();
-            formData.append('prompt', prompt);
-            if (uploadedImage) {
-                formData.append('image', uploadedImage);
-            }
-            if (currentMode === 'video') {
-                const durationVal = document.getElementById('aiDurationSlider')?.value || 5;
-                formData.append('duration', durationVal);
-            }
+              const headers = {};
+              if (user) {
+                  const idToken = await user.getIdToken();
+                  headers['Authorization'] = \`Bearer \${idToken}\`;
+              }
 
-            // Build headers conditionally
-            const headers = {};
-            if (user) {
-                const idToken = await user.getIdToken();
-                headers['Authorization'] = \`Bearer \${idToken}\`;
-            }
+              const endpoint = currentMode === 'video' ? '/api/generate-agnes-video' : '/api/generate-image';
+              const response = await fetch(endpoint, {
+                  method: 'POST',
+                  headers: headers,
+                  body: formData
+              });
 
-            const endpoint = currentMode === 'video' ? '/api/generate-agnes-video' : '/api/generate-image';
-            const response = await fetch(endpoint, {
-                method: 'POST',
-                headers: headers, // Content-Type is set automatically for FormData
-                body: formData
-            });
+              const result = await response.json();
+              if (!response.ok) {
+                  if (response.status === 403 && result.error === 'guest_limit_reached') {
+                      showGuestLimitModal();
+                      generateBtn.disabled = false;
+                      generateBtn.innerHTML = currentMode === 'video' ? '<i class="fas fa-video"></i>' : '<i class="fas fa-arrow-right"></i>';
+                      isGenerating = false;
+                      if (statusEl) statusEl.textContent = '';
+                      return;
+                  }
+                  if (response.status === 429) {
+                      const waitSec = result.retryAfter || 60;
+                      statusEl.textContent = \`⏳ Rate limited. Please wait \${waitSec} seconds and try again.\`;
+                      showNotification(\`Generation rate limited. Try again in \${waitSec}s.\`, 'error');
+                      generateBtn.disabled = false;
+                      generateBtn.innerHTML = currentMode === 'video' ? '<i class="fas fa-video"></i>' : '<i class="fas fa-arrow-right"></i>';
+                      isGenerating = false;
+                      return;
+                  }
+                  throw new Error(result.error || 'Generation failed');
+              }
 
-            const result = await response.json();
-            if (!response.ok) {
-                // Check for guest limit (guest_limit_reached)
-                if (response.status === 403 && result.error === 'guest_limit_reached') {
-                    showGuestLimitModal();
-                    generateBtn.disabled = false;
-                    generateBtn.innerHTML = currentMode === 'video' ? '<i class="fas fa-video"></i>' : '<i class="fas fa-arrow-right"></i>';
-                    isGenerating = false;
-                    if (statusEl) statusEl.textContent = '';
-                    return;
-                }
-                // Check for rate limit (429)
-                if (response.status === 429) {
-                    const waitSec = result.retryAfter || 60;
-                    statusEl.textContent = \`⏳ Rate limited. Please wait \${waitSec} seconds and try again.\`;
-                    showNotification(\`Generation rate limited. Try again in \${waitSec}s.\`, 'error');
-                    generateBtn.disabled = false;
-                    generateBtn.innerHTML = currentMode === 'video' ? '<i class="fas fa-video"></i>' : '<i class="fas fa-arrow-right"></i>';
-                    isGenerating = false;
-                    return;
-                }
-                throw new Error(result.error || 'Generation failed');
-            }
+              if (currentMode === 'video') {
+                  const videoId = result.video_id;
+                  if (!videoId) throw new Error('No video_id returned from Agnes.');
 
-            if (currentMode === 'video') {
-                // Agnes video (async)
-                const videoId = result.video_id;
-                if (!videoId) throw new Error('No video_id returned from Agnes.');
+                  statusEl.textContent = '⏳ Video generation started (may take several minutes)...';
 
-                statusEl.textContent = '⏳ Video generation started (may take several minutes)...';
+                  const maxAttempts = 300;
+                  let attempt = 0;
+                  let videoUrl = null;
+                  const completionStatuses = ['completed', 'succeeded', 'done', 'finished', 'success'];
 
-                const maxAttempts = 300;       // 15 minutes max
-                let attempt = 0;
-                let videoUrl = null;
-                const completionStatuses = ['completed', 'succeeded', 'done', 'finished', 'success'];
+                  while (attempt < maxAttempts) {
+                      attempt++;
+                      try {
+                          const pollRes = await fetch(\`/api/poll-agnes-video?video_id=\${videoId}\`);
+                          if (pollRes.status === 429) {
+                              const data = await pollRes.json();
+                              const waitSeconds = data.retryAfter || 30;
+                              statusEl.textContent = \`⏳ Rate limited. Retrying in \${waitSeconds}s... (attempt \${attempt})\`;
+                              await new Promise(r => setTimeout(r, waitSeconds * 1000));
+                              continue;
+                          }
+                          if (!pollRes.ok) {
+                              throw new Error(\`Poll failed: \${pollRes.status}\`);
+                          }
+                          const pollData = await pollRes.json();
+                          const status = pollData.status || pollData.state || '';
+                          if (completionStatuses.includes(status.toLowerCase())) {
+                              videoUrl = pollData.video_url || pollData.output?.video_url || pollData.url;
+                              break;
+                          } else if (status === 'failed' || status === 'error') {
+                              throw new Error('Video generation failed.');
+                          }
+                          const progress = Math.min(attempt / maxAttempts * 100, 99);
+                          statusEl.textContent = \`⏳ Generating video… \${Math.round(progress)}% (attempt \${attempt}/\${maxAttempts})\`;
+                          const delay = Math.min(2000 * Math.pow(1.2, attempt), 15000);
+                          await new Promise(r => setTimeout(r, delay));
+                      } catch (pollError) {
+                          console.error('Poll error:', pollError);
+                          if (!pollError.message.includes('failed')) {
+                              await new Promise(r => setTimeout(r, 5000));
+                          } else {
+                              throw pollError;
+                          }
+                      }
+                  }
 
-                while (attempt < maxAttempts) {
-                    attempt++;
-                    try {
-                        const pollRes = await fetch(\`/api/poll-agnes-video?video_id=\${videoId}\`);
-                        
-                        if (pollRes.status === 429) {
-                            const data = await pollRes.json();
-                            const waitSeconds = data.retryAfter || 30;
-                            statusEl.textContent = \`⏳ Rate limited. Retrying in \${waitSeconds}s... (attempt \${attempt})\`;
-                            console.log(\`⏳ Rate limited. Waiting \${waitSeconds}s...\`);
-                            await new Promise(r => setTimeout(r, waitSeconds * 1000));
-                            continue;
-                        }
+                  if (!videoUrl) {
+                      statusEl.textContent = '⏳ Video is taking longer than expected. Please check your dashboard later.';
+                      showNotification('Video generation is still processing. You can check your dashboard for updates.', 'info');
+                      generateBtn.disabled = false;
+                      generateBtn.innerHTML = '<i class="fas fa-video"></i>';
+                      isGenerating = false;
+                      return;
+                  }
 
-                        if (!pollRes.ok) {
-                            throw new Error(\`Poll failed: \${pollRes.status}\`);
-                        }
+                  statusEl.textContent = '✅ Video generated!';
+                  showVideoModal(videoUrl);
+                  showNotification('Video generated successfully!', 'success');
 
-                        const pollData = await pollRes.json();
-                        console.log(\`Poll \${attempt}:\`, pollData);
+              } else {
+                  modalImg.src = result.imageUrl;
+                  modal.classList.add('active');
+                  statusEl.textContent = '✅ Image generated!';
+                  showNotification('Image generated successfully!', 'success');
+              }
 
-                        const status = pollData.status || pollData.state || '';
-                        if (completionStatuses.includes(status.toLowerCase())) {
-                            videoUrl = pollData.video_url || pollData.output?.video_url || pollData.url;
-                            break;
-                        } else if (status === 'failed' || status === 'error') {
-                            throw new Error('Video generation failed.');
-                        }
+              if (user) {
+                  creditDisplay.textContent = result.remainingCredits;
+              } else {
+                  const today = new Date().toISOString().split('T')[0];
+                  let stored = localStorage.getItem('guestUsage');
+                  let usage = stored ? JSON.parse(stored) : null;
+                  if (!usage || usage.date !== today) {
+                      usage = { date: today, count: 0 };
+                  }
+                  usage.count += 1;
+                  localStorage.setItem('guestUsage', JSON.stringify(usage));
+                  const remaining = Math.max(0, 3 - usage.count);
+                  creditDisplay.innerHTML = \`<i class="fas fa-bolt"></i> \${remaining} free generations left\`;
+              }
 
-                        const progress = Math.min(attempt / maxAttempts * 100, 99);
-                        statusEl.textContent = \`⏳ Generating video… \${Math.round(progress)}% (attempt \${attempt}/\${maxAttempts})\`;
-                        const delay = Math.min(2000 * Math.pow(1.2, attempt), 15000);
-                        await new Promise(r => setTimeout(r, delay));
+              promptInput.value = '';
+              promptInput.style.height = 'auto';
+              previewContainer.style.display = 'none';
+              previewImg.src = '';
+              fileInput.value = '';
+              uploadedImage = null;
 
-                    } catch (pollError) {
-                        console.error('Poll error:', pollError);
-                        if (!pollError.message.includes('failed')) {
-                            await new Promise(r => setTimeout(r, 5000));
-                        } else {
-                            throw pollError;
-                        }
-                    }
-                }
+          } catch (error) {
+              console.error('Generation error:', error);
+              statusEl.textContent = '❌ ' + error.message;
+              showNotification(error.message, 'error');
+          } finally {
+              isGenerating = false;
+              generateBtn.disabled = false;
+              generateBtn.innerHTML = currentMode === 'video' ? '<i class="fas fa-video"></i>' : '<i class="fas fa-arrow-right"></i>';
+              setTimeout(() => {
+                  if (statusEl) statusEl.textContent = '';
+              }, 10000);
+          }
+      });
 
-                if (!videoUrl) {
-                    statusEl.textContent = '⏳ Video is taking longer than expected. Please check your dashboard later.';
-                    showNotification('Video generation is still processing. You can check your dashboard for updates.', 'info');
-                    generateBtn.disabled = false;
-                    generateBtn.innerHTML = '<i class="fas fa-video"></i>';
-                    isGenerating = false;
-                    return;
-                }
+      modalClose.addEventListener('click', () => modal.classList.remove('active'));
+      modal.addEventListener('click', (e) => {
+          if (e.target === modal) modal.classList.remove('active');
+      });
+      downloadBtn.addEventListener('click', function() {
+          const link = document.createElement('a');
+          link.href = modalImg.src;
+          link.download = 'generated-image.png';
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+      });
 
-                statusEl.textContent = '✅ Video generated!';
-                showVideoModal(videoUrl);
-                showNotification('Video generated successfully!', 'success');
+      window.showVideoModal = function(videoUrl) {
+          const existing = document.getElementById('videoModal');
+          if (existing) existing.remove();
 
-            } else {
-                // Image generation (Pollinations)
-                modalImg.src = result.imageUrl;
-                modal.classList.add('active');
-                statusEl.textContent = '✅ Image generated!';
-                showNotification('Image generated successfully!', 'success');
-            }
+          const modalHTML = \`
+              <div class="generated-modal active" id="videoModal">
+                  <div class="generated-modal-content" style="max-width:90%;">
+                      <button class="generated-modal-close" onclick="document.getElementById('videoModal').classList.remove('active')">&times;</button>
+                      <video src="\${videoUrl}" controls autoplay loop style="width:100%; max-height:80vh; border-radius:12px; background:#000;"></video>
+                      <button class="generated-modal-download" onclick="downloadVideo('\${videoUrl}')">Download Video</button>
+                  </div>
+              </div>
+          \`;
+          document.body.insertAdjacentHTML('beforeend', modalHTML);
+      };
 
-            // Update remaining credits or guest usage
-            if (user) {
-                // Logged-in user: update credits
-                creditDisplay.textContent = result.remainingCredits;
-            } else {
-                // Guest: update localStorage and display
-                const today = new Date().toISOString().split('T')[0];
-                let stored = localStorage.getItem('guestUsage');
-                let usage = stored ? JSON.parse(stored) : null;
-                if (!usage || usage.date !== today) {
-                    usage = { date: today, count: 0 };
-                }
-                usage.count += 1;
-                localStorage.setItem('guestUsage', JSON.stringify(usage));
-                const remaining = Math.max(0, 3 - usage.count);
-                creditDisplay.innerHTML = \`<i class="fas fa-bolt"></i> \${remaining} free generations left\`;
-            }
+      window.downloadVideo = function(url) {
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = 'generated-video.mp4';
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+      };
 
-            // Clear input and image
-            promptInput.value = '';
-            promptInput.style.height = 'auto';
-            previewContainer.style.display = 'none';
-            previewImg.src = '';
-            fileInput.value = '';
-            uploadedImage = null;
+      upgradeClose.addEventListener('click', () => upgradeModal.style.display = 'none');
+      upgradeModal.addEventListener('click', (e) => {
+          if (e.target === upgradeModal) upgradeModal.style.display = 'none';
+      });
 
-        } catch (error) {
-            console.error('Generation error:', error);
-            statusEl.textContent = '❌ ' + error.message;
-            showNotification(error.message, 'error');
-        } finally {
-            isGenerating = false;
-            generateBtn.disabled = false;
-            generateBtn.innerHTML = currentMode === 'video' ? '<i class="fas fa-video"></i>' : '<i class="fas fa-arrow-right"></i>';
-            setTimeout(() => {
-                if (statusEl) statusEl.textContent = '';
-            }, 10000);
-        }
-    });
+      upgradePayBtn.addEventListener('click', async function() {
+          const user = await getCurrentUser();
+          if (!user) {
+              showNotification('Please login first.', 'error');
+              return;
+          }
+          this.disabled = true;
+          this.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating order...';
 
-    // Modal controls
-    modalClose.addEventListener('click', () => modal.classList.remove('active'));
-    modal.addEventListener('click', (e) => {
-        if (e.target === modal) modal.classList.remove('active');
-    });
-    downloadBtn.addEventListener('click', function() {
-        const link = document.createElement('a');
-        link.href = modalImg.src;
-        link.download = 'generated-image.png';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-    });
+          try {
+              const idToken = await user.getIdToken();
+              const res = await fetch('/api/top-up-credits', {
+                  method: 'POST',
+                  headers: { 'Authorization': \`Bearer \${idToken}\` }
+              });
+              const data = await res.json();
+              if (!data.success) throw new Error('Failed to create order');
 
-    // Video modal helper
-    window.showVideoModal = function(videoUrl) {
-        const existing = document.getElementById('videoModal');
-        if (existing) existing.remove();
+              if (data.isDemo) {
+                  const verifyRes = await fetch('/api/verify-topup', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                          orderId: data.orderId,
+                          paymentId: 'demo_pay_' + Date.now(),
+                          signature: 'demo_signature',
+                          userId: user.uid
+                      })
+                  });
+                  const verifyData = await verifyRes.json();
+                  if (verifyData.success) {
+                      showNotification('Added 50 credits (demo)!', 'success');
+                      upgradeModal.style.display = 'none';
+                      fetchCredits();
+                  } else {
+                      throw new Error('Demo verification failed');
+                  }
+              } else {
+                  if (typeof Razorpay === 'undefined') {
+                      await new Promise((resolve, reject) => {
+                          const script = document.createElement('script');
+                          script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+                          script.onload = resolve;
+                          script.onerror = reject;
+                          document.head.appendChild(script);
+                      });
+                  }
+                  const options = {
+                      key: data.keyId,
+                      amount: data.amount,
+                      currency: data.currency,
+                      name: 'Tools Prompt',
+                      description: 'Top-up 50 credits',
+                      order_id: data.orderId,
+                      handler: async function(response) {
+                          try {
+                              const verifyRes = await fetch('/api/verify-topup', {
+                                  method: 'POST',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({
+                                      orderId: response.razorpay_order_id,
+                                      paymentId: response.razorpay_payment_id,
+                                      signature: response.razorpay_signature,
+                                      userId: user.uid
+                                  })
+                              });
+                              const verifyData = await verifyRes.json();
+                              if (verifyData.success) {
+                                  showNotification('Credits added!', 'success');
+                                  upgradeModal.style.display = 'none';
+                                  fetchCredits();
+                              } else {
+                                  throw new Error('Verification failed');
+                              }
+                          } catch (e) {
+                              showNotification('Top-up failed: ' + e.message, 'error');
+                          }
+                      },
+                      modal: {
+                          ondismiss: function() {
+                              showNotification('Payment cancelled', 'info');
+                          }
+                      },
+                      theme: { color: '#4e54c8' },
+                      prefill: {
+                          email: user.email,
+                          name: user.displayName || user.email
+                      }
+                  };
+                  const rzp = new Razorpay(options);
+                  rzp.open();
+              }
+          } catch (error) {
+              showNotification('Upgrade error: ' + error.message, 'error');
+          } finally {
+              this.disabled = false;
+              this.innerHTML = '<i class="fas fa-rupee-sign"></i> Pay ₹20 for 50 credits';
+          }
+      });
 
-        const modalHTML = \`
-            <div class="generated-modal active" id="videoModal">
-                <div class="generated-modal-content" style="max-width:90%;">
-                    <button class="generated-modal-close" onclick="document.getElementById('videoModal').classList.remove('active')">&times;</button>
-                    <video src="\${videoUrl}" controls autoplay loop style="width:100%; max-height:80vh; border-radius:12px; background:#000;"></video>
-                    <button class="generated-modal-download" onclick="downloadVideo('\${videoUrl}')">Download Video</button>
-                </div>
-            </div>
-        \`;
-        document.body.insertAdjacentHTML('beforeend', modalHTML);
-    };
+      promptInput.addEventListener('keydown', function(e) {
+          if (e.ctrlKey && e.key === 'Enter') {
+              e.preventDefault();
+              generateBtn.click();
+          }
+      });
 
-    window.downloadVideo = function(url) {
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'generated-video.mp4';
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-    };
+      window.refreshCredits = fetchCredits;
 
-    // Upgrade modal
-    upgradeClose.addEventListener('click', () => upgradeModal.style.display = 'none');
-    upgradeModal.addEventListener('click', (e) => {
-        if (e.target === upgradeModal) upgradeModal.style.display = 'none';
-    });
+      window.showGuestLimitModal = function() {
+          const existing = document.getElementById('guestLimitModal');
+          if (existing) existing.remove();
 
-    upgradePayBtn.addEventListener('click', async function() {
-        const user = await getCurrentUser();
-        if (!user) {
-            showNotification('Please login first.', 'error');
-            return;
-        }
-        this.disabled = true;
-        this.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating order...';
-
-        try {
-            const idToken = await user.getIdToken();
-            const res = await fetch('/api/top-up-credits', {
-                method: 'POST',
-                headers: { 'Authorization': \`Bearer \${idToken}\` }
-            });
-            const data = await res.json();
-            if (!data.success) throw new Error('Failed to create order');
-
-            if (data.isDemo) {
-                // Demo mode: add credits directly
-                const verifyRes = await fetch('/api/verify-topup', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        orderId: data.orderId,
-                        paymentId: 'demo_pay_' + Date.now(),
-                        signature: 'demo_signature',
-                        userId: user.uid
-                    })
-                });
-                const verifyData = await verifyRes.json();
-                if (verifyData.success) {
-                    showNotification('Added 50 credits (demo)!', 'success');
-                    upgradeModal.style.display = 'none';
-                    fetchCredits();
-                } else {
-                    throw new Error('Demo verification failed');
-                }
-            } else {
-                // Real Razorpay checkout
-                if (typeof Razorpay === 'undefined') {
-                    await new Promise((resolve, reject) => {
-                        const script = document.createElement('script');
-                        script.src = 'https://checkout.razorpay.com/v1/checkout.js';
-                        script.onload = resolve;
-                        script.onerror = reject;
-                        document.head.appendChild(script);
-                    });
-                }
-                const options = {
-                    key: data.keyId,
-                    amount: data.amount,
-                    currency: data.currency,
-                    name: 'Tools Prompt',
-                    description: 'Top-up 50 credits',
-                    order_id: data.orderId,
-                    handler: async function(response) {
-                        try {
-                            const verifyRes = await fetch('/api/verify-topup', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({
-                                    orderId: response.razorpay_order_id,
-                                    paymentId: response.razorpay_payment_id,
-                                    signature: response.razorpay_signature,
-                                    userId: user.uid
-                                })
-                            });
-                            const verifyData = await verifyRes.json();
-                            if (verifyData.success) {
-                                showNotification('Credits added!', 'success');
-                                upgradeModal.style.display = 'none';
-                                fetchCredits();
-                            } else {
-                                throw new Error('Verification failed');
-                            }
-                        } catch (e) {
-                            showNotification('Top-up failed: ' + e.message, 'error');
-                        }
-                    },
-                    modal: {
-                        ondismiss: function() {
-                            showNotification('Payment cancelled', 'info');
-                        }
-                    },
-                    theme: { color: '#4e54c8' },
-                    prefill: {
-                        email: user.email,
-                        name: user.displayName || user.email
-                    }
-                };
-                const rzp = new Razorpay(options);
-                rzp.open();
-            }
-        } catch (error) {
-            showNotification('Upgrade error: ' + error.message, 'error');
-        } finally {
-            this.disabled = false;
-            this.innerHTML = '<i class="fas fa-rupee-sign"></i> Pay ₹20 for 50 credits';
-        }
-    });
-
-    // Keyboard shortcut: Ctrl+Enter to generate
-    promptInput.addEventListener('keydown', function(e) {
-        if (e.ctrlKey && e.key === 'Enter') {
-            e.preventDefault();
-            generateBtn.click();
-        }
-    });
-
-    // Expose fetchCredits for after top-up
-    window.refreshCredits = fetchCredits;
-
-    // ===== GUEST LIMIT MODAL =====
-    window.showGuestLimitModal = function() {
-        const existing = document.getElementById('guestLimitModal');
-        if (existing) existing.remove();
-
-        const overlay = document.createElement('div');
-        overlay.className = 'buy-modal-overlay';
-        overlay.id = 'guestLimitModal';
-        overlay.innerHTML = \`
-            <div class="buy-modal" style="max-width: 450px;">
-                <div class="modal-header">
-                    <h2><i class="fas fa-exclamation-circle"></i> Free Generations Used</h2>
-                    <button class="close-modal" onclick="document.getElementById('guestLimitModal').remove()">&times;</button>
-                </div>
-                <div class="buy-modal-content" style="padding: 20px; text-align: center;">
-                    <p>You’ve used all your free guest generations today.</p>
-                    <p><strong>Login</strong> to receive <strong>5 free credits every day</strong> and continue creating!</p>
-                    <button class="buy-now-btn" onclick="window.location.href='/login.html?returnUrl='+encodeURIComponent(window.location.href)">
-                        <i class="fas fa-sign-in-alt"></i> Login Now
-                    </button>
-                    <p style="margin-top: 15px; font-size: 0.8rem; color: #666;">
-                        Or <a href="/" style="color: #4e54c8;">continue browsing</a>.
-                    </p>
-                </div>
-            </div>
-        \`;
-        document.body.appendChild(overlay);
-        document.body.style.overflow = 'hidden';
-    };
-})();
-`;
+          const overlay = document.createElement('div');
+          overlay.className = 'buy-modal-overlay';
+          overlay.id = 'guestLimitModal';
+          overlay.innerHTML = \`
+              <div class="buy-modal" style="max-width: 450px;">
+                  <div class="modal-header">
+                      <h2><i class="fas fa-exclamation-circle"></i> Free Generations Used</h2>
+                      <button class="close-modal" onclick="document.getElementById('guestLimitModal').remove()">&times;</button>
+                  </div>
+                  <div class="buy-modal-content" style="padding: 20px; text-align: center;">
+                      <p>You’ve used all your free guest generations today.</p>
+                      <p><strong>Login</strong> to receive <strong>5 free credits every day</strong> and continue creating!</p>
+                      <button class="buy-now-btn" onclick="window.location.href='/login.html?returnUrl='+encodeURIComponent(window.location.href)">
+                          <i class="fas fa-sign-in-alt"></i> Login Now
+                      </button>
+                      <p style="margin-top: 15px; font-size: 0.8rem; color: #666;">
+                          Or <a href="/" style="color: #4e54c8;">continue browsing</a>.
+                      </p>
+                  </div>
+              </div>
+          \`;
+          document.body.appendChild(overlay);
+          document.body.style.overflow = 'hidden';
+      };
+  })();
+  `;
 
   function generateCommentSystemJS(promptData) {
     return `
-let currentPage = 1;
-let isLoadingComments = false;
-let hasMoreComments = true;
+  let currentPage = 1;
+  let isLoadingComments = false;
+  let hasMoreComments = true;
 
-async function loadComments(page = 1) {
-    if (isLoadingComments) return;
-    
-    isLoadingComments = true;
-    const promptId = '${promptData.id}';
-    const commentsList = document.getElementById('commentsList');
-    const noComments = document.getElementById('noComments');
-    const loadMoreDiv = document.getElementById('loadMoreComments');
-    
-    try {
-        const response = await fetch('/api/prompt/' + promptId + '/comments?page=' + page + '&limit=10');
-        if (!response.ok) throw new Error('Failed to load comments');
-        
-        const data = await response.json();
-        
-        if (page === 1) {
-            commentsList.innerHTML = '';
-            noComments.style.display = 'none';
-        }
-        
-        if (data.comments && data.comments.length > 0) {
-            data.comments.forEach(comment => {
-                const commentElement = createCommentElement(comment);
-                commentsList.appendChild(commentElement);
-            });
-            
-            hasMoreComments = data.hasMore;
-            loadMoreDiv.style.display = hasMoreComments ? 'block' : 'none';
-            
-            if (page === 1 && data.totalCount > 0) {
-                const commentCount = document.querySelector('.comment-count');
-                if (commentCount) {
-                    commentCount.textContent = data.totalCount;
-                }
-            }
-        } else if (page === 1) {
-            noComments.style.display = 'block';
-            loadMoreDiv.style.display = 'none';
-        }
-        
-        currentPage = page;
-    } catch (error) {
-        console.error('Error loading comments:', error);
-        if (page === 1) {
-            noComments.innerHTML = '<p>Error loading comments. Please try again.</p>';
-            noComments.style.display = 'block';
-        }
-    } finally {
-        isLoadingComments = false;
-    }
-}
+  async function loadComments(page = 1) {
+      if (isLoadingComments) return;
+      isLoadingComments = true;
+      const promptId = '${promptData.id}';
+      const commentsList = document.getElementById('commentsList');
+      const noComments = document.getElementById('noComments');
+      const loadMoreDiv = document.getElementById('loadMoreComments');
+      try {
+          const response = await fetch('/api/prompt/' + promptId + '/comments?page=' + page + '&limit=10');
+          if (!response.ok) throw new Error('Failed to load comments');
+          const data = await response.json();
+          if (page === 1) {
+              commentsList.innerHTML = '';
+              noComments.style.display = 'none';
+          }
+          if (data.comments && data.comments.length > 0) {
+              data.comments.forEach(comment => {
+                  const commentElement = createCommentElement(comment);
+                  commentsList.appendChild(commentElement);
+              });
+              hasMoreComments = data.hasMore;
+              loadMoreDiv.style.display = hasMoreComments ? 'block' : 'none';
+              if (page === 1 && data.totalCount > 0) {
+                  const commentCount = document.querySelector('.comment-count');
+                  if (commentCount) {
+                      commentCount.textContent = data.totalCount;
+                  }
+              }
+          } else if (page === 1) {
+              noComments.style.display = 'block';
+              loadMoreDiv.style.display = 'none';
+          }
+          currentPage = page;
+      } catch (error) {
+          console.error('Error loading comments:', error);
+          if (page === 1) {
+              noComments.innerHTML = '<p>Error loading comments. Please try again.</p>';
+              noComments.style.display = 'block';
+          }
+      } finally {
+          isLoadingComments = false;
+      }
+  }
 
-function createCommentElement(comment) {
-    const commentDate = new Date(comment.createdAt);
-    const formattedDate = commentDate.toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-    });
-    
-    const avatarLetter = comment.authorName.charAt(0).toUpperCase();
-    
-    const element = document.createElement('div');
-    element.className = 'comment-item';
-    element.id = 'comment-' + comment.id;
-    element.innerHTML = 
-        '<div class="comment-header">' +
-            '<div class="comment-author">' +
-                '<div class="comment-avatar">' +
-                    avatarLetter +
-                '</div>' +
-                '<div class="comment-author-info">' +
-                    '<h4>' + comment.authorName + '</h4>' +
-                    '<div class="comment-date">' +
-                        '<i class="far fa-clock"></i> ' + formattedDate +
-                    '</div>' +
-                '</div>' +
-            '</div>' +
-            '<div class="comment-actions">' +
-                '<button class="like-comment-btn" ' +
-                        'onclick="likeComment(\\'' + comment.id + '\\')"' +
-                        'data-likes="' + (comment.likes || 0) + '">' +
-                    '<i class="far fa-heart"></i>' +
-                    '<span class="like-count">' + (comment.likes || 0) + '</span>' +
-                '</button>' +
-            '</div>' +
-        '</div>' +
-        '<p class="comment-content">' + comment.content + '</p>';
-    
-    return element;
-}
+  function createCommentElement(comment) {
+      const commentDate = new Date(comment.createdAt);
+      const formattedDate = commentDate.toLocaleDateString('en-US', {
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit'
+      });
+      const avatarLetter = comment.authorName.charAt(0).toUpperCase();
+      const element = document.createElement('div');
+      element.className = 'comment-item';
+      element.id = 'comment-' + comment.id;
+      element.innerHTML = 
+          '<div class="comment-header">' +
+              '<div class="comment-author">' +
+                  '<div class="comment-avatar">' +
+                      avatarLetter +
+                  '</div>' +
+                  '<div class="comment-author-info">' +
+                      '<h4>' + comment.authorName + '</h4>' +
+                      '<div class="comment-date">' +
+                          '<i class="far fa-clock"></i> ' + formattedDate +
+                      '</div>' +
+                  '</div>' +
+              '</div>' +
+              '<div class="comment-actions">' +
+                  '<button class="like-comment-btn" ' +
+                          'onclick="likeComment(\\'' + comment.id + '\\')"' +
+                          'data-likes="' + (comment.likes || 0) + '">' +
+                      '<i class="far fa-heart"></i>' +
+                      '<span class="like-count">' + (comment.likes || 0) + '</span>' +
+                  '</button>' +
+              '</div>' +
+          '</div>' +
+          '<p class="comment-content">' + comment.content + '</p>';
+      return element;
+  }
 
-document.getElementById('commentForm').addEventListener('submit', async function(e) {
-    e.preventDefault();
-    
-    const promptId = '${promptData.id}';
-    const form = e.target;
-    const submitBtn = form.querySelector('button[type="submit"]');
-    const originalBtnText = submitBtn.innerHTML;
-    
-    const formData = {
-        content: form.content.value.trim(),
-        authorName: form.authorName.value.trim() || 'Anonymous',
-        authorEmail: form.authorEmail.value.trim() || null
-    };
-    
-    if (!formData.content) {
-        alert('Please enter a comment');
-        return;
-    }
-    
-    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Posting...';
-    submitBtn.disabled = true;
-    
-    try {
-        const response = await fetch('/api/prompt/' + promptId + '/comments', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(formData)
-        });
-        
-        const result = await response.json();
-        
-        if (result.success) {
-            form.reset();
-            alert('Comment posted successfully!');
-            loadComments(1);
-            document.getElementById('commentSection').scrollIntoView({ 
-                behavior: 'smooth' 
-            });
-        } else {
-            alert(result.error || 'Failed to post comment');
-        }
-    } catch (error) {
-        console.error('Error posting comment:', error);
-        alert('Failed to post comment. Please try again.');
-    } finally {
-        submitBtn.innerHTML = originalBtnText;
-        submitBtn.disabled = false;
-    }
-});
+  document.getElementById('commentForm').addEventListener('submit', async function(e) {
+      e.preventDefault();
+      const promptId = '${promptData.id}';
+      const form = e.target;
+      const submitBtn = form.querySelector('button[type="submit"]');
+      const originalBtnText = submitBtn.innerHTML;
+      const formData = {
+          content: form.content.value.trim(),
+          authorName: form.authorName.value.trim() || 'Anonymous',
+          authorEmail: form.authorEmail.value.trim() || null
+      };
+      if (!formData.content) {
+          alert('Please enter a comment');
+          return;
+      }
+      submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Posting...';
+      submitBtn.disabled = true;
+      try {
+          const response = await fetch('/api/prompt/' + promptId + '/comments', {
+              method: 'POST',
+              headers: {
+                  'Content-Type': 'application/json',
+              },
+              body: JSON.stringify(formData)
+          });
+          const result = await response.json();
+          if (result.success) {
+              form.reset();
+              alert('Comment posted successfully!');
+              loadComments(1);
+              document.getElementById('commentSection').scrollIntoView({ 
+                  behavior: 'smooth' 
+              });
+          } else {
+              alert(result.error || 'Failed to post comment');
+          }
+      } catch (error) {
+          console.error('Error posting comment:', error);
+          alert('Failed to post comment. Please try again.');
+      } finally {
+          submitBtn.innerHTML = originalBtnText;
+          submitBtn.disabled = false;
+      }
+  });
 
-async function likeComment(commentId) {
-    const promptId = '${promptData.id}';
-    const likeBtn = document.querySelector('#comment-' + commentId + ' .like-comment-btn');
-    
-    if (likeBtn.classList.contains('liked')) {
-        return;
-    }
-    
-    try {
-        const response = await fetch('/api/comment/' + commentId + '/like', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ promptId })
-        });
-        
-        if (response.ok) {
-            likeBtn.classList.add('liked');
-            const likeCount = likeBtn.querySelector('.like-count');
-            const currentLikes = parseInt(likeCount.textContent);
-            likeCount.textContent = currentLikes + 1;
-        }
-    } catch (error) {
-        console.error('Error liking comment:', error);
-    }
-}
+  async function likeComment(commentId) {
+      const promptId = '${promptData.id}';
+      const likeBtn = document.querySelector('#comment-' + commentId + ' .like-comment-btn');
+      if (likeBtn.classList.contains('liked')) {
+          return;
+      }
+      try {
+          const response = await fetch('/api/comment/' + commentId + '/like', {
+              method: 'POST',
+              headers: {
+                  'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({ promptId })
+          });
+          if (response.ok) {
+              likeBtn.classList.add('liked');
+              const likeCount = likeBtn.querySelector('.like-count');
+              const currentLikes = parseInt(likeCount.textContent);
+              likeCount.textContent = currentLikes + 1;
+          }
+      } catch (error) {
+          console.error('Error liking comment:', error);
+      }
+  }
 
-document.getElementById('loadMoreBtn').addEventListener('click', function() {
-    if (hasMoreComments && !isLoadingComments) {
-        loadComments(currentPage + 1);
-    }
-});
+  document.getElementById('loadMoreBtn').addEventListener('click', function() {
+      if (hasMoreComments && !isLoadingComments) {
+          loadComments(currentPage + 1);
+      }
+  });
 
-document.addEventListener('DOMContentLoaded', function() {
-    loadComments(1);
-    
-    const commentTextarea = document.getElementById('commentContent');
-    if (commentTextarea) {
-        const counter = document.createElement('div');
-        counter.style.color = '#666';
-        counter.style.fontSize = '0.85rem';
-        counter.style.textAlign = 'right';
-        counter.style.marginTop = '0.25rem';
-        counter.textContent = '0/1000';
-        
-        commentTextarea.parentNode.appendChild(counter);
-        
-        commentTextarea.addEventListener('input', function() {
-            counter.textContent = this.value.length + '/1000';
-            if (this.value.length > 1000) {
-                counter.style.color = '#ff6b6b';
-            } else {
-                counter.style.color = '#666';
-            }
-        });
-    }
-});
-`;
+  document.addEventListener('DOMContentLoaded', function() {
+      loadComments(1);
+      const commentTextarea = document.getElementById('commentContent');
+      if (commentTextarea) {
+          const counter = document.createElement('div');
+          counter.style.color = '#666';
+          counter.style.fontSize = '0.85rem';
+          counter.style.textAlign = 'right';
+          counter.style.marginTop = '0.25rem';
+          counter.textContent = '0/1000';
+          commentTextarea.parentNode.appendChild(counter);
+          commentTextarea.addEventListener('input', function() {
+              counter.textContent = this.value.length + '/1000';
+              if (this.value.length > 1000) {
+                  counter.style.color = '#ff6b6b';
+              } else {
+                  counter.style.color = '#666';
+              }
+          });
+      }
+  });
+  `;
   }
 
   const socialFeedJS = `
-// -------- GLOBAL SOCIAL FEED FUNCTIONS --------
-let feedExpanded = false;
-let replyTo = null;
-let messageCache = [];
-let activityCache = [];
-let eventSource = null;
-let currentUserId = null, currentUserName = null;
+  let feedExpanded = false;
+  let replyTo = null;
+  let messageCache = [];
+  let activityCache = [];
+  let eventSource = null;
+  let currentUserId = null, currentUserName = null;
+  console.log('✅ Social feed JS loaded');
 
-console.log('✅ Social feed JS loaded');
+  let notificationPermissionGranted = false;
+  let notificationRequested = false;
 
-// -------- NOTIFICATION PERMISSION & HANDLING --------
-let notificationPermissionGranted = false;
-let notificationRequested = false;
+  async function requestNotificationPermission() {
+      if (!('Notification' in window)) {
+          console.warn('⚠️ This browser does not support notifications');
+          return false;
+      }
+      if (Notification.permission === 'granted') {
+          notificationPermissionGranted = true;
+          notificationRequested = true;
+          console.log('🔔 Notification permission already granted');
+          sendTestNotification();
+          return true;
+      }
+      if (Notification.permission === 'denied') {
+          console.warn('❌ Notification permission denied by user');
+          return false;
+      }
+      try {
+          console.log('🔔 Requesting notification permission...');
+          const permission = await Notification.requestPermission();
+          notificationPermissionGranted = (permission === 'granted');
+          notificationRequested = true;
+          if (notificationPermissionGranted) {
+              console.log('✅ Notification permission granted');
+              sendTestNotification();
+          } else {
+              console.warn('❌ Notification permission denied');
+          }
+          return notificationPermissionGranted;
+      } catch (error) {
+          console.error('Error requesting notification permission:', error);
+          return false;
+      }
+  }
 
-async function requestNotificationPermission() {
-    if (!('Notification' in window)) {
-        console.warn('⚠️ This browser does not support notifications');
-        return false;
-    }
-    if (Notification.permission === 'granted') {
-        notificationPermissionGranted = true;
-        notificationRequested = true;
-        console.log('🔔 Notification permission already granted');
-        sendTestNotification();
-        return true;
-    }
-    if (Notification.permission === 'denied') {
-        console.warn('❌ Notification permission denied by user');
-        return false;
-    }
-    // Request permission
-    try {
-        console.log('🔔 Requesting notification permission...');
-        const permission = await Notification.requestPermission();
-        notificationPermissionGranted = (permission === 'granted');
-        notificationRequested = true;
-        if (notificationPermissionGranted) {
-            console.log('✅ Notification permission granted');
-            sendTestNotification();
-        } else {
-            console.warn('❌ Notification permission denied');
-        }
-        return notificationPermissionGranted;
-    } catch (error) {
-        console.error('Error requesting notification permission:', error);
-        return false;
-    }
-}
+  function sendTestNotification() {
+      if (!notificationPermissionGranted) return;
+      try {
+          new Notification('🔔 Notifications enabled', {
+              body: 'You will now receive alerts for new messages and activity.',
+              icon: 'https://www.toolsprompt.com/logo.png',
+              badge: 'https://www.toolsprompt.com/logo.png',
+              silent: false,
+              requireInteraction: false,
+          });
+          console.log('✅ Test notification sent');
+      } catch (e) {
+          console.warn('Could not send test notification:', e);
+      }
+  }
 
-function sendTestNotification() {
-    if (!notificationPermissionGranted) return;
-    try {
-        new Notification('🔔 Notifications enabled', {
-            body: 'You will now receive alerts for new messages and activity.',
-            icon: 'https://www.toolsprompt.com/logo.png',
-            badge: 'https://www.toolsprompt.com/logo.png',
-            silent: false,
-            requireInteraction: false,
-        });
-        console.log('✅ Test notification sent');
-    } catch (e) {
-        console.warn('Could not send test notification:', e);
-    }
-}
+  function showBrowserNotification(title, body, data) {
+      if (!notificationPermissionGranted) return;
+      try {
+          const options = {
+              body: body || '',
+              icon: 'https://www.toolsprompt.com/logo.png',
+              badge: 'https://www.toolsprompt.com/logo.png',
+              vibrate: [200, 100, 200],
+              data: data || {},
+              requireInteraction: false,
+              silent: false,
+          };
+          const notification = new Notification(title, options);
+          notification.onclick = function(event) {
+              event.preventDefault();
+              window.focus();
+              if (!feedExpanded) toggleFeed();
+              if (data && data.type === 'message') {
+                  document.querySelector('[data-tab="chat"]')?.click();
+              } else if (data && data.type === 'activity') {
+                  document.querySelector('[data-tab="feed"]')?.click();
+              }
+              notification.close();
+          };
+          setTimeout(() => notification.close(), 10000);
+          console.log('🔔 Notification shown:', title);
+      } catch (error) {
+          console.error('Error showing notification:', error);
+      }
+  }
 
-function showBrowserNotification(title, body, data) {
-    if (!notificationPermissionGranted) return;
-    try {
-        const options = {
-            body: body || '',
-            icon: 'https://www.toolsprompt.com/logo.png',
-            badge: 'https://www.toolsprompt.com/logo.png',
-            vibrate: [200, 100, 200],
-            data: data || {},
-            requireInteraction: false,
-            silent: false,
-        };
-        const notification = new Notification(title, options);
-        notification.onclick = function(event) {
-            event.preventDefault();
-            window.focus();
-            if (!feedExpanded) toggleFeed();
-            if (data && data.type === 'message') {
-                document.querySelector('[data-tab="chat"]')?.click();
-            } else if (data && data.type === 'activity') {
-                document.querySelector('[data-tab="feed"]')?.click();
-            }
-            notification.close();
-        };
-        setTimeout(() => notification.close(), 10000);
-        console.log('🔔 Notification shown:', title);
-    } catch (error) {
-        console.error('Error showing notification:', error);
-    }
-}
+  const originalToggleFeed = window.toggleFeed;
+  window.toggleFeed = function() {
+      originalToggleFeed();
+      if (feedExpanded && !notificationRequested) {
+          requestNotificationPermission();
+      }
+  };
 
-// -------- OVERRIDE toggleFeed to request permission --------
-const originalToggleFeed = window.toggleFeed;
-window.toggleFeed = function() {
-    originalToggleFeed();
-    if (feedExpanded && !notificationRequested) {
-        requestNotificationPermission();
-    }
-};
+  const originalConnectSSE = connectSSE;
+  connectSSE = function() {
+      originalConnectSSE();
+      if (eventSource) {
+          const originalHandler = eventSource.onmessage;
+          eventSource.onmessage = function(e) {
+              if (originalHandler) originalHandler.call(this, e);
+              try {
+                  const data = JSON.parse(e.data);
+                  const isPageHidden = document.hidden;
+                  const isFeedClosed = !feedExpanded;
+                  const shouldNotify = isPageHidden || isFeedClosed;
+                  console.log('🔔 SSE data received:', data.type, 'shouldNotify:', shouldNotify);
+                  if (!shouldNotify) {
+                      console.log('🔕 Skipping notification (page visible & feed open)');
+                      return;
+                  }
+                  let title = '';
+                  let body = '';
+                  let notificationData = {};
+                  if (data.type === 'message' && data.message) {
+                      const msg = data.message;
+                      if (msg.userId === currentUserId) {
+                          console.log('🔕 Skipping own message');
+                          return;
+                      }
+                      title = \`💬 New message from \${msg.userName || 'Someone'}\`;
+                      body = msg.content || msg.sticker || 'New message';
+                      notificationData = { type: 'message', messageId: msg.id };
+                  } else if (data.type === 'activity' && data.activity) {
+                      const act = data.activity;
+                      title = \`📢 New activity\`;
+                      body = \`\${act.userName || 'Someone'} uploaded "\${act.title || 'a new prompt'}"\`;
+                      notificationData = { type: 'activity', activityId: act.id };
+                  }
+                  if (title && notificationPermissionGranted) {
+                      showBrowserNotification(title, body, notificationData);
+                  }
+              } catch (err) {
+                  console.error('Error in notification handler:', err);
+              }
+          };
+      }
+  };
 
-// -------- MODIFY SSE onmessage to show notifications --------
-const originalConnectSSE = connectSSE;
-connectSSE = function() {
-    originalConnectSSE();
-    if (eventSource) {
-        const originalHandler = eventSource.onmessage;
-        eventSource.onmessage = function(e) {
-            // Call original handler first (updates UI)
-            if (originalHandler) originalHandler.call(this, e);
-            // Notification handling
-            try {
-                const data = JSON.parse(e.data);
-                const isPageHidden = document.hidden;
-                const isFeedClosed = !feedExpanded;
-                // Only notify if page hidden OR feed closed (regardless of tab)
-                const shouldNotify = isPageHidden || isFeedClosed;
-                
-                console.log('🔔 SSE data received:', data.type, 'shouldNotify:', shouldNotify);
-                
-                if (!shouldNotify) {
-                    console.log('🔕 Skipping notification (page visible & feed open)');
-                    return;
-                }
-                
-                let title = '';
-                let body = '';
-                let notificationData = {};
-                
-                if (data.type === 'message' && data.message) {
-                    const msg = data.message;
-                    // Don't notify if it's my own message
-                    if (msg.userId === currentUserId) {
-                        console.log('🔕 Skipping own message');
-                        return;
-                    }
-                    title = \`💬 New message from \${msg.userName || 'Someone'}\`;
-                    body = msg.content || msg.sticker || 'New message';
-                    notificationData = { type: 'message', messageId: msg.id };
-                } else if (data.type === 'activity' && data.activity) {
-                    const act = data.activity;
-                    title = \`📢 New activity\`;
-                    body = \`\${act.userName || 'Someone'} uploaded "\${act.title || 'a new prompt'}"\`;
-                    notificationData = { type: 'activity', activityId: act.id };
-                }
-                
-                if (title && notificationPermissionGranted) {
-                    showBrowserNotification(title, body, notificationData);
-                }
-            } catch (err) {
-                console.error('Error in notification handler:', err);
-            }
-        };
-    }
-};
+  if ('Notification' in window && Notification.permission === 'granted') {
+      notificationPermissionGranted = true;
+      notificationRequested = true;
+      setTimeout(sendTestNotification, 1000);
+  } else if ('Notification' in window && Notification.permission === 'denied') {
+      notificationPermissionGranted = false;
+      notificationRequested = true;
+  }
 
-// Initialize permission state from existing permission
-if ('Notification' in window && Notification.permission === 'granted') {
-    notificationPermissionGranted = true;
-    notificationRequested = true;
-    // Send test notification after a short delay to confirm
-    setTimeout(sendTestNotification, 1000);
-} else if ('Notification' in window && Notification.permission === 'denied') {
-    notificationPermissionGranted = false;
-    notificationRequested = true;
-}
+  setTimeout(() => {
+      if (!notificationRequested) {
+          requestNotificationPermission();
+      }
+  }, 5000);
 
-// Request permission on page load after a delay, but only if the feed is visible? 
-// We'll do it anyway, but some browsers may block without gesture.
-setTimeout(() => {
-    if (!notificationRequested) {
-        requestNotificationPermission();
-    }
-}, 5000);
+  window.toggleFeed = function() {
+      feedExpanded = !feedExpanded;
+      document.getElementById('socialFeed').classList.toggle('expanded', feedExpanded);
+      const icon = document.getElementById('feedToggleIcon');
+      if (icon) {
+          icon.className = feedExpanded ? 'fas fa-chevron-right' : 'fas fa-chevron-left';
+      }
+      if (feedExpanded) {
+          loadMessages();
+          loadActivity();
+          connectSSE();
+      } else {
+          if (eventSource) eventSource.close();
+      }
+  };
 
-// -------- Original feed functions (unchanged except as above) --------
+  document.querySelectorAll('.feed-tab').forEach(tab => {
+      tab.addEventListener('click', function() {
+          document.querySelectorAll('.feed-tab').forEach(t => t.classList.remove('active'));
+          this.classList.add('active');
+          document.querySelectorAll('.feed-tab-content').forEach(c => c.classList.remove('active'));
+          document.getElementById('tab-' + this.dataset.tab).classList.add('active');
+      });
+  });
 
-// Toggle feed
-window.toggleFeed = function() {
-    feedExpanded = !feedExpanded;
-    document.getElementById('socialFeed').classList.toggle('expanded', feedExpanded);
-    const icon = document.getElementById('feedToggleIcon');
-    if (icon) {
-        icon.className = feedExpanded ? 'fas fa-chevron-right' : 'fas fa-chevron-left';
-    }
-    if (feedExpanded) {
-        loadMessages();
-        loadActivity();
-        connectSSE();
-    } else {
-        if (eventSource) eventSource.close();
-    }
-};
+  async function loadMessages() {
+      try {
+          const res = await fetch('/api/chat/messages?limit=50');
+          const data = await res.json();
+          messageCache = data.messages || [];
+          renderMessages();
+      } catch(e) { console.error('Load messages error:', e); }
+  }
 
-// Tab switching
-document.querySelectorAll('.feed-tab').forEach(tab => {
-    tab.addEventListener('click', function() {
-        document.querySelectorAll('.feed-tab').forEach(t => t.classList.remove('active'));
-        this.classList.add('active');
-        document.querySelectorAll('.feed-tab-content').forEach(c => c.classList.remove('active'));
-        document.getElementById('tab-' + this.dataset.tab).classList.add('active');
-    });
-});
+  function renderMessages() {
+      const container = document.getElementById('chatMessages');
+      container.innerHTML = '';
+      messageCache.forEach(msg => {
+          const el = createMessageElement(msg);
+          container.appendChild(el);
+      });
+      container.scrollTop = container.scrollHeight;
+  }
 
-// ---- Chat ----
-async function loadMessages() {
-    try {
-        const res = await fetch('/api/chat/messages?limit=50');
-        const data = await res.json();
-        messageCache = data.messages || [];
-        renderMessages();
-    } catch(e) { console.error('Load messages error:', e); }
-}
+  function createMessageElement(msg) {
+      const div = document.createElement('div');
+      div.className = 'chat-message' + (msg.userId === currentUserId ? ' own' : '');
+      div.dataset.id = msg.id;
+      let parentHtml = '';
+      if (msg.parentId) {
+          const parentMsg = messageCache.find(m => m.id === msg.parentId);
+          if (parentMsg) {
+              parentHtml = \`<div class="msg-reply-context">↳ Replying to <strong>\${escapeHtml(parentMsg.userName)}</strong>: \${escapeHtml(parentMsg.content || parentMsg.sticker || '')}</div>\`;
+          }
+      }
+      let contentHtml = '';
+      if (msg.sticker) {
+          contentHtml = \`<div class="msg-sticker" style="font-size: 3rem; line-height: 1.2;">\${msg.sticker}</div>\`;
+      } else {
+          contentHtml = \`<div class="msg-content">\${escapeHtml(msg.content)}</div>\`;
+      }
+      div.innerHTML = \`
+          <div class="msg-user">\${escapeHtml(msg.userName)}</div>
+          \${parentHtml}
+          \${contentHtml}
+          <div class="msg-time">\${timeAgo(msg.timestamp)}</div>
+          <div class="msg-reactions">\${Object.keys(msg.reactions || {}).map(emoji => 
+              \`<span onclick="reactToMessage('\${msg.id}','\${emoji}')">\${emoji} \${msg.reactions[emoji].length}</span>\`
+          ).join('')}</div>
+          <div class="msg-actions">
+              <button onclick="showReactionPicker('\${msg.id}')"><i class="far fa-smile"></i></button>
+              <button onclick="replyToMessage('\${msg.id}','\${escapeHtml(msg.userName)}','\${escapeHtml(msg.content || msg.sticker || '')}')"><i class="fas fa-reply"></i></button>
+          </div>
+      \`;
+      return div;
+  }
 
-function renderMessages() {
-    const container = document.getElementById('chatMessages');
-    container.innerHTML = '';
-    messageCache.forEach(msg => {
-        const el = createMessageElement(msg);
-        container.appendChild(el);
-    });
-    container.scrollTop = container.scrollHeight;
-}
+  window.sendChatMessage = function() {
+      const chatInput = document.getElementById('chatInput');
+      const content = chatInput.value.trim();
+      if (!content && !replyTo) return;
+      const payload = {
+          userId: currentUserId,
+          userName: currentUserName || 'Guest',
+          content: content || '',
+          parentId: replyTo ? replyTo.id : null
+      };
+      fetch('/api/chat/send', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+      }).then(() => {
+          chatInput.value = '';
+          cancelReply();
+      }).catch(e => console.error('Send error:', e));
+  };
 
-function createMessageElement(msg) {
-    const div = document.createElement('div');
-    div.className = 'chat-message' + (msg.userId === currentUserId ? ' own' : '');
-    div.dataset.id = msg.id;
-    
-    let parentHtml = '';
-    if (msg.parentId) {
-        const parentMsg = messageCache.find(m => m.id === msg.parentId);
-        if (parentMsg) {
-            parentHtml = \`<div class="msg-reply-context">↳ Replying to <strong>\${escapeHtml(parentMsg.userName)}</strong>: \${escapeHtml(parentMsg.content || parentMsg.sticker || '')}</div>\`;
-        }
-    }
-    
-    let contentHtml = '';
-    if (msg.sticker) {
-        contentHtml = \`<div class="msg-sticker" style="font-size: 3rem; line-height: 1.2;">\${msg.sticker}</div>\`;
-    } else {
-        contentHtml = \`<div class="msg-content">\${escapeHtml(msg.content)}</div>\`;
-    }
-    
-    div.innerHTML = \`
-        <div class="msg-user">\${escapeHtml(msg.userName)}</div>
-        \${parentHtml}
-        \${contentHtml}
-        <div class="msg-time">\${timeAgo(msg.timestamp)}</div>
-        <div class="msg-reactions">\${Object.keys(msg.reactions || {}).map(emoji => 
-            \`<span onclick="reactToMessage('\${msg.id}','\${emoji}')">\${emoji} \${msg.reactions[emoji].length}</span>\`
-        ).join('')}</div>
-        <div class="msg-actions">
-            <button onclick="showReactionPicker('\${msg.id}')"><i class="far fa-smile"></i></button>
-            <button onclick="replyToMessage('\${msg.id}','\${escapeHtml(msg.userName)}','\${escapeHtml(msg.content || msg.sticker || '')}')"><i class="fas fa-reply"></i></button>
-        </div>
-    \`;
-    return div;
-}
+  window.sendSticker = function(sticker) {
+      if (!sticker) return;
+      const payload = {
+          userId: currentUserId,
+          userName: currentUserName || 'Guest',
+          sticker: sticker,
+          parentId: replyTo ? replyTo.id : null
+      };
+      fetch('/api/chat/send', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+      }).then(() => {
+          document.getElementById('stickerPicker').classList.remove('open');
+          cancelReply();
+      }).catch(e => console.error('Sticker send error:', e));
+  };
 
-window.sendChatMessage = function() {
-    const chatInput = document.getElementById('chatInput');
-    const content = chatInput.value.trim();
-    if (!content && !replyTo) return;
-    
-    const payload = {
-        userId: currentUserId,
-        userName: currentUserName || 'Guest',
-        content: content || '',
-        parentId: replyTo ? replyTo.id : null
-    };
-    
-    fetch('/api/chat/send', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-    }).then(() => {
-        chatInput.value = '';
-        cancelReply();
-    }).catch(e => console.error('Send error:', e));
-};
+  window.replyToMessage = function(id, userName, content) {
+      replyTo = { id, userName, content };
+      const indicator = document.getElementById('replyIndicator');
+      indicator.style.display = 'flex';
+      document.getElementById('replyUser').textContent = userName;
+      document.getElementById('replyContent').textContent = (content || 'sticker').substring(0, 40) + ((content || '').length > 40 ? '...' : '');
+      document.getElementById('chatInput').focus();
+  };
 
-window.sendSticker = function(sticker) {
-    if (!sticker) return;
-    const payload = {
-        userId: currentUserId,
-        userName: currentUserName || 'Guest',
-        sticker: sticker,
-        parentId: replyTo ? replyTo.id : null
-    };
-    fetch('/api/chat/send', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-    }).then(() => {
-        document.getElementById('stickerPicker').classList.remove('open');
-        cancelReply();
-    }).catch(e => console.error('Sticker send error:', e));
-};
+  window.cancelReply = function() {
+      replyTo = null;
+      document.getElementById('replyIndicator').style.display = 'none';
+  };
 
-window.replyToMessage = function(id, userName, content) {
-    replyTo = { id, userName, content };
-    const indicator = document.getElementById('replyIndicator');
-    indicator.style.display = 'flex';
-    document.getElementById('replyUser').textContent = userName;
-    document.getElementById('replyContent').textContent = (content || 'sticker').substring(0, 40) + ((content || '').length > 40 ? '...' : '');
-    document.getElementById('chatInput').focus();
-};
+  window.showReactionPicker = function(msgId) {
+      const existing = document.querySelector('.reaction-picker');
+      if (existing) existing.remove();
+      const picker = document.createElement('div');
+      picker.className = 'reaction-picker open';
+      picker.style.position = 'absolute';
+      picker.style.top = '0';
+      picker.style.right = '0';
+      picker.style.zIndex = '20';
+      picker.innerHTML = ['❤️','😂','😮','😢','😡','👍'].map(emoji => 
+          \`<button onclick="reactToMessage('\${msgId}','\${emoji}'); this.closest('.reaction-picker').remove();">\${emoji}</button>\`
+      ).join('');
+      const msgEl = document.querySelector(\`.chat-message[data-id="\${msgId}"]\`);
+      if (msgEl) {
+          msgEl.style.position = 'relative';
+          msgEl.appendChild(picker);
+          setTimeout(() => {
+              document.addEventListener('click', function closePicker(e) {
+                  if (!picker.contains(e.target) && e.target.closest('.chat-message') !== msgEl) {
+                      picker.remove();
+                      document.removeEventListener('click', closePicker);
+                  }
+              });
+          }, 100);
+      }
+  };
 
-window.cancelReply = function() {
-    replyTo = null;
-    document.getElementById('replyIndicator').style.display = 'none';
-};
+  window.reactToMessage = function(msgId, emoji) {
+      fetch('/api/chat/react', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ messageId: msgId, userId: currentUserId, emoji })
+      }).then(() => {
+          if (emoji === '❤️') triggerFloatingHearts();
+      }).catch(e => console.error('React error:', e));
+  };
 
-window.showReactionPicker = function(msgId) {
-    const existing = document.querySelector('.reaction-picker');
-    if (existing) existing.remove();
-    
-    const picker = document.createElement('div');
-    picker.className = 'reaction-picker open';
-    picker.style.position = 'absolute';
-    picker.style.top = '0';
-    picker.style.right = '0';
-    picker.style.zIndex = '20';
-    picker.innerHTML = ['❤️','😂','😮','😢','😡','👍'].map(emoji => 
-        \`<button onclick="reactToMessage('\${msgId}','\${emoji}'); this.closest('.reaction-picker').remove();">\${emoji}</button>\`
-    ).join('');
-    
-    const msgEl = document.querySelector(\`.chat-message[data-id="\${msgId}"]\`);
-    if (msgEl) {
-        msgEl.style.position = 'relative';
-        msgEl.appendChild(picker);
-        setTimeout(() => {
-            document.addEventListener('click', function closePicker(e) {
-                if (!picker.contains(e.target) && e.target.closest('.chat-message') !== msgEl) {
-                    picker.remove();
-                    document.removeEventListener('click', closePicker);
-                }
-            });
-        }, 100);
-    }
-};
+  window.triggerFloatingHearts = function() {
+      for (let i=0; i<10; i++) {
+          setTimeout(() => {
+              const heart = document.createElement('div');
+              heart.className = 'floating-hearts';
+              heart.textContent = '❤️';
+              heart.style.left = (Math.random() * 60 + 20) + '%';
+              heart.style.bottom = (Math.random() * 30 + 10) + 'vh';
+              heart.style.fontSize = (Math.random() * 1.5 + 1.5) + 'rem';
+              document.body.appendChild(heart);
+              setTimeout(() => heart.remove(), 1500);
+          }, i * 100);
+      }
+  };
 
-window.reactToMessage = function(msgId, emoji) {
-    fetch('/api/chat/react', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messageId: msgId, userId: currentUserId, emoji })
-    }).then(() => {
-        if (emoji === '❤️') triggerFloatingHearts();
-    }).catch(e => console.error('React error:', e));
-};
+  window.openStickerPicker = function() {
+      const picker = document.getElementById('stickerPicker');
+      if (picker) picker.classList.toggle('open');
+  };
 
-window.triggerFloatingHearts = function() {
-    for (let i=0; i<10; i++) {
-        setTimeout(() => {
-            const heart = document.createElement('div');
-            heart.className = 'floating-hearts';
-            heart.textContent = '❤️';
-            heart.style.left = (Math.random() * 60 + 20) + '%';
-            heart.style.bottom = (Math.random() * 30 + 10) + 'vh';
-            heart.style.fontSize = (Math.random() * 1.5 + 1.5) + 'rem';
-            document.body.appendChild(heart);
-            setTimeout(() => heart.remove(), 1500);
-        }, i * 100);
-    }
-};
+  window.submitSuggestion = function() {
+      const text = document.getElementById('suggestInput').value.trim();
+      if (!text) return;
+      fetch('/api/chat/send', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+              userId: currentUserId,
+              userName: currentUserName || 'Guest',
+              content: '💡 Suggestion: ' + text,
+              parentId: null
+          })
+      }).then(() => {
+          document.getElementById('suggestInput').value = '';
+          document.querySelector('[data-tab="chat"]').click();
+      }).catch(e => console.error('Suggestion error:', e));
+  };
 
-window.openStickerPicker = function() {
-    const picker = document.getElementById('stickerPicker');
-    if (picker) picker.classList.toggle('open');
-};
+  function connectSSE() {
+      if (eventSource) eventSource.close();
+      eventSource = new EventSource('/api/chat/stream');
+      eventSource.onmessage = function(e) {
+          const data = JSON.parse(e.data);
+          if (data.type === 'init') {
+              messageCache = data.messages || [];
+              renderMessages();
+          } else if (data.type === 'message') {
+              messageCache.push(data.message);
+              renderMessages();
+              const chatTab = document.getElementById('tab-chat');
+              if (chatTab.classList.contains('active')) {
+                  document.getElementById('chatMessages').scrollTop = document.getElementById('chatMessages').scrollHeight;
+              }
+          } else if (data.type === 'reaction') {
+              const msg = messageCache.find(m => m.id === data.messageId);
+              if (msg) msg.reactions = data.reactions;
+              renderMessages();
+          } else if (data.type === 'activity') {
+              activityCache.unshift(data.activity);
+              renderActivity();
+          }
+      };
+      eventSource.onerror = function() {
+          console.log('SSE error, reconnecting...');
+          setTimeout(() => connectSSE(), 3000);
+      };
+  }
 
-window.submitSuggestion = function() {
-    const text = document.getElementById('suggestInput').value.trim();
-    if (!text) return;
-    fetch('/api/chat/send', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            userId: currentUserId,
-            userName: currentUserName || 'Guest',
-            content: '💡 Suggestion: ' + text,
-            parentId: null
-        })
-    }).then(() => {
-        document.getElementById('suggestInput').value = '';
-        document.querySelector('[data-tab="chat"]').click();
-    }).catch(e => console.error('Suggestion error:', e));
-};
+  async function loadActivity() {
+      try {
+          const res = await fetch('/api/activity?limit=20');
+          const data = await res.json();
+          activityCache = data.items || [];
+          renderActivity();
+      } catch(e) { console.error('Load activity error:', e); }
+  }
 
-function connectSSE() {
-    if (eventSource) eventSource.close();
-    eventSource = new EventSource('/api/chat/stream');
-    eventSource.onmessage = function(e) {
-        const data = JSON.parse(e.data);
-        if (data.type === 'init') {
-            messageCache = data.messages || [];
-            renderMessages();
-        } else if (data.type === 'message') {
-            messageCache.push(data.message);
-            renderMessages();
-            const chatTab = document.getElementById('tab-chat');
-            if (chatTab.classList.contains('active')) {
-                document.getElementById('chatMessages').scrollTop = document.getElementById('chatMessages').scrollHeight;
-            }
-        } else if (data.type === 'reaction') {
-            const msg = messageCache.find(m => m.id === data.messageId);
-            if (msg) msg.reactions = data.reactions;
-            renderMessages();
-        } else if (data.type === 'activity') {
-            activityCache.unshift(data.activity);
-            renderActivity();
-        }
-    };
-    eventSource.onerror = function() {
-        console.log('SSE error, reconnecting...');
-        setTimeout(() => connectSSE(), 3000);
-    };
-}
+  function renderActivity() {
+      const container = document.getElementById('activityFeed');
+      container.innerHTML = activityCache.map(item => \`
+          <div class="activity-item">
+              <div class="act-icon">\${item.type === 'upload' ? '📸' : '📢'}</div>
+              <div class="act-content">
+                  <h4>\${item.type === 'upload' ? 'New Prompt Uploaded' : 'Platform Update'}</h4>
+                  <p>\${item.title || 'Untitled'} by \${item.userName || 'Anonymous'}</p>
+                  <div class="act-time">\${timeAgo(item.timestamp)}</div>
+              </div>
+          </div>
+      \`).join('');
+  }
 
-async function loadActivity() {
-    try {
-        const res = await fetch('/api/activity?limit=20');
-        const data = await res.json();
-        activityCache = data.items || [];
-        renderActivity();
-    } catch(e) { console.error('Load activity error:', e); }
-}
+  function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+  }
 
-function renderActivity() {
-    const container = document.getElementById('activityFeed');
-    container.innerHTML = activityCache.map(item => \`
-        <div class="activity-item">
-            <div class="act-icon">\${item.type === 'upload' ? '📸' : '📢'}</div>
-            <div class="act-content">
-                <h4>\${item.type === 'upload' ? 'New Prompt Uploaded' : 'Platform Update'}</h4>
-                <p>\${item.title || 'Untitled'} by \${item.userName || 'Anonymous'}</p>
-                <div class="act-time">\${timeAgo(item.timestamp)}</div>
-            </div>
-        </div>
-    \`).join('');
-}
+  function timeAgo(dateStr) {
+      const diff = Date.now() - new Date(dateStr).getTime();
+      const mins = Math.floor(diff / 60000);
+      if (mins < 1) return 'just now';
+      if (mins < 60) return mins + 'm';
+      const hrs = Math.floor(mins / 60);
+      if (hrs < 24) return hrs + 'h';
+      return Math.floor(hrs/24) + 'd';
+  }
 
-function escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-}
+  if (typeof firebase !== 'undefined' && firebase.auth) {
+      firebase.auth().onAuthStateChanged(user => {
+          if (user) {
+              currentUserId = user.uid;
+              currentUserName = user.displayName || user.email || 'User';
+              console.log('👤 User logged in:', currentUserName);
+          } else {
+              currentUserId = 'guest-' + Date.now();
+              currentUserName = 'Guest';
+              console.log('👤 Guest user:', currentUserId);
+          }
+      });
+  } else {
+      currentUserId = 'guest-' + Date.now();
+      currentUserName = 'Guest';
+      console.log('👤 No Firebase, using guest:', currentUserId);
+  }
 
-function timeAgo(dateStr) {
-    const diff = Date.now() - new Date(dateStr).getTime();
-    const mins = Math.floor(diff / 60000);
-    if (mins < 1) return 'just now';
-    if (mins < 60) return mins + 'm';
-    const hrs = Math.floor(mins / 60);
-    if (hrs < 24) return hrs + 'h';
-    return Math.floor(hrs/24) + 'd';
-}
+  console.log('🔔 Notification integration ready');
+  `;
 
-// ---- Current user ----
-if (typeof firebase !== 'undefined' && firebase.auth) {
-    firebase.auth().onAuthStateChanged(user => {
-        if (user) {
-            currentUserId = user.uid;
-            currentUserName = user.displayName || user.email || 'User';
-            console.log('👤 User logged in:', currentUserName);
-        } else {
-            currentUserId = 'guest-' + Date.now();
-            currentUserName = 'Guest';
-            console.log('👤 Guest user:', currentUserId);
-        }
-    });
-} else {
-    currentUserId = 'guest-' + Date.now();
-    currentUserName = 'Guest';
-    console.log('👤 No Firebase, using guest:', currentUserId);
-}
+  // ---------- Main function body ----------
+  const prompt = promptData;
+  const baseUrl = 'https://www.toolsprompt.com';
+  const promptUrl = baseUrl + '/prompt/' + promptData.id;
+  const gaId = process.env.GOOGLE_ANALYTICS_ID || 'G-K4KXR4FZCP';
+  const isVideo = promptData.fileType === 'video' || promptData.videoUrl || promptData.category === 'video';
+  
+  const platformInfo = promptData.platformInfo || { name: 'AI Platform', strengths: [] };
+  
+  const googleAnalyticsCode = `
+    <script async src="https://www.googletagmanager.com/gtag/js?id=${gaId}"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', '${gaId}');
+    </script>
+  `;
 
-console.log('🔔 Notification integration ready');
-`;
+  // 🔥 Monetag Ads
+  // Ensure MONETAG_* constants are defined globally (e.g., MONETAG_SITE_ID, MONETAG_ZONE_TOP, etc.)
+  // Plus MONETAG_ZONE_COPY for the clickunder.
+  const monetagUniversal = MonetagManager.generateUniversalTag(MONETAG_SITE_ID);
+  const monetagTopBanner = MonetagManager.generateBannerAd(MONETAG_ZONE_TOP);
+  const monetagMiddleBanner = MonetagManager.generateBannerAd(MONETAG_ZONE_MIDDLE);
+  const monetagBottomBanner = MonetagManager.generateBannerAd(MONETAG_ZONE_BOTTOM);
+  const monetagStickyBanner = MonetagManager.generateStickyBanner(MONETAG_ZONE_STICKY);
+  const monetagExitIntent = MonetagManager.generateExitIntent(MONETAG_ZONE_EXIT);
 
   // ==================== MEDIA DISPLAY ====================
   const mediaDisplay = isVideo ? `
@@ -11465,6 +10896,7 @@ console.log('🔔 Notification integration ready');
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     ${googleAnalyticsCode}
+    ${monetagUniversal}
     <title>${promptData.seoTitle}</title>
     <meta name="description" content="${promptData.metaDescription}">
     <meta name="keywords" content="${(promptData.keywords || []).join(', ')}">
@@ -11548,14 +10980,6 @@ console.log('🔔 Notification integration ready');
             margin-bottom: 8px;
             text-transform: uppercase;
             letter-spacing: 1px;
-        }
-        
-        .ad-banner-desktop {
-            display: block;
-        }
-        
-        .ad-banner-mobile {
-            display: none;
         }
         
         .shorts-video-container {
@@ -11805,14 +11229,6 @@ console.log('🔔 Notification integration ready');
             
             .shorts-video-container {
                 height: 400px;
-            }
-            
-            .ad-banner-desktop {
-                display: none;
-            }
-            
-            .ad-banner-mobile {
-                display: block;
             }
         }
         
@@ -12730,13 +12146,8 @@ console.log('🔔 Notification integration ready');
                 </div>
             </div>
 
-            <!-- Adsterra Ads - Top of content (high visibility) -->
-            <div id="ezoic-pub-ad-placeholder-118"></div>
-<script>
-    ezstandalone.cmd.push(function () {
-        ezstandalone.showAds(118);
-    });
-</script>
+            <!-- 🔥 MONETAG Ad - Top -->
+            ${monetagTopBanner}
             
             ${mediaDisplay}
 
@@ -12761,13 +12172,8 @@ console.log('🔔 Notification integration ready');
                     </div>
                 </section>
 
-                <!-- Adsterra Ads - Middle of content -->
-                <div id="ezoic-pub-ad-placeholder-119"></div>
-          <script>
-         ezstandalone.cmd.push(function () {
-        ezstandalone.showAds(119);
-               });
-          </script>
+                <!-- 🔥 MONETAG Ad - Middle -->
+                ${monetagMiddleBanner}
 
                 <section class="content-section">
                     <h2 class="section-title"><i class="fas fa-info-circle"></i> About This ${isVideo ? 'AI Video' : 'AI Prompt'}</h2>
@@ -12829,8 +12235,8 @@ console.log('🔔 Notification integration ready');
                     <button class="engagement-btn like-btn" onclick="handleLike('${promptData.id}')">
                         <i class="far fa-heart"></i> Like Prompt
                     </button>
-                    <button class="engagement-btn use-btn" onclick="handleUse('${promptData.id}')">
-                        <i class="fas fa-download"></i> Mark as Used
+                    <button class="engagement-btn reuse-btn" onclick="handleReuse('${promptData.id}')">
+                        <i class="fas fa-redo"></i> Reuse Prompt
                     </button>
                     <button class="engagement-btn share-btn" onclick="handleShare('${promptData.id}')">
                         <i class="fas fa-share"></i> Share Prompt
@@ -12841,13 +12247,8 @@ console.log('🔔 Notification integration ready');
                 </div>
             </div>
 
-            <!-- Adsterra Ads - Bottom of content -->
-            <div id="ezoic-pub-ad-placeholder-120"></div>
-<script>
-    ezstandalone.cmd.push(function () {
-        ezstandalone.showAds(120);
-    });
-</script>
+            <!-- 🔥 MONETAG Ad - Bottom -->
+            ${monetagBottomBanner}
 
             <!-- AFFILIATE: BOTTOM -->
             ${affiliateBottom}
@@ -12950,6 +12351,12 @@ console.log('🔔 Notification integration ready');
     ${downloadAppButtonHTMLWithStyle}
     ${aiGeneratorHTML}
     ${socialFeedHTML}
+    
+    <!-- 🔥 MONETAG STICKY BOTTOM BANNER -->
+    ${monetagStickyBanner}
+    
+    <!-- 🔥 MONETAG EXIT-INTENT INTERSTITIAL -->
+    ${monetagExitIntent}
 
 <script>
 // ==================== FIREBASE INITIALIZATION ====================
@@ -13129,7 +12536,16 @@ console.log('🔔 Notification integration ready');
             var el = document.getElementById('promptText');
             if (el) text = el.textContent || el.innerText;
         }
-        
+
+        // 🔥 TRIGGER MONETAG CLICKUNDER BEFORE COPYING
+        // MONETAG_ZONE_COPY must be defined globally in server.js
+        var clickunderZone = '${MONETAG_ZONE_COPY || ''}';
+        if (clickunderZone) {
+            var url = 'https://static.monetag.com/401/' + clickunderZone;
+            // Open the ad in a new tab behind the current one
+            window.open(url, '_blank');
+        }
+
         navigator.clipboard.writeText(text).then(function() {
             var btn = document.getElementById('copyPromptBtn');
             if (btn) {
@@ -13593,24 +13009,48 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
-    function handleUse(pid) {
-        var btn = document.querySelector('.use-btn');
-        if (!btn) return;
-        fetch('/api/prompt/' + pid + '/use', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userId: 'anonymous' })
-        }).then(function(r) {
-            if (r.ok) {
-                btn.innerHTML = '<i class="fas fa-check"></i> Used!';
-                btn.classList.add('used');
-                setTimeout(function() {
-                    btn.innerHTML = '<i class="fas fa-download"></i> Mark as Used';
-                    btn.classList.remove('used');
-                }, 3000);
-            }
-        });
+    function handleReuse(pid) {
+    var btn = document.querySelector('.reuse-btn');
+    if (!btn) return;
+
+    // Get prompt data from global variable
+    var promptData = currentPromptData;
+    var isPaid = promptData.price > 0;
+    var hasPurchased = ${promptData.hasPurchased};  // passed from server
+
+    // Paid and not purchased → show buy modal
+    if (isPaid && !hasPurchased) {
+        showBuyPromptModal(promptData);
+        return;
     }
+
+    // Free or already purchased → copy to AI generator
+    var promptText = promptData.promptText || '';
+    if (!promptText) {
+        var textEl = document.getElementById('promptText');
+        if (textEl) promptText = textEl.textContent || textEl.innerText;
+    }
+
+    var input = document.getElementById('aiPromptInput');
+    var bar = document.getElementById('aiGeneratorBar');
+
+    if (input && promptText) {
+        input.value = promptText;
+        input.style.height = 'auto';
+        input.style.height = Math.min(input.scrollHeight, 120) + 'px';
+
+        if (bar && !bar.classList.contains('active')) {
+            bar.classList.add('active');
+        }
+
+        input.focus();
+        input.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+        showNotification('Prompt copied to AI generator!', 'success');
+    } else {
+        showNotification('AI generator not available', 'error');
+    }
+}
     
     function handleShare(pid) {
         var url = window.location.href;
@@ -13682,17 +13122,16 @@ function generateCategoryHTML(category, baseUrl) {
     'video': 'AI Video Reels',
     'other': 'Other AI Creations'
   };
-  
   const categoryName = categoryNames[category] || 'AI Prompts';
   const description = `Explore ${categoryName} prompts and AI-generated content. Discover the best prompt engineering techniques for ${categoryName.toLowerCase()}.`;
-
+  const monetagUniversal = MonetagManager.generateUniversalTag(MONETAG_SITE_ID);
   return `<!DOCTYPE html>
 <html>
 <head>
     <meta charset="UTF-8">
     <title>${categoryName} Prompts - tools prompt</title>
     <meta name="description" content="${description}">
-    ${generateAdSenseCode()}
+    ${monetagUniversal}
     <style>
         body { font-family: Arial, sans-serif; margin: 0; padding: 40px; background: #f5f7fa; text-align: center; }
         .container { max-width: 800px; margin: 50px auto; background: white; padding: 40px; border-radius: 15px; box-shadow: 0 5px 15px rgba(0,0,0,0.1); }
@@ -13714,15 +13153,13 @@ function generateNewsHTML(newsData) {
   const adsenseCode = generateAdSenseCode();
   const baseUrl = process.env.NODE_ENV === 'production' ? 'https://www.toolsprompt.com' : '';
   const newsUrl = baseUrl + '/news/' + newsData.id;
-  
   const tagsHTML = (newsData.tags || []).map(tag => 
     '<meta property="article:tag" content="' + tag + '">'
   ).join('');
-  
   const contentHTML = (newsData.content || '').split('\n').map(paragraph => 
     '<p>' + paragraph + '</p>'
   ).join('');
-  
+  const monetagUniversal = MonetagManager.generateUniversalTag(MONETAG_SITE_ID);
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -13731,6 +13168,7 @@ function generateNewsHTML(newsData) {
     <title>${newsData.seoTitle}</title>
     <meta name="description" content="${newsData.metaDescription}">
     ${adsenseCode}
+    ${monetagUniversal}
     <meta property="og:type" content="article">
     <meta property="og:url" content="${newsUrl}">
     <meta property="article:published_time" content="${newsData.publishedAt}">
@@ -13813,22 +13251,14 @@ app.use((req, res) => {
   res.status(404).send(`<!DOCTYPE html><html><head><title>Page Not Found</title></head><body><h1>Page Not Found</h1><p>The page you're looking for doesn't exist.</p><a href="/">Return to Home</a></body></html>`);
 });
 
-// Start server
 app.listen(port, async () => {
   const photoCount = AIModelManager.getPhotoModelCount();
   const videoCount = AIModelManager.getVideoModelCount();
   const totalCount = photoCount + videoCount;
-  
   console.log(`🚀 Server running on port ${port}`);
   console.log(`📦 Storage: Cloudflare R2 (ZERO egress fees)`);
   console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`🌐 Base URL: http://localhost:${port}`);
-  console.log(`📰 News routes: http://localhost:${port}/news/:id`);
-  console.log(`🗞️  News API: http://localhost:${port}/api/news`);
-  console.log(`📤 News upload: http://localhost:${port}/api/upload-news`);
-  console.log(`🗺️  News sitemap: http://localhost:${port}/sitemap-news.xml`);
-  console.log(`🔗 Prompt routes: http://localhost:${port}/prompt/:id`);
-  console.log(`📊 Dashboard: http://localhost:${port}/dashboard.html`);
   console.log(`💰 MARKETPLACE FEATURES:`);
   console.log(`   → Buy prompts with Razorpay India integration`);
   console.log(`   → Sell prompts with 80% earnings for sellers`);
@@ -13836,35 +13266,33 @@ app.listen(port, async () => {
   console.log(`   → Price badges on prompts (Free/Paid)`);
   console.log(`   → Purchase verification before copying paid prompts`);
   console.log(`   → Sales and earnings tracking`);
-  
   console.log(`🎬 YOUTUBE SHORTS PLAYER:`);
   console.log(`   → Full-screen vertical video player`);
   console.log(`   → Swipe up/down navigation (mobile)`);
   console.log(`   → Arrow key navigation (desktop)`);
   console.log(`   → Like, comment, share, copy prompt functionality`);
-  
   console.log(`💬 Comment System Endpoints:`);
   console.log(`   → Get comments: http://localhost:${port}/api/prompt/:id/comments`);
   console.log(`   → Post comment: http://localhost:${port}/api/prompt/:id/comments (POST)`);
   console.log(`   → Like comment: http://localhost:${port}/api/comment/:commentId/like (POST)`);
-  
   console.log(`🔍 Search: http://localhost:${port}/api/search (Limited to 500 results)`);
   console.log(`🗺️  Sitemap: http://localhost:${port}/sitemap.xml`);
   console.log(`🤖 Robots.txt: http://localhost:${port}/robots.txt`);
   console.log(`❤️  Health check: http://localhost:${port}/health`);
   console.log(`💰 AdSense Client ID: ${process.env.ADSENSE_CLIENT_ID || 'ca-pub-5992381116749724'}`);
-  console.log(`📢 Adsterra Ads Integrated:`);
-  console.log(`   → Native Banner: aca55beb03e2d8b514ae3f122920bdf0`);
-  console.log(`   → Desktop Banner (300x250): 8719e4636a7c41462203d84e956177c4`);
-  console.log(`   → Mobile Banner (320x50): 37e3a123e9b664f6f0b0efed6c7ee71f`);
-  
+  console.log(`📢 MONETAG Ads Integrated:`);
+  console.log(`   → Site ID: ${MONETAG_SITE_ID ? 'Configured' : 'MISSING'}`);
+  console.log(`   → Top Banner Zone: ${MONETAG_ZONE_TOP ? 'Configured' : 'MISSING'}`);
+  console.log(`   → Middle Banner Zone: ${MONETAG_ZONE_MIDDLE ? 'Configured' : 'MISSING'}`);
+  console.log(`   → Bottom Banner Zone: ${MONETAG_ZONE_BOTTOM ? 'Configured' : 'MISSING'}`);
+  console.log(`   → Sticky Banner Zone: ${MONETAG_ZONE_STICKY ? 'Configured' : 'MISSING'}`);
+  console.log(`   → Exit-Intent Zone: ${MONETAG_ZONE_EXIT ? 'Configured' : 'MISSING'}`);
   console.log(`📱 APP DOWNLOAD BUTTON:`);
   console.log(`   → Floating button at bottom center of prompt pages`);
   console.log(`   → Download URL: https://www.appcreator24.com/app4057785-93607p`);
   console.log(`   → Auto-tracks download clicks`);
   console.log(`   → Sticky while scrolling`);
   console.log(`   → Animated with bounce effect`);
-  
   console.log(`🤖 AI MODELS ENHANCED: ${totalCount} TOTAL AI PLATFORMS SUPPORTED!`);
   console.log(`   📸 PHOTO MODELS (${photoCount})`);
   console.log(`   🎬 VIDEO MODELS (${videoCount})`);
@@ -13873,18 +13301,15 @@ app.listen(port, async () => {
   console.log(`💰 NON-FIREBASE SERVICE CHARGES: ELIMINATED (R2 has zero egress fees)`);
   console.log(`🔗 AFFILIATE PROGRAM ACTIVE: Manage affiliate products at /affiliate.html`);
   console.log(`   → Random 3 affiliates shown per prompt page (top, middle, bottom)`);
-  
   console.log(`🖼️ AI IMAGE GENERATOR ACTIVE (DALL-E 3 + Vision):`);
   console.log(`   → Sticky bar on prompt pages with credit system`);
   console.log(`   → 5 free credits per user per day`);
   console.log(`   → Top-up: ₹20 for 50 credits via Razorpay`);
   console.log(`   → Upload image for style reference (GPT-4 Vision)`);
-  
   console.log(`📸 INSTAGRAM BADGE:`);
   console.log(`   → Sticky left side badge with periodic shake animation every 5 seconds`);
   console.log(`   → Hover pauses the animation, scales up and highlights`);
   console.log(`   → Links to https://instagram.com/toolsprompt`);
-  
   console.log(`💬 SOCIAL FEED + CHAT (SSE) ENABLED:`);
   console.log(`   → Real-time chat with replies, reactions (6 emojis), stickers`);
   console.log(`   → Activity feed for new uploads and platform updates`);
@@ -13900,7 +13325,6 @@ app.listen(port, async () => {
   console.log(`   → Tokens stored in Firestore users collection`);
   console.log(`   → Push sent to all users with pushEnabled: true`);
   console.log(`   → Invalid tokens automatically removed`);
-  
   console.log(`🤖 AGNES AI VIDEO GENERATION (FREE API) ADDED!`);
   console.log(`   → Endpoints: /api/generate-agnes-video (POST) & /api/poll-agnes-video (GET)`);
   console.log(`   → Model: agnes-video-v2.0 (unlimited, free, no credit limit)`);
@@ -13909,7 +13333,6 @@ app.listen(port, async () => {
   console.log(`   → Configured via AGNES_API_KEY in .env`);
   console.log(`   → Auto-selects resolution based on duration (up to 40s at 480p)`);
   console.log(`   → 🔧 FIX: Now uses Math.round() for accurate duration matching`);
-  
   console.log(`🎉 REFERRAL SYSTEM ENABLED:`);
   console.log(`   → Referral code generated for each user`);
   console.log(`   → Referrer gets 10 credits, referee gets 5 credits`);

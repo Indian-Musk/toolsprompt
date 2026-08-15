@@ -11,6 +11,17 @@
   gtag('js', new Date());
   gtag('config', 'G-K4KXR4FZCP');
 </script>
+<meta name="monetag" content="465972477eddbd5f9c8482f9072e8449">
+
+    <!-- 🔥 MONETAG Universal Tag (Popunders + Push Notifications) -->
+    <script type="text/javascript">
+        (function(d, z, s) {
+            s.src = 'https://' + d + '/400/' + '3448700';
+            try {
+                document.getElementsByTagName('head')[0].appendChild(s);
+            } catch (e) {}
+        })('static.monetag.com', '3448700', document.createElement('script'));
+    </script>
 
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -417,14 +428,6 @@ nav {
     margin-bottom: 8px;
     text-transform: uppercase;
     letter-spacing: 1px;
-}
-
-.ad-banner-desktop {
-    display: block;
-}
-
-.ad-banner-mobile {
-    display: none;
 }
 
 /* SEO Content Section */
@@ -2854,19 +2857,18 @@ nav {
                 <!-- Prompts will be loaded here automatically -->
             </div>
 
+            <!-- 🔥 MONETAG Banner Ad (Replaces Adsterra Native Ad) -->
             <div class="ad-container" style="margin: 30px 0;">
                 <div class="ad-label">Advertisement</div>
-                <div id="container-aca55beb03e2d8b514ae3f122920bdf0-bottom"></div>
+                <script type="text/javascript">
+                    (function(d, z, s) {
+                        s.src = 'https://' + d + '/401/' + 'YOUR_ZONE_ID';
+                        try {
+                            document.body.appendChild(s);
+                        } catch (e) {}
+                    })('static.monetag.com', 'YOUR_ZONE_ID', document.createElement('script'));
+                </script>
             </div>
-            <script>
-                setTimeout(() => {
-                    const topContainer = document.getElementById('container-aca55beb03e2d8b514ae3f122920bdf0');
-                    const bottomContainer = document.getElementById('container-aca55beb03e2d8b514ae3f122920bdf0-bottom');
-                    if (topContainer && bottomContainer && topContainer.innerHTML) {
-                        bottomContainer.innerHTML = topContainer.innerHTML;
-                    }
-                }, 2000);
-            </script>
         </div>
     </section>
 
@@ -3004,6 +3006,29 @@ nav {
             <p>&copy; 2026 Toolsprompt Marketplace. All rights reserved. | Buy & Sell AI Prompts</p>
         </div>
     </footer>
+
+    <!-- 🔥 MONETAG STICKY BOTTOM BANNER -->
+    <div style="position:fixed;bottom:0;left:0;right:0;z-index:9998;background:#fff;box-shadow:0 -2px 10px rgba(0,0,0,0.1);text-align:center;padding:5px 0;">
+        <div class="ad-label" style="font-size:0.6rem;color:#888;margin-bottom:2px;">Advertisement</div>
+        <script type="text/javascript">
+            (function(d, z, s) {
+                s.src = 'https://' + d + '/401/' + 'YOUR_STICKY_ZONE_ID';
+                try {
+                    document.body.appendChild(s);
+                } catch (e) {}
+            })('static.monetag.com', 'YOUR_STICKY_ZONE_ID', document.createElement('script'));
+        </script>
+    </div>
+
+    <!-- 🔥 MONETAG EXIT-INTENT INTERSTITIAL -->
+    <script type="text/javascript">
+        (function(d, z, s) {
+            s.src = 'https://' + d + '/401/' + 'YOUR_EXIT_ZONE_ID';
+            try {
+                document.body.appendChild(s);
+            } catch (e) {}
+        })('static.monetag.com', 'YOUR_EXIT_ZONE_ID', document.createElement('script'));
+    </script>
 
     <script src="script.js"></script>
     
@@ -3243,7 +3268,7 @@ nav {
                     renderPromptsFallback(filtered, document.getElementById('promptsContainer'));
                 }
                 updateFilterCounts(filtered);
-                // Update load more button visibility after filtering
+                // Update load more button after filtering
                 setTimeout(updateLoadMoreButton, 100);
             } else {
                 loadPromptsWithFilter(filter);

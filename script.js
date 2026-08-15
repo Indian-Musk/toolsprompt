@@ -1,4 +1,4 @@
-﻿// For Firebase JS SDK v7.20.0 and later, measurementId is optional
+﻿﻿// For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const firebaseConfig = {
   apiKey: "AIzaSyCgc0xRtijpyPhOovfwg-MzyahsUFh-hiQ",
   authDomain: "toolsprompt-5b07e.firebaseapp.com",
@@ -3043,6 +3043,7 @@ class YouTubeStylePrompts {
             `<span class="price-badge"><i class="fas fa-rupee-sign"></i> ${price}</span>` :
             `<span class="price-badge free"><i class="fas fa-gift"></i> Free</span>`;
 
+        // ===== REUSE BUTTON (replaces use button) =====
         promptDiv.innerHTML = `
             <div class="shorts-video-container ${isVideo ? 'video-hover-container' : ''}" 
                  ${isVideo ? 'tabindex="0" role="button" aria-label="Play video reel"' : ''}>
@@ -3061,9 +3062,10 @@ class YouTubeStylePrompts {
                         <span class="engagement-count likes-count">${this.formatCount(likes)}</span>
                     </button>
                     
-                    <button class="engagement-action use-btn" data-prompt-id="${promptId}" title="Mark as used">
-                        <i class="fas fa-download"></i>
-                        <span class="engagement-count uses-count">${this.formatCount(uses)}</span>
+                    <!-- REUSE BUTTON (changed from use-btn) -->
+                    <button class="engagement-action reuse-btn" data-prompt-id="${promptId}" title="Reuse this prompt">
+                        <i class="fas fa-redo"></i>
+                        <span class="engagement-count">Reuse</span>
                     </button>
                     
                     <button class="engagement-action share-btn" data-prompt-id="${promptId}" title="Share">
@@ -3165,13 +3167,13 @@ class YouTubeStylePrompts {
     setupEngagementListeners() {
         document.addEventListener('click', async (e) => {
             const likeBtn = e.target.closest('.like-btn');
-            const useBtn = e.target.closest('.use-btn');
+            const reuseBtn = e.target.closest('.reuse-btn');   // changed from use-btn
             const shareBtn = e.target.closest('.share-btn');
             
             if (likeBtn) {
                 await this.handleLike(likeBtn);
-            } else if (useBtn) {
-                await this.handleUse(useBtn);
+            } else if (reuseBtn) {
+                await this.handleReuse(reuseBtn);               // changed from handleUse
             } else if (shareBtn) {
                 await this.handleShare(shareBtn);
             }
@@ -3221,42 +3223,76 @@ class YouTubeStylePrompts {
         }
     }
 
-    async handleUse(useBtn) {
-        const promptId = useBtn.dataset.promptId;
-        if (!promptId || promptId === 'unknown') {
-            showNotification('Invalid prompt', 'error');
-            return;
-        }
+  async handleReuse(reuseBtn) {
+    const promptId = reuseBtn.dataset.promptId;
+    if (!promptId || promptId === 'unknown') {
+        showNotification('Invalid prompt', 'error');
+        return;
+    }
 
+    // Find the prompt data from allPrompts
+    const prompt = allPrompts.find(p => p.id === promptId);
+    if (!prompt) {
+        showNotification('Prompt not found', 'error');
+        return;
+    }
+
+    // Check if it's a paid prompt
+    if (prompt.price && prompt.price > 0) {
+        // Verify if user has purchased it
         const user = await getCurrentUser();
-        if (!user) {
-            showNotification('Please login to mark prompts as used', 'error');
-            return;
-        }
-
-        const usesCount = useBtn.querySelector('.uses-count');
-        
-        try {
-            const response = await fetch(`/api/prompt/${promptId}/use`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ userId: user.uid })
-            });
-
-            if (response.ok) {
-                const currentUses = parseInt(usesCount.textContent) || 0;
-                usesCount.textContent = this.formatCount(currentUses + 1);
-                
-                usesCount.classList.add('count-animation');
-                setTimeout(() => usesCount.classList.remove('count-animation'), 300);
-                
-                showNotification('Prompt marked as used!', 'success');
+        let purchased = false;
+        if (user) {
+            try {
+                const response = await fetch(`/api/check-purchase/${promptId}?userId=${user.uid}`);
+                const data = await response.json();
+                purchased = data.purchased;
+            } catch (error) {
+                console.error('Error checking purchase:', error);
             }
-        } catch (error) {
-            console.error('Use error:', error);
-            showNotification('Failed to mark as used', 'error');
+        }
+        if (!purchased) {
+            // Show buy modal instead of copying
+            const promptData = {
+                id: prompt.id,
+                title: prompt.title,
+                promptText: prompt.promptText || '',
+                imageUrl: prompt.thumbnailUrl || prompt.imageUrl,
+                price: prompt.price,
+                userName: prompt.userName || 'Anonymous'
+            };
+            showBuyPromptModal(promptData);
+            return;
         }
     }
+
+    // Free prompt or already purchased – copy to AI generator
+    const input = document.getElementById('aiPromptInput');
+    const bar = document.getElementById('aiGeneratorBar');
+
+    if (!input) {
+        showNotification('AI generator not available', 'error');
+        return;
+    }
+
+    input.value = prompt.promptText || '';
+    input.style.height = 'auto';
+    input.style.height = Math.min(input.scrollHeight, 120) + 'px';
+
+    if (bar && !bar.classList.contains('active')) {
+        bar.classList.add('active');
+    }
+
+    input.focus();
+    input.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+    showNotification('Prompt copied to AI generator!', 'success');
+
+    // Optional tracking
+    trackCopyAction(promptId);
+}
+    // Old handleUse (removed or kept but not used)
+    // async handleUse(useBtn) { ... }   // we remove it
 
     async handleShare(shareBtn) {
         const promptId = shareBtn.dataset.promptId;
