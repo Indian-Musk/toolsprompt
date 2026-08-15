@@ -10897,6 +10897,10 @@ function generateEnhancedPromptHTML(promptData, affiliates) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     ${googleAnalyticsCode}
     ${monetagUniversal}
+<script>(function(s){s.dataset.zone='11581742',s.src='https://nap5k.com/tag.min.js'})([document.documentElement, document.body].filter(Boolean).pop().appendChild(document.createElement('script')))</script>
+<script>(function(s){s.dataset.zone='11581834',s.src='https://n6wxm.com/vignette.min.js'})([document.documentElement, document.body].filter(Boolean).pop().appendChild(document.createElement('script')))</script>
+<script>(function(s){s.dataset.zone='11581836',s.src='https://nap5k.com/tag.min.js'})([document.documentElement, document.body].filter(Boolean).pop().appendChild(document.createElement('script')))</script>
+<script>(function(s){s.dataset.zone='11581859',s.src='https://zovidree.com/tag.min.js'})([document.documentElement, document.body].filter(Boolean).pop().appendChild(document.createElement('script')))</script>
     <title>${promptData.seoTitle}</title>
     <meta name="description" content="${promptData.metaDescription}">
     <meta name="keywords" content="${(promptData.keywords || []).join(', ')}">
