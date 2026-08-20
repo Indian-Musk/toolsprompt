@@ -60,6 +60,10 @@
           <input type="url" id="url" placeholder="https://amazon.in/dp/..." required />
         </div>
         <div class="form-group">
+          <label for="url2">Secondary Product URL (optional)</label>
+          <input type="url" id="url2" placeholder="https://example.com/product2" />
+        </div>
+        <div class="form-group">
           <label for="title">Product Title *</label>
           <input type="text" id="title" placeholder="Enter product name" required />
         </div>
@@ -154,7 +158,8 @@
           <div class="affiliate-info">
             <h3>${a.title}</h3>
             <p>${a.description || ''}</p>
-            <a href="${a.url}" target="_blank" rel="noopener">${a.url}</a>
+            ${a.url ? `<a href="${a.url}" target="_blank" rel="noopener">${a.url}</a>` : ''}
+            ${a.url2 ? `<br><a href="${a.url2}" target="_blank" rel="noopener">${a.url2} (secondary)</a>` : ''}
           </div>
           <button class="btn btn-danger delete-btn" data-id="${a.id}"><i class="fas fa-trash"></i></button>
         </div>
@@ -189,6 +194,7 @@
         return;
       }
       const url = document.getElementById('url').value.trim();
+      const url2 = document.getElementById('url2').value.trim();
       const title = document.getElementById('title').value.trim();
       const image = document.getElementById('image').value.trim();
       const description = document.getElementById('description').value.trim();
@@ -205,7 +211,7 @@
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${authToken}`
           },
-          body: JSON.stringify({ url, title, image, description })
+          body: JSON.stringify({ url, url2, title, image, description })
         });
         if (res.ok) {
           showToast('Affiliate added successfully!');

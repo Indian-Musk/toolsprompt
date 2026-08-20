@@ -1,4 +1,4 @@
-﻿﻿// ========== AGNES AI CONFIGURATION ==========
+﻿﻿﻿// ========== AGNES AI CONFIGURATION ==========
 const AGNES_API_IP = '104.18.18.62';               // Hardcoded IP from nslookup
 const AGNES_API_HOST = 'apihub.agnes-ai.com';       // Host header for SSL
 const express = require('express');
@@ -3670,7 +3670,7 @@ app.post('/api/affiliates', async (req, res) => {
       }
     }
     
-    const { url, title, image, description } = req.body;
+    const { url, url2, title, image, description } = req.body;
     if (!url || !title) {
       return res.status(400).json({ error: 'URL and title are required' });
     }
@@ -3678,6 +3678,7 @@ app.post('/api/affiliates', async (req, res) => {
     const affiliateData = {
       userId,
       url,
+      url2: url2 || null,
       title,
       image: image || '',
       description: description || '',
@@ -5901,19 +5902,20 @@ async function getRecentMessages(limit = 50) {
       .orderBy('timestamp', 'desc')
       .limit(limit)
       .get();
+    // Fix: use d.id instead of doc.id
     return snapshot.docs.map(d => ({ id: d.id, ...d.data() })).reverse();
   } else {
     const messages = global.chatMessages || [];
     return messages.slice(-limit);
   }
 }
-
 async function getRecentActivity(limit = 20) {
   if (db && db.collection) {
     const snapshot = await db.collection('activity_feed')
       .orderBy('timestamp', 'desc')
       .limit(limit)
       .get();
+    // Fix: use d.id instead of doc.id
     return snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
   } else {
     const items = global.activityFeed || [];
@@ -7663,25 +7665,30 @@ document.addEventListener('DOMContentLoaded', function() {
 `;
 }
 
-// Helper to generate affiliate HTML
+// Helper to generate affiliate HTML (UPDATED)
 function generateAffiliateHTML(affiliate) {
   if (!affiliate) return '';
+  const { url, url2, title, image, description } = affiliate;
+  // Escape for safe onclick attribute
+  const safeUrl = url.replace(/'/g, "\\'");
+  const safeUrl2 = url2 ? url2.replace(/'/g, "\\'") : '';
+  const openFunc = `openAffiliateUrls('${safeUrl}', '${safeUrl2}')`;
+  
   return `
-    <div class="affiliate-container">
+    <div class="affiliate-container" onclick="${openFunc}" style="cursor:pointer;">
       <div class="ad-label">🌟 Sponsored</div>
-      <a href="${affiliate.url}" target="_blank" rel="noopener sponsored" class="affiliate-link">
-        ${affiliate.image ? `<img src="${affiliate.image}" alt="${affiliate.title}" class="affiliate-image" onerror="this.style.display='none'">` : ''}
+      <div class="affiliate-content">
+        ${image ? `<img src="${image}" alt="${title}" class="affiliate-image" onerror="this.style.display='none'">` : ''}
         <div class="affiliate-info">
-          <h4>${affiliate.title}</h4>
-          ${affiliate.description ? `<p>${affiliate.description}</p>` : ''}
-          <span class="affiliate-cta">View Product →</span>
+          <h4>${title}</h4>
+          ${description ? `<p>${description}</p>` : ''}
+          <span class="affiliate-cta">View Products →</span>
+          ${url2 ? `<div style="font-size:0.75rem;color:#888;margin-top:4px;">Includes bonus offer</div>` : ''}
         </div>
-      </a>
+      </div>
     </div>
   `;
 }
-
-// ==================== generateEnhancedPromptHTML (FIXED) ====================
 function generateEnhancedPromptHTML(promptData, affiliates) {
   const prompt = promptData;
   const baseUrl = 'https://www.toolsprompt.com';
@@ -11470,10 +11477,6 @@ console.log('🔔 Notification integration ready');
     <meta name="keywords" content="${(promptData.keywords || []).join(', ')}">
     <meta name="robots" content="index, follow, max-image-preview:large">
     
-<script>(function(s){s.dataset.zone='11581742',s.src='https://nap5k.com/tag.min.js'})([document.documentElement, document.body].filter(Boolean).pop().appendChild(document.createElement('script')))</script>
-<script>(function(s){s.dataset.zone='11581834',s.src='https://n6wxm.com/vignette.min.js'})([document.documentElement, document.body].filter(Boolean).pop().appendChild(document.createElement('script')))</script>
-<script>(function(s){s.dataset.zone='11581836',s.src='https://nap5k.com/tag.min.js'})([document.documentElement, document.body].filter(Boolean).pop().appendChild(document.createElement('script')))</script>
-<script>(function(s){s.dataset.zone='11581859',s.src='https://zovidree.com/tag.min.js'})([document.documentElement, document.body].filter(Boolean).pop().appendChild(document.createElement('script')))</script>
     <meta property="og:title" content="${promptData.seoTitle}">
     <meta property="og:description" content="${promptData.metaDescription}">
     <meta property="og:image" content="${promptData.imageUrl}">
@@ -12427,7 +12430,7 @@ console.log('🔔 Notification integration ready');
             transform: translateY(-3px);
             box-shadow: 0 6px 20px rgba(0,0,0,0.1);
         }
-        .affiliate-link {
+        .affiliate-content {
             display: flex;
             align-items: center;
             gap: 15px;
@@ -12467,7 +12470,7 @@ console.log('🔔 Notification integration ready');
             margin-top: 4px;
         }
         @media (max-width: 768px) {
-            .affiliate-link {
+            .affiliate-content {
                 flex-direction: column;
                 text-align: center;
             }
@@ -12476,199 +12479,197 @@ console.log('🔔 Notification integration ready');
                 height: auto;
                 max-height: 150px;
             }
-
+        }
+        /* ── User Profile & Avatar Styles ── */
+        .user-profile {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: #f8f9fa;
+            padding: 5px 15px 5px 10px;
+            border-radius: 40px;
+            border: 1px solid #e9ecef;
+            transition: all 0.3s ease;
+        }
+        .user-profile:hover {
+            border-color: #4e54c8;
+            box-shadow: 0 2px 12px rgba(78,84,200,0.15);
+        }
+        .user-avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 2px solid #fff;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+            flex-shrink: 0;
+        }
+        .user-profile span {
+            font-weight: 500;
+            color: #2d334a;
+            font-size: 0.95rem;
+            max-width: 120px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .logout-btn {
+            background: none;
+            border: none;
+            color: #ff6b6b;
+            cursor: pointer;
+            font-size: 1rem;
+            padding: 6px 8px;
+            border-radius: 50%;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 32px;
+            height: 32px;
+        }
+        .logout-btn:hover {
+            background: #ffeaea;
+            transform: scale(1.1);
+            color: #e03131;
+        }
+        .logout-btn i {
+            font-size: 1rem;
         }
 
-/* ── User Profile & Avatar Styles ── */
-.user-profile {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    background: #f8f9fa;
-    padding: 5px 15px 5px 10px;
-    border-radius: 40px;
-    border: 1px solid #e9ecef;
-    transition: all 0.3s ease;
-}
-.user-profile:hover {
-    border-color: #4e54c8;
-    box-shadow: 0 2px 12px rgba(78,84,200,0.15);
-}
-.user-avatar {
-    width: 36px;
-    height: 36px;
-    border-radius: 50%;
-    object-fit: cover;
-    border: 2px solid #fff;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.12);
-    flex-shrink: 0;
-}
-.user-profile span {
-    font-weight: 500;
-    color: #2d334a;
-    font-size: 0.95rem;
-    max-width: 120px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-.logout-btn {
-    background: none;
-    border: none;
-    color: #ff6b6b;
-    cursor: pointer;
-    font-size: 1rem;
-    padding: 6px 8px;
-    border-radius: 50%;
-    transition: all 0.3s ease;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 32px;
-    height: 32px;
-}
-.logout-btn:hover {
-    background: #ffeaea;
-    transform: scale(1.1);
-    color: #e03131;
-}
-.logout-btn i {
-    font-size: 1rem;
-}
+        /* Mini version for prompt pages */
+        .user-profile-mini {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: #f8f9fa;
+            padding: 4px 12px 4px 8px;
+            border-radius: 40px;
+            border: 1px solid #e9ecef;
+            transition: all 0.3s ease;
+        }
+        .user-profile-mini:hover {
+            border-color: #4e54c8;
+        }
+        .user-avatar-mini {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 2px solid #fff;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, #4e54c8, #8f94fb);
+            color: #fff;
+            font-weight: 700;
+            font-size: 0.9rem;
+        }
+        .user-name-mini {
+            font-weight: 500;
+            color: #2d334a;
+            font-size: 0.85rem;
+            max-width: 100px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .logout-btn-mini {
+            background: none;
+            border: none;
+            color: #ff6b6b;
+            cursor: pointer;
+            font-size: 0.85rem;
+            padding: 4px 6px;
+            border-radius: 50%;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 28px;
+            height: 28px;
+        }
+        .logout-btn-mini:hover {
+            background: #ffeaea;
+            transform: scale(1.1);
+            color: #e03131;
+        }
+        .logout-btn-mini i {
+            font-size: 0.85rem;
+        }
 
-/* Mini version for prompt pages */
-.user-profile-mini {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    background: #f8f9fa;
-    padding: 4px 12px 4px 8px;
-    border-radius: 40px;
-    border: 1px solid #e9ecef;
-    transition: all 0.3s ease;
-}
-.user-profile-mini:hover {
-    border-color: #4e54c8;
-}
-.user-avatar-mini {
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    object-fit: cover;
-    border: 2px solid #fff;
-    box-shadow: 0 2px 6px rgba(0,0,0,0.1);
-    flex-shrink: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: linear-gradient(135deg, #4e54c8, #8f94fb);
-    color: #fff;
-    font-weight: 700;
-    font-size: 0.9rem;
-}
-.user-name-mini {
-    font-weight: 500;
-    color: #2d334a;
-    font-size: 0.85rem;
-    max-width: 100px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-.logout-btn-mini {
-    background: none;
-    border: none;
-    color: #ff6b6b;
-    cursor: pointer;
-    font-size: 0.85rem;
-    padding: 4px 6px;
-    border-radius: 50%;
-    transition: all 0.3s ease;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 28px;
-    height: 28px;
-}
-.logout-btn-mini:hover {
-    background: #ffeaea;
-    transform: scale(1.1);
-    color: #e03131;
-}
-.logout-btn-mini i {
-    font-size: 0.85rem;
-}
+        /* Login button in header */
+        .login-btn-header {
+            background: linear-gradient(135deg, #4e54c8, #8f94fb);
+            color: #fff;
+            padding: 8px 20px;
+            border-radius: 30px;
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 0.9rem;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            white-space: nowrap;
+        }
+        .login-btn-header:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(78,84,200,0.35);
+            color: #fff;
+        }
 
-/* Login button in header */
-.login-btn-header {
-    background: linear-gradient(135deg, #4e54c8, #8f94fb);
-    color: #fff;
-    padding: 8px 20px;
-    border-radius: 30px;
-    text-decoration: none;
-    font-weight: 600;
-    font-size: 0.9rem;
-    transition: all 0.3s ease;
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    white-space: nowrap;
-}
-.login-btn-header:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 20px rgba(78,84,200,0.35);
-    color: #fff;
-}
-
-/* Responsive tweaks */
-@media (max-width: 768px) {
-    .user-profile span {
-        max-width: 80px;
-        font-size: 0.85rem;
-    }
-    .user-avatar {
-        width: 30px;
-        height: 30px;
-    }
-    .user-profile {
-        padding: 4px 10px 4px 6px;
-        gap: 8px;
-    }
-    .logout-btn {
-        width: 28px;
-        height: 28px;
-        font-size: 0.85rem;
-    }
-    .user-name-mini {
-        max-width: 70px;
-        font-size: 0.8rem;
-    }
-    .user-avatar-mini {
-        width: 28px;
-        height: 28px;
-        font-size: 0.8rem;
-    }
-    .login-btn-header {
-        padding: 6px 14px;
-        font-size: 0.8rem;
-    }
-}
-@media (max-width: 480px) {
-    .user-profile span {
-        display: none;
-    }
-    .user-profile {
-        padding: 4px 8px;
-        gap: 4px;
-    }
-    .user-name-mini {
-        display: none;
-    }
-    .user-profile-mini {
-        padding: 4px 8px;
-        gap: 4px;
-    }
-}
+        /* Responsive tweaks */
+        @media (max-width: 768px) {
+            .user-profile span {
+                max-width: 80px;
+                font-size: 0.85rem;
+            }
+            .user-avatar {
+                width: 30px;
+                height: 30px;
+            }
+            .user-profile {
+                padding: 4px 10px 4px 6px;
+                gap: 8px;
+            }
+            .logout-btn {
+                width: 28px;
+                height: 28px;
+                font-size: 0.85rem;
+            }
+            .user-name-mini {
+                max-width: 70px;
+                font-size: 0.8rem;
+            }
+            .user-avatar-mini {
+                width: 28px;
+                height: 28px;
+                font-size: 0.8rem;
+            }
+            .login-btn-header {
+                padding: 6px 14px;
+                font-size: 0.8rem;
+            }
+        }
+        @media (max-width: 480px) {
+            .user-profile span {
+                display: none;
+            }
+            .user-profile {
+                padding: 4px 8px;
+                gap: 4px;
+            }
+            .user-name-mini {
+                display: none;
+            }
+            .user-profile-mini {
+                padding: 4px 8px;
+                gap: 4px;
+            }
+        }
     </style>
 </head>
 <body>
@@ -12690,7 +12691,7 @@ console.log('🔔 Notification integration ready');
             </nav>
             
             <div class="auth-section" id="authSection">
-                <a href="https://www.toolsprompt.com/login.html" class="login-btn-header">Login / Register</a>
+                <a href="/login.html" class="login-btn-header" id="loginLink">Login / Register</a>
             </div>
         </div>
     </header>
@@ -13029,7 +13030,7 @@ console.log('🔔 Notification integration ready');
             }, 100);
             
         } else {
-            authSection.innerHTML = '<a href="https://www.toolsprompt.com/login.html?returnUrl=' + encodeURIComponent(window.location.href) + '" class="login-btn-header">Login / Register</a>';
+            authSection.innerHTML = '<a href="/login.html" class="login-btn-header" id="loginLink">Login / Register</a>';
         }
     }
     
@@ -13091,6 +13092,12 @@ console.log('🔔 Notification integration ready');
     };
 
     document.addEventListener('DOMContentLoaded', function() {
+        // Set login link with current URL
+        var loginLink = document.getElementById('loginLink');
+        if (loginLink) {
+            loginLink.href = '/login.html?returnUrl=' + encodeURIComponent(window.location.href);
+        }
+
         // Set current prompt text from the DOM
         var promptTextEl = document.getElementById('promptText');
         if (promptTextEl) {
@@ -13599,47 +13606,47 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     function handleReuse(pid) {
-    var btn = document.querySelector('.reuse-btn');
-    if (!btn) return;
+        var btn = document.querySelector('.reuse-btn');
+        if (!btn) return;
 
-    // Get prompt data from global variable
-    var promptData = currentPromptData;
-    var isPaid = promptData.price > 0;
-    var hasPurchased = ${promptData.hasPurchased};  // passed from server
+        // Get prompt data from global variable
+        var promptData = currentPromptData;
+        var isPaid = promptData.price > 0;
+        var hasPurchased = ${promptData.hasPurchased};  // passed from server
 
-    // Paid and not purchased → show buy modal
-    if (isPaid && !hasPurchased) {
-        showBuyPromptModal(promptData);
-        return;
-    }
-
-    // Free or already purchased → copy to AI generator
-    var promptText = promptData.promptText || '';
-    if (!promptText) {
-        var textEl = document.getElementById('promptText');
-        if (textEl) promptText = textEl.textContent || textEl.innerText;
-    }
-
-    var input = document.getElementById('aiPromptInput');
-    var bar = document.getElementById('aiGeneratorBar');
-
-    if (input && promptText) {
-        input.value = promptText;
-        input.style.height = 'auto';
-        input.style.height = Math.min(input.scrollHeight, 120) + 'px';
-
-        if (bar && !bar.classList.contains('active')) {
-            bar.classList.add('active');
+        // Paid and not purchased → show buy modal
+        if (isPaid && !hasPurchased) {
+            showBuyPromptModal(promptData);
+            return;
         }
 
-        input.focus();
-        input.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        // Free or already purchased → copy to AI generator
+        var promptText = promptData.promptText || '';
+        if (!promptText) {
+            var textEl = document.getElementById('promptText');
+            if (textEl) promptText = textEl.textContent || textEl.innerText;
+        }
 
-        showNotification('Prompt copied to AI generator!', 'success');
-    } else {
-        showNotification('AI generator not available', 'error');
+        var input = document.getElementById('aiPromptInput');
+        var bar = document.getElementById('aiGeneratorBar');
+
+        if (input && promptText) {
+            input.value = promptText;
+            input.style.height = 'auto';
+            input.style.height = Math.min(input.scrollHeight, 120) + 'px';
+
+            if (bar && !bar.classList.contains('active')) {
+                bar.classList.add('active');
+            }
+
+            input.focus();
+            input.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+            showNotification('Prompt copied to AI generator!', 'success');
+        } else {
+            showNotification('AI generator not available', 'error');
+        }
     }
-}
     
     function handleShare(pid) {
         var url = window.location.href;
@@ -13698,6 +13705,12 @@ ${downloadAppJS}
 ${aiGeneratorJS}
 ${generateCommentSystemJS(promptData)}
 ${socialFeedJS}
+
+// Add the affiliate dual‑open function
+function openAffiliateUrls(url1, url2) {
+  if (url1) window.open(url1, '_blank');
+  if (url2) window.open(url2, '_blank');
+}
 </script>
 </body>
 </html>`;
@@ -13902,6 +13915,7 @@ app.listen(port, async () => {
   console.log(`💰 NON-FIREBASE SERVICE CHARGES: ELIMINATED (R2 has zero egress fees)`);
   console.log(`🔗 AFFILIATE PROGRAM ACTIVE: Manage affiliate products at /affiliate.html`);
   console.log(`   → Random 3 affiliates shown per prompt page (top, middle, bottom)`);
+  console.log(`   → Each affiliate supports a secondary URL that opens simultaneously with the main URL`);
   
   console.log(`🖼️ AI IMAGE GENERATOR ACTIVE (DALL-E 3 + Vision):`);
   console.log(`   → Sticky bar on prompt pages with credit system`);
