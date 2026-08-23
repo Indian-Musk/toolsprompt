@@ -2736,7 +2736,6 @@ nav {
                 <button class="close-modal" id="closeModal">&times;</button>
             </div>
             <form class="upload-form" id="uploadForm">
-                <!-- ... (unchanged) ... -->
                 <div class="form-group">
                     <label for="promptTitle">Prompt Title *</label>
                     <input type="text" id="promptTitle" placeholder="Give your AI prompt a descriptive title" required>
@@ -3003,6 +3002,7 @@ nav {
         </div>
     </footer>
 
+    <!-- The updated script.js file (with channel system) is loaded here -->
     <script src="script.js"></script>
     
     <script>
@@ -3212,7 +3212,7 @@ nav {
         }
 
         // ================================================================
-        //  FILTER FUNCTIONS (unchanged, kept for completeness)
+        //  FILTER FUNCTIONS (unchanged)
         // ================================================================
         function updateFilterCounts(prompts) {
             const total = prompts ? prompts.length : 0;
@@ -3241,7 +3241,6 @@ nav {
                     renderPromptsFallback(filtered, document.getElementById('promptsContainer'));
                 }
                 updateFilterCounts(filtered);
-                // Update load more button visibility after filtering
                 setTimeout(updateLoadMoreButton, 100);
             } else {
                 loadPromptsWithFilter(filter);
@@ -3322,7 +3321,6 @@ nav {
                     document.getElementById('filterCountFree').textContent = free;
                     document.getElementById('filterCountPaid').textContent = paid;
                 }
-                // Update load more button after DOM changes
                 setTimeout(updateLoadMoreButton, 100);
             });
             observer.observe(container, { childList: true, subtree: true });
@@ -3343,7 +3341,6 @@ nav {
         function updateLoadMoreButton() {
             const btn = document.getElementById('loadMoreBtn');
             if (!btn) return;
-            // Check if youtubePrompts exists and has more
             if (window.youtubePrompts) {
                 const hasMore = window.youtubePrompts.hasMore !== false;
                 const isLoading = window.youtubePrompts.isLoading || false;
@@ -3359,27 +3356,22 @@ nav {
                     btn.style.display = 'none';
                 }
             } else {
-                // If youtubePrompts not ready, hide button
                 btn.style.display = 'none';
             }
         }
 
-        // Attach click event to load more button
         document.addEventListener('DOMContentLoaded', function() {
             const btn = document.getElementById('loadMoreBtn');
             if (btn) {
                 btn.addEventListener('click', function() {
                     if (window.youtubePrompts && typeof window.youtubePrompts.loadMorePrompts === 'function') {
                         window.youtubePrompts.loadMorePrompts();
-                        // Update button state after a short delay (loading will set disabled)
                         setTimeout(updateLoadMoreButton, 200);
                     }
                 });
             }
         });
 
-        // Hook into the YouTubeStylePrompts load completion
-        // We'll patch the displayPrompts method to call updateLoadMoreButton
         const originalDisplay = window.youtubePrompts?.displayPrompts;
         if (originalDisplay) {
             window.youtubePrompts.displayPrompts = function(prompts, isInitial) {
@@ -3388,7 +3380,6 @@ nav {
             };
         }
 
-        // Also patch the loadMorePrompts to call update after load
         const originalLoadMore = window.youtubePrompts?.loadMorePrompts;
         if (originalLoadMore) {
             window.youtubePrompts.loadMorePrompts = function() {
@@ -3397,13 +3388,10 @@ nav {
             };
         }
 
-        // Initial update after page loads
         setTimeout(updateLoadMoreButton, 3000);
 
-        // Also update when filter is applied (already handled in filterPrompts)
-
         // =================================================================
-        //  AI GENERATOR STICKY BAR (unchanged, kept for completeness)
+        //  AI GENERATOR STICKY BAR (unchanged)
         // =================================================================
         (function() {
             const bar = document.getElementById('aiGeneratorBar');
@@ -3958,12 +3946,10 @@ nav {
             setTimeout(() => { if (div.parentNode) div.remove(); }, 3500);
         }
 
-        // Override global showNotification if exists
         if (typeof window.showNotification === 'undefined') {
             window.showNotification = showNotification;
         }
 
-        // Expose getCurrentUser for other scripts
         window.getCurrentUser = function() {
             return new Promise((resolve) => {
                 if (typeof firebase !== 'undefined' && firebase.auth) {
@@ -3977,8 +3963,6 @@ nav {
             });
         };
 
-        // Ensure allPrompts is available globally
-        // (it will be set by script.js, but we keep a reference)
         if (typeof window.allPrompts === 'undefined') {
             window.allPrompts = [];
         }

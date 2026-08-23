@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Channel - Tools Prompt</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="stylesheet" href="styles.css">
+  <!-- Firebase -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
+  <style>
+    /* Channel page specific styles */
+    .channel-header {
+      background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+      padding: 3rem 2rem 2rem;
+      color: white;
+      border-radius: 20px;
+      margin-bottom: 2rem;
+      position: relative;
+      overflow: hidden;
+    }
+    .channel-banner {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      opacity: 0.3;
+      z-index: 0;
+    }
+    .channel-info {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      align-items: center;
+      gap: 2rem;
+      flex-wrap: wrap;
+    }
+    .channel-avatar {
+      width: 120px;
+      height: 120px;
+      border-radius: 50%;
+      border: 4px solid white;
+      object-fit: cover;
+      background: #4f46e5;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 3rem;
+      color: white;
+    }
+    .channel-details {
+      flex: 1;
+    }
+    .channel-details h1 {
+      font-size: 2.2rem;
+      margin-bottom: 0.5rem;
+    }
+    .channel-details p {
+      opacity: 0.8;
+      margin-bottom: 0.5rem;
+    }
+    .channel-stats {
+      display: flex;
+      gap: 1.5rem;
+      font-size: 0.9rem;
+      opacity: 0.7;
+    }
+    .subscribe-btn {
+      background: #ff0000;
+      color: white;
+      border: none;
+      padding: 10px 24px;
+      border-radius: 30px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: 0.2s;
+      font-size: 1rem;
+    }
+    .subscribe-btn.subscribed {
+      background: #334155;
+    }
+    .subscribe-btn:hover {
+      transform: scale(1.05);
+    }
+    .prompts-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 1.5rem;
+    }
+    .channel-prompt-card {
+      background: white;
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+      transition: 0.2s;
+    }
+    .channel-prompt-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+    }
+    .channel-prompt-card img {
+      width: 100%;
+      height: 180px;
+      object-fit: cover;
+    }
+    .channel-prompt-card .card-body {
+      padding: 1rem;
+    }
+    .channel-prompt-card .card-body h3 {
+      font-size: 1rem;
+      margin-bottom: 0.5rem;
+    }
+    .channel-prompt-card .card-body .meta {
+      color: #64748b;
+      font-size: 0.85rem;
+    }
+    .back-link {
+      display: inline-block;
+      margin-bottom: 1rem;
+      color: #4f46e5;
+      text-decoration: none;
+      font-weight: 500;
+    }
+    .back-link i { margin-right: 0.5rem; }
+    @media (max-width: 768px) {
+      .channel-info { flex-direction: column; text-align: center; }
+      .channel-stats { justify-content: center; }
+    }
+  </style>
+</head>
+<body>
+  <header class="site-header">
+    <div class="header-container">
+      <a href="/" class="logo">
+        <img src="logo.png" alt="Tools Prompt" onerror="this.src='https://via.placeholder.com/40x40/4f46e5/white?text=TP'">
+        <span>Tools Prompt</span>
+      </a>
+      <div class="auth-section" id="authSection">
+        <a href="/login.html" class="login-btn-header" id="loginLink">Login / Register</a>
+      </div>
+    </div>
+  </header>
+
+  <main class="main-container">
+    <a href="/" class="back-link"><i class="fas fa-arrow-left"></i> Back to Home</a>
+    <div id="channelContent">
+      <!-- Rendered by JS -->
+      <div class="loading-spinner"><div class="spinner"></div></div>
+    </div>
+  </main>
+
+  <footer class="site-footer">
+    <div class="footer-container">
+      <div class="footer-section">
+        <h3>Tools Prompt</h3>
+        <p>The leading AI Prompt Marketplace – buy and sell viral AI prompts.</p>
+      </div>
+      <div class="footer-section">
+        <h3>Quick Links</h3>
+        <ul class="footer-links">
+          <li><a href="/">Home</a></li>
+          <li><a href="/dashboard.html">Dashboard</a></li>
+          <li><a href="/news.html">AI News</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="copyright">
+      <p>&copy; 2026 Tools Prompt. All rights reserved.</p>
+    </div>
+  </footer>
+
+  <script>
+    // Firebase config
+    const firebaseConfig = {
+      apiKey: "AIzaSyCgc0xRtijpyPhOovfwg-MzyahsUFh-hiQ",
+      authDomain: "toolsprompt-5b07e.firebaseapp.com",
+      projectId: "toolsprompt-5b07e",
+      storageBucket: "toolsprompt-5b07e.firebasestorage.app",
+      messagingSenderId: "402263780942",
+      appId: "1:402263780942:web:1013a347dbb72db6b31d1f",
+      measurementId: "G-K4KXR4FZCP"
+    };
+    firebase.initializeApp(firebaseConfig);
+
+    let currentUser = null;
+    let channelData = null;
+    const userId = window.location.pathname.split('/').pop();
+
+    // Fetch channel and prompts
+    async function loadChannel() {
+      try {
+        const res = await fetch(`/api/channel/${userId}`);
+        if (!res.ok) throw new Error('Channel not found');
+        channelData = await res.json();
+        renderChannel(channelData);
+        await loadPrompts();
+        await checkSubscriptionStatus();
+      } catch (e) {
+        document.getElementById('channelContent').innerHTML = `<div style="text-align:center;padding:3rem;"><i class="fas fa-exclamation-triangle" style="font-size:2rem;color:#ff6b6b;"></i><p>Channel not found</p></div>`;
+      }
+    }
+
+    async function loadPrompts() {
+      try {
+        const res = await fetch(`/api/user/${userId}/prompts`);
+        const data = await res.json();
+        renderPrompts(data.prompts || []);
+      } catch (e) {
+        console.error('Error loading prompts:', e);
+      }
+    }
+
+    function renderChannel(channel) {
+      const container = document.getElementById('channelContent');
+      const avatarSrc = channel.channelAvatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(channel.channelName)}&size=120&background=4f46e5&color=fff`;
+      const bannerSrc = channel.channelBanner || '';
+
+      container.innerHTML = `
+        <div class="channel-header">
+          ${bannerSrc ? `<img src="${bannerSrc}" class="channel-banner" alt="Banner">` : ''}
+          <div class="channel-info">
+            <div class="channel-avatar" style="background-image:url(${avatarSrc}); background-size:cover; background-position:center;">
+              ${!channel.channelAvatar ? channel.channelName.charAt(0).toUpperCase() : ''}
+            </div>
+            <div class="channel-details">
+              <h1>${escapeHtml(channel.channelName)}</h1>
+              <p>${escapeHtml(channel.channelDescription || 'No description yet.')}</p>
+              <div class="channel-stats">
+                <span><i class="fas fa-users"></i> ${channel.subscriberCount || 0} subscribers</span>
+                <span><i class="fas fa-clock"></i> Joined ${new Date(channel.createdAt).toLocaleDateString()}</span>
+              </div>
+            </div>
+            <div>
+              <button class="subscribe-btn" id="subscribeBtn" data-channel="${userId}">Subscribe</button>
+            </div>
+          </div>
+        </div>
+        <h2 style="margin-bottom:1.5rem;">Uploads</h2>
+        <div id="promptsGrid" class="prompts-grid"></div>
+      `;
+
+      // Attach subscribe event
+      const btn = document.getElementById('subscribeBtn');
+      btn.addEventListener('click', toggleSubscribe);
+    }
+
+    function renderPrompts(prompts) {
+      const grid = document.getElementById('promptsGrid');
+      if (!prompts || prompts.length === 0) {
+        grid.innerHTML = `<p style="grid-column:1/-1;text-align:center;color:#64748b;">No prompts uploaded yet.</p>`;
+        return;
+      }
+      grid.innerHTML = prompts.map(p => {
+        const img = p.thumbnailUrl || p.imageUrl || 'https://via.placeholder.com/280x160/4f46e5/ffffff?text=Prompt';
+        const price = p.price || 0;
+        return `
+          <div class="channel-prompt-card">
+            <img src="${img}" alt="${escapeHtml(p.title)}" loading="lazy" onerror="this.src='https://via.placeholder.com/280x160/4f46e5/ffffff?text=Prompt'">
+            <div class="card-body">
+              <h3>${escapeHtml(p.title)}</h3>
+              <div class="meta">
+                <span><i class="fas fa-eye"></i> ${p.views || 0}</span>
+                <span style="margin-left:1rem;"><i class="fas fa-heart"></i> ${p.likes || 0}</span>
+                ${price > 0 ? `<span style="margin-left:1rem;color:#4f46e5;font-weight:600;">₹${price}</span>` : ''}
+              </div>
+              <a href="/prompt/${p.id}" class="action-btn" style="display:inline-block;margin-top:0.5rem;background:#4f46e5;color:white;padding:6px 16px;border-radius:30px;text-decoration:none;font-size:0.85rem;">View</a>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    async function checkSubscriptionStatus() {
+      const user = await getCurrentUser();
+      if (!user) return;
+      try {
+        const res = await fetch(`/api/channel/subscription-status?channelId=${userId}`, {
+          headers: { 'Authorization': `Bearer ${await user.getIdToken()}` }
+        });
+        const data = await res.json();
+        updateSubscribeButton(data.subscribed);
+      } catch (e) { console.error(e); }
+    }
+
+    function updateSubscribeButton(isSubscribed) {
+      const btn = document.getElementById('subscribeBtn');
+      if (!btn) return;
+      if (isSubscribed) {
+        btn.textContent = 'Subscribed';
+        btn.classList.add('subscribed');
+      } else {
+        btn.textContent = 'Subscribe';
+        btn.classList.remove('subscribed');
+      }
+    }
+
+    async function toggleSubscribe() {
+      const user = await getCurrentUser();
+      if (!user) {
+        window.location.href = `/login.html?returnUrl=${encodeURIComponent(window.location.pathname)}`;
+        return;
+      }
+      const btn = document.getElementById('subscribeBtn');
+      const isSubscribed = btn.classList.contains('subscribed');
+      const action = isSubscribed ? 'unsubscribe' : 'subscribe';
+      const endpoint = action === 'subscribe' ? '/api/channel/subscribe' : '/api/channel/unsubscribe';
+
+      try {
+        const res = await fetch(endpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${await user.getIdToken()}`
+          },
+          body: JSON.stringify({ channelId: userId })
+        });
+        const data = await res.json();
+        if (data.success) {
+          updateSubscribeButton(!isSubscribed);
+          // Update subscriber count locally
+          if (!isSubscribed) {
+            channelData.subscriberCount = (channelData.subscriberCount || 0) + 1;
+          } else {
+            channelData.subscriberCount = Math.max(0, (channelData.subscriberCount || 0) - 1);
+          }
+          const countEl = document.querySelector('.channel-stats span:first-child');
+          if (countEl) countEl.innerHTML = `<i class="fas fa-users"></i> ${channelData.subscriberCount} subscribers`;
+        }
+      } catch (e) {
+        console.error('Subscribe error:', e);
+        alert('Action failed. Please try again.');
+      }
+    }
+
+    function getCurrentUser() {
+      return new Promise((resolve) => {
+        const unsubscribe = firebase.auth().onAuthStateChanged(user => {
+          unsubscribe();
+          resolve(user);
+        });
+      });
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return str.replace(/[&<>]/g, function(m) {
+        if (m === '&') return '&amp;';
+        if (m === '<') return '&lt;';
+        if (m === '>') return '&gt;';
+        return m;
+      });
+    }
+
+    // Initialize auth UI
+    firebase.auth().onAuthStateChanged(user => {
+      currentUser = user;
+      const authSection = document.getElementById('authSection');
+      if (user) {
+        const displayName = user.displayName || user.email.split('@')[0] || 'User';
+        authSection.innerHTML = `
+          <div class="user-profile-mini">
+            <span class="user-name-mini">${displayName}</span>
+            <button class="logout-btn-mini" onclick="firebase.auth().signOut(); window.location.reload();"><i class="fas fa-sign-out-alt"></i></button>
+          </div>
+        `;
+      } else {
+        authSection.innerHTML = `<a href="/login.html" class="login-btn-header" id="loginLink">Login / Register</a>`;
+      }
+    });
+
+    // Load page
+    loadChannel();
+  </script>
+</body>
+</html>

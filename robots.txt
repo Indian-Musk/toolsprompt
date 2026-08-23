@@ -7,3 +7,4 @@ Sitemap: https://www.toolsprompt.com/sitemap.xml
 Sitemap: https://www.toolsprompt.com/sitemap-posts.xml
 Sitemap: https://www.toolsprompt.com/sitemap-news.xml
 Sitemap: https://www.toolsprompt.com/sitemap-pages.xml
+Sitemap: https://www.toolsprompt.com/sitemap-channels.xml

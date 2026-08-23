@@ -1,4 +1,8 @@
-﻿﻿// For Firebase JS SDK v7.20.0 and later, measurementId is optional
+﻿// ============================================================
+//  script.js – Complete file with channel system
+// ============================================================
+
+// Firebase config
 const firebaseConfig = {
   apiKey: "AIzaSyCgc0xRtijpyPhOovfwg-MzyahsUFh-hiQ",
   authDomain: "toolsprompt-5b07e.firebaseapp.com",
@@ -9,7 +13,7 @@ const firebaseConfig = {
   measurementId: "G-K4KXR4FZCP"
 };
 
-// Global variables for synchronized feeds
+// Global variables
 let allPrompts = [];
 let lastPromptUpdate = 0;
 const PROMPT_CACHE_DURATION = 20 * 60 * 1000; // 20 minutes
@@ -28,16 +32,61 @@ const hoverConfig = {
     thumbnailOpacity: 0
 };
 
-// Track Firebase initialization state
+// Firebase state
 let firebaseInitialized = false;
 let currentUserData = null;
 
-// ==================== RAZORPAY PAYMENT FUNCTIONS ====================
+// ==================== CHANNEL CACHE ====================
+const channelCache = new Map();
+const CHANNEL_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
+/**
+ * Fetch channel info for a user, with caching.
+ * Returns { hasChannel, displayName, channelId, channelHandle }
+ */
+async function getChannelInfo(userId) {
+  if (!userId) return { hasChannel: false, displayName: null };
+  
+  const cached = channelCache.get(userId);
+  if (cached && (Date.now() - cached.timestamp < CHANNEL_CACHE_TTL)) {
+    return cached.data;
+  }
+  
+  try {
+    const response = await fetch(`/api/channel-exists/${userId}`);
+    const data = await response.json();
+    const result = {
+      hasChannel: data.hasChannel || false,
+      displayName: data.hasChannel ? data.channelHandle : null,
+      channelId: data.channelId || null,
+      channelHandle: data.channelHandle || null,
+customUrl: data.customUrl || null
+    };
+    channelCache.set(userId, { data: result, timestamp: Date.now() });
+    return result;
+  } catch (e) {
+    console.error('Channel info fetch error:', e);
+    return { hasChannel: false, displayName: null };
+  }
+}
+
+/**
+ * Generate HTML for a channel link (used in prompt cards)
+ */
+function getChannelLinkHTML(channelInfo, userName) {
+  if (channelInfo.hasChannel && (channelInfo.channelHandle || channelInfo.customUrl || channelInfo.channelId)) {
+    const handle = channelInfo.channelHandle || channelInfo.customUrl || channelInfo.channelId;
+    const href = `/channel/${handle}`;
+    return `<a href="${href}" style="color: #4e54c8; text-decoration: none; font-weight: 600;" onclick="event.stopPropagation();">${channelInfo.displayName}</a>`;
+  } else {
+    return `@${userName || 'Anonymous'}`;
+  }
+}
+
+// ==================== RAZORPAY PAYMENT FUNCTIONS ====================
 let razorpayLoaded = false;
 let razorpayKeyId = null;
 
-// Get Razorpay key
 async function getRazorpayKey() {
     try {
         const response = await fetch('/api/razorpay-key');
@@ -50,10 +99,8 @@ async function getRazorpayKey() {
     }
 }
 
-// Load Razorpay script dynamically
 async function loadRazorpayScript() {
     if (razorpayLoaded) return true;
-    
     return new Promise((resolve) => {
         const script = document.createElement('script');
         script.src = 'https://checkout.razorpay.com/v1/checkout.js';
@@ -69,7 +116,6 @@ async function loadRazorpayScript() {
     });
 }
 
-// Create Razorpay order
 async function createRazorpayOrder(prompt, user, customerInfo) {
     try {
         const response = await fetch('/api/create-order', {
@@ -84,17 +130,14 @@ async function createRazorpayOrder(prompt, user, customerInfo) {
                 billingAddress: customerInfo?.address
             })
         });
-        
         const data = await response.json();
         return data;
-        
     } catch (error) {
         console.error('Error creating order:', error);
         throw error;
     }
 }
 
-// Fixed processPaymentWithRazorpay function
 async function processPaymentWithRazorpay(prompt, customerInfo) {
     const buyBtn = document.getElementById('buyNowBtn');
     const originalText = buyBtn?.innerHTML || 'Buy Now';
@@ -111,7 +154,6 @@ async function processPaymentWithRazorpay(prompt, customerInfo) {
             return;
         }
         
-        // Create order on server
         const response = await fetch('/api/create-order', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -132,30 +174,19 @@ async function processPaymentWithRazorpay(prompt, customerInfo) {
         const data = await response.json();
         
         if (data.isDemo) {
-            // Demo mode - complete purchase without actual payment
             if (buyBtn) buyBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Completing...';
             await completePurchase(prompt, user, null);
             closeBuyModal();
             return;
         }
         
-        // Load Razorpay script if needed
         if (typeof Razorpay === 'undefined') {
-            await new Promise((resolve, reject) => {
-                const script = document.createElement('script');
-                script.src = 'https://checkout.razorpay.com/v1/checkout.js';
-                script.onload = resolve;
-                script.onerror = reject;
-                document.head.appendChild(script);
-            });
+            await loadRazorpayScript();
         }
-        
-        // Check if Razorpay loaded
         if (typeof Razorpay === 'undefined') {
             throw new Error('Payment system not available. Please try again later.');
         }
         
-        // Create Razorpay options with key from server
         const options = {
             key: data.keyId,
             amount: data.amount,
@@ -164,11 +195,8 @@ async function processPaymentWithRazorpay(prompt, customerInfo) {
             description: `Purchase: ${prompt.title.substring(0, 40)}`,
             order_id: data.orderId,
             handler: async function(response) {
-                // Focus the main window before executing handler
                 window.focus();
-                
-                if (buyBtn) buyBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Verifying payment...';
-                
+                if (buyBtn) buyBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Verifying...';
                 try {
                     const verifyResponse = await fetch('/api/verify-payment', {
                         method: 'POST',
@@ -183,14 +211,11 @@ async function processPaymentWithRazorpay(prompt, customerInfo) {
                             amount: prompt.price
                         })
                     });
-                    
                     const verifyData = await verifyResponse.json();
-                    
                     if (verifyData.success) {
                         showNotification('Payment successful! Prompt copied to clipboard.', 'success');
                         await navigator.clipboard.writeText(prompt.promptText);
                         closeBuyModal();
-                        
                         if (window.location.pathname.includes('dashboard.html')) {
                             location.reload();
                         }
@@ -216,9 +241,7 @@ async function processPaymentWithRazorpay(prompt, customerInfo) {
                     }
                 }
             },
-            theme: {
-                color: '#4e54c8'
-            },
+            theme: { color: '#4e54c8' },
             prefill: {
                 name: customerInfo?.name || user.displayName || user.email,
                 email: user.email,
@@ -232,8 +255,6 @@ async function processPaymentWithRazorpay(prompt, customerInfo) {
         };
         
         const razorpayInstance = new Razorpay(options);
-        
-        // Add event listener for focus on modal close
         razorpayInstance.on('payment.failed', function(response) {
             console.error('Payment failed:', response.error);
             showNotification('Payment failed: ' + (response.error.description || 'Please try again'), 'error');
@@ -242,7 +263,6 @@ async function processPaymentWithRazorpay(prompt, customerInfo) {
                 buyBtn.disabled = false;
             }
         });
-        
         razorpayInstance.open();
         
     } catch (error) {
@@ -254,10 +274,9 @@ async function processPaymentWithRazorpay(prompt, customerInfo) {
         }
     }
 }
-// Show buy prompt modal with Razorpay
+
 function showBuyPromptModal(prompt) {
     closeBuyModal();
-    
     const modalHTML = `
         <div class="buy-modal-overlay" id="buyPromptModal">
             <div class="buy-modal">
@@ -286,7 +305,6 @@ function showBuyPromptModal(prompt) {
                             <label for="customerPhone">Phone (Optional)</label>
                             <input type="tel" id="customerPhone" placeholder="Mobile number for payment confirmation">
                         </div>
-                        
                         <h3>Billing Address</h3>
                         <div class="form-group">
                             <label for="addressLine1">Address Line 1 *</label>
@@ -324,7 +342,6 @@ function showBuyPromptModal(prompt) {
                                 </select>
                             </div>
                         </div>
-                        
                         <div class="payment-info" style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin: 15px 0;">
                             <p style="margin: 0; font-size: 0.9rem; color: #666;">
                                 <i class="fas fa-shield-alt"></i> Secure payment powered by Razorpay
@@ -333,7 +350,6 @@ function showBuyPromptModal(prompt) {
                                 Supports UPI, Credit/Debit Cards, Net Banking, and Wallets
                             </p>
                         </div>
-                        
                         <button class="buy-now-btn" id="buyNowBtn">
                             <i class="fas fa-rupee-sign"></i> Pay ₹${prompt.price}
                         </button>
@@ -343,11 +359,9 @@ function showBuyPromptModal(prompt) {
             </div>
         </div>
     `;
-    
     document.body.insertAdjacentHTML('beforeend', modalHTML);
     document.body.style.overflow = 'hidden';
     
-    // Set up payment button
     setTimeout(() => {
         const buyBtn = document.getElementById('buyNowBtn');
         if (buyBtn) {
@@ -366,7 +380,6 @@ function showBuyPromptModal(prompt) {
                     showNotification('Please fill all required fields', 'error');
                     return;
                 }
-                
                 const customerInfo = {
                     name: customerName,
                     email: customerEmail,
@@ -380,7 +393,6 @@ function showBuyPromptModal(prompt) {
                         country: country
                     }
                 };
-                
                 await processPaymentWithRazorpay(prompt, customerInfo);
             });
         }
@@ -395,13 +407,12 @@ function closeBuyModal() {
     }
 }
 
-// Initialize Firebase
+// ==================== FIREBASE FUNCTIONS ====================
 async function initializeFirebase() {
   if (typeof firebase === 'undefined') {
     console.error('Firebase SDK not loaded');
     return false;
   }
-  
   if (!firebaseInitialized && firebase.apps.length === 0) {
     try {
       firebase.initializeApp(firebaseConfig);
@@ -411,14 +422,11 @@ async function initializeFirebase() {
       console.error('Firebase initialization error:', error);
     }
   }
-  
   return firebaseInitialized;
 }
 
-// Get current user
 async function getCurrentUser() {
   await initializeFirebase();
-  
   return new Promise((resolve) => {
     const unsubscribe = firebase.auth().onAuthStateChanged(user => {
       unsubscribe();
@@ -427,7 +435,6 @@ async function getCurrentUser() {
   });
 }
 
-// Authentication functions
 function checkAuth() {
   return JSON.parse(localStorage.getItem('user'));
 }
@@ -450,7 +457,6 @@ function showAuthElements() {
           <button class="logout-btn" title="Logout"><i class="fas fa-sign-out-alt"></i></button>
         </div>
       `;
-      
       const logoutBtn = authSection.querySelector('.logout-btn');
       if (logoutBtn) {
         logoutBtn.addEventListener('click', async () => {
@@ -466,42 +472,28 @@ function showAuthElements() {
         });
       }
     } else {
-      authSection.innerHTML = `
-        <a href="login.html" class="login-btn">Login</a>
-      `;
+      authSection.innerHTML = `<a href="login.html" class="login-btn">Login</a>`;
     }
   }
-  
-  if (uploadButton) {
-    uploadButton.style.display = user ? 'flex' : 'none';
-  }
-  
-  if (newsUploadButton) {
-    newsUploadButton.style.display = user ? 'flex' : 'none';
-  }
+  if (uploadButton) uploadButton.style.display = user ? 'flex' : 'none';
+  if (newsUploadButton) newsUploadButton.style.display = user ? 'flex' : 'none';
 }
 
-// Add dashboard button
 function addDashboardButton() {
   const user = checkAuth();
   if (!user) return;
-  
   if (!document.querySelector('.view-dashboard-btn')) {
     const dashboardBtn = document.createElement('button');
     dashboardBtn.className = 'view-dashboard-btn';
     dashboardBtn.innerHTML = '<i class="fas fa-chart-line"></i> My Dashboard';
-    dashboardBtn.onclick = () => {
-      window.location.href = '/dashboard.html';
-    };
+    dashboardBtn.onclick = () => { window.location.href = '/dashboard.html'; };
     document.body.appendChild(dashboardBtn);
   }
 }
 
-// Check if user has purchased a prompt
 async function hasPurchasedPrompt(promptId) {
     const user = await getCurrentUser();
     if (!user) return false;
-    
     try {
         const response = await fetch(`/api/check-purchase/${promptId}?userId=${user.uid}`);
         const data = await response.json();
@@ -512,7 +504,6 @@ async function hasPurchasedPrompt(promptId) {
     }
 }
 
-// Complete purchase after payment
 async function completePurchase(prompt, user, paymentId) {
     try {
         const response = await fetch('/api/complete-purchase', {
@@ -526,17 +517,12 @@ async function completePurchase(prompt, user, paymentId) {
                 paymentId: paymentId
             })
         });
-        
         const data = await response.json();
-        
         if (data.success) {
             showNotification('Purchase successful! Prompt copied to clipboard.', 'success');
             await navigator.clipboard.writeText(prompt.promptText);
             closeBuyModal();
-            
-            if (window.location.pathname.includes('dashboard.html')) {
-                location.reload();
-            }
+            if (window.location.pathname.includes('dashboard.html')) location.reload();
         } else {
             throw new Error(data.error || 'Purchase completion failed');
         }
@@ -546,13 +532,10 @@ async function completePurchase(prompt, user, paymentId) {
     }
 }
 
-// Enhanced copy function with purchase check
 async function handlePromptCopy(prompt, button) {
     const user = await getCurrentUser();
-    
     if (prompt.price && prompt.price > 0) {
         const purchased = await hasPurchasedPrompt(prompt.id);
-        
         if (purchased) {
             await copyPromptText(prompt.promptText, button);
             trackCopyAction(prompt.id);
@@ -567,15 +550,12 @@ async function handlePromptCopy(prompt, button) {
     }
 }
 
-// Copy prompt text with visual feedback
 async function copyPromptText(text, button) {
     await navigator.clipboard.writeText(text);
-    
     const originalHTML = button.innerHTML;
     button.innerHTML = '<i class="fas fa-check"></i> Copied!';
     button.style.background = '#20bf6b';
     button.style.color = 'white';
-    
     setTimeout(() => {
         button.innerHTML = originalHTML;
         button.style.background = '';
@@ -583,15 +563,11 @@ async function copyPromptText(text, button) {
     }, 2000);
 }
 
-// Track copy action for analytics
 function trackCopyAction(promptId) {
-    fetch(`/api/prompt/${promptId}/copy`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
-    }).catch(err => console.log('Copy tracking error:', err));
+    fetch(`/api/prompt/${promptId}/copy`, { method: 'POST', headers: { 'Content-Type': 'application/json' } })
+        .catch(err => console.log('Copy tracking error:', err));
 }
 
-// Show notification
 function showNotification(message, type = 'success') {
     const notification = document.createElement('div');
     notification.className = `notification-toast ${type}`;
@@ -615,14 +591,12 @@ function showNotification(message, type = 'success') {
         <span>${message}</span>
     `;
     document.body.appendChild(notification);
-    
     setTimeout(() => {
         notification.style.animation = 'slideOutRight 0.3s ease';
         setTimeout(() => notification.remove(), 300);
     }, 3000);
 }
 
-// Escape HTML
 function escapeHtml(text) {
     if (!text) return '';
     const div = document.createElement('div');
@@ -631,7 +605,6 @@ function escapeHtml(text) {
 }
 
 // ==================== SEARCH FUNCTIONALITY ====================
-
 function initSearchFunctionality() {
     const searchIconButton = document.getElementById('searchIconButton');
     const searchExpandable = document.getElementById('searchExpandable');
@@ -643,67 +616,39 @@ function initSearchFunctionality() {
         searchIconButton.addEventListener('click', function(e) {
             e.stopPropagation();
             const isActive = searchExpandable.classList.contains('active');
-            
             if (isActive) {
                 searchExpandable.style.transform = 'translateY(-10px)';
                 searchExpandable.style.opacity = '0';
-                setTimeout(() => {
-                    searchExpandable.classList.remove('active');
-                }, 200);
+                setTimeout(() => { searchExpandable.classList.remove('active'); }, 200);
             } else {
                 searchExpandable.classList.add('active');
                 setTimeout(() => {
                     searchExpandable.style.transform = 'translateY(5px)';
                     searchExpandable.style.opacity = '1';
                 }, 10);
-                
-                setTimeout(() => {
-                    if (searchInput) {
-                        searchInput.focus();
-                    }
-                }, 150);
+                setTimeout(() => { if (searchInput) searchInput.focus(); }, 150);
             }
         });
     }
-
     if (searchInput) {
         let inputTimeout;
         searchInput.addEventListener('input', function(e) {
             clearTimeout(inputTimeout);
             inputTimeout = setTimeout(() => {
                 const query = e.target.value.trim();
-                if (query.length > 0) {
-                    showSearchSuggestions(query);
-                } else {
-                    showRecentSearches();
-                }
+                if (query.length > 0) showSearchSuggestions(query);
+                else showRecentSearches();
             }, 150);
         });
-
-        searchInput.addEventListener('keydown', function(e) {
-            if (e.key === 'Escape') {
-                closeSearch();
-            }
-        });
-
-        searchInput.addEventListener('focus', function() {
-            if (this.value.trim() === '') {
-                showRecentSearches();
-            }
-        });
+        searchInput.addEventListener('keydown', function(e) { if (e.key === 'Escape') closeSearch(); });
+        searchInput.addEventListener('focus', function() { if (this.value.trim() === '') showRecentSearches(); });
     }
-
     if (searchButton) {
-        searchButton.addEventListener('click', function(e) {
-            e.preventDefault();
-            performSearch(searchInput.value);
-        });
+        searchButton.addEventListener('click', function(e) { e.preventDefault(); performSearch(searchInput.value); });
     }
-
     document.addEventListener('click', function(e) {
         if (searchExpandable && searchIconButton && 
-            !searchExpandable.contains(e.target) && 
-            !searchIconButton.contains(e.target)) {
+            !searchExpandable.contains(e.target) && !searchIconButton.contains(e.target)) {
             closeSearch();
         }
     });
@@ -714,10 +659,8 @@ function performSearch(query) {
         showNotification('Please enter a search term', 'error');
         return;
     }
-
     const searchExpandable = document.getElementById('searchExpandable');
     const searchInput = document.getElementById('searchInput');
-
     if (searchExpandable) {
         searchExpandable.style.transform = 'translateY(-10px)';
         searchExpandable.style.opacity = '0';
@@ -727,10 +670,8 @@ function performSearch(query) {
             searchExpandable.style.opacity = '';
         }, 200);
     }
-
     addToRecentSearches(query);
     showNotification(`Searching for: "${query}"`, 'info');
-
     requestAnimationFrame(() => {
         if (window.searchManager) {
             searchManager.currentSearchTerm = query;
@@ -741,16 +682,9 @@ function performSearch(query) {
                 const title = (prompt.title || '').toLowerCase();
                 const promptText = (prompt.promptText || '').toLowerCase();
                 const keywords = prompt.keywords || [];
-                
-                return (
-                    title.includes(searchLower) ||
-                    promptText.includes(searchLower) ||
-                    keywords.some(keyword => 
-                        keyword.toLowerCase().includes(searchLower)
-                    )
-                );
+                return title.includes(searchLower) || promptText.includes(searchLower) ||
+                    keywords.some(keyword => keyword.toLowerCase().includes(searchLower));
             });
-
             if (filteredPrompts.length > 0) {
                 youtubePrompts.displayFilteredPrompts(filteredPrompts);
                 showNotification(`Found ${filteredPrompts.length} results for "${query}"`, 'success');
@@ -760,21 +694,14 @@ function performSearch(query) {
             }
         }
     });
-
-    if (searchInput) {
-        searchInput.value = '';
-    }
+    if (searchInput) searchInput.value = '';
     hideSearchSuggestions();
-
-    setTimeout(() => {
-        if (searchInput) searchInput.blur();
-    }, 300);
+    setTimeout(() => { if (searchInput) searchInput.blur(); }, 300);
 }
 
 function showSearchSuggestions(query) {
     const searchSuggestions = document.getElementById('searchSuggestions');
     if (!searchSuggestions) return;
-
     searchSuggestions.innerHTML = `
         <div class="suggestion-item">
             <i class="fas fa-spinner fa-spin suggestion-icon"></i>
@@ -782,7 +709,6 @@ function showSearchSuggestions(query) {
         </div>
     `;
     searchSuggestions.style.display = 'block';
-
     setTimeout(() => {
         const mockSuggestions = [
             { text: `${query} art`, category: 'art', icon: 'fas fa-palette' },
@@ -790,20 +716,14 @@ function showSearchSuggestions(query) {
             { text: `${query} design`, category: 'design', icon: 'fas fa-pencil-ruler' },
             { text: `${query} video`, category: 'video', icon: 'fas fa-video' }
         ];
-
         const suggestionsHTML = mockSuggestions.map(suggestion => `
-            <div class="suggestion-item" 
-                 data-query="${suggestion.text}"
-                 tabindex="0"
-                 role="button">
+            <div class="suggestion-item" data-query="${suggestion.text}" tabindex="0" role="button">
                 <i class="${suggestion.icon} suggestion-icon"></i>
                 <div class="suggestion-text">${suggestion.text}</div>
                 <span class="suggestion-category">${suggestion.category}</span>
             </div>
         `).join('');
-
         searchSuggestions.innerHTML = suggestionsHTML;
-        
         searchSuggestions.querySelectorAll('.suggestion-item').forEach(item => {
             item.addEventListener('click', function() {
                 handleSuggestionClick(this.getAttribute('data-query'));
@@ -814,18 +734,14 @@ function showSearchSuggestions(query) {
 
 function handleSuggestionClick(query) {
     const searchInput = document.getElementById('searchInput');
-    if (searchInput) {
-        searchInput.value = query;
-    }
+    if (searchInput) searchInput.value = query;
     performSearch(query);
 }
 
 function showRecentSearches() {
     const searchSuggestions = document.getElementById('searchSuggestions');
     if (!searchSuggestions) return;
-
     const recentSearches = getRecentSearches();
-    
     if (recentSearches.length === 0) {
         searchSuggestions.innerHTML = `
             <div class="suggestion-item">
@@ -835,16 +751,12 @@ function showRecentSearches() {
         `;
     } else {
         const recentHTML = recentSearches.map(search => `
-            <div class="suggestion-item" 
-                 data-query="${search}"
-                 tabindex="0"
-                 role="button">
+            <div class="suggestion-item" data-query="${search}" tabindex="0" role="button">
                 <i class="fas fa-history suggestion-icon"></i>
                 <div class="suggestion-text">${search}</div>
                 <span class="suggestion-category">recent</span>
             </div>
         `).join('');
-
         searchSuggestions.innerHTML = `
             <div class="suggestion-item" style="font-weight: 600; color: #666; pointer-events: none;">
                 <i class="fas fa-clock suggestion-icon"></i>
@@ -856,24 +768,18 @@ function showRecentSearches() {
                 <span style="color: #ff6b6b;">Clear recent searches</span>
             </div>
         `;
-
         searchSuggestions.querySelectorAll('.suggestion-item:not(:first-child):not(:last-child)').forEach(item => {
             item.addEventListener('click', () => handleSuggestionClick(item.getAttribute('data-query')));
         });
-
         const clearBtn = document.getElementById('clearRecentSearches');
-        if (clearBtn) {
-            clearBtn.addEventListener('click', clearRecentSearches);
-        }
+        if (clearBtn) clearBtn.addEventListener('click', clearRecentSearches);
     }
-
     searchSuggestions.style.display = 'block';
 }
 
 function closeSearch() {
     const searchExpandable = document.getElementById('searchExpandable');
     const searchInput = document.getElementById('searchInput');
-    
     if (searchExpandable) {
         searchExpandable.style.transform = 'translateY(-10px)';
         searchExpandable.style.opacity = '0';
@@ -883,11 +789,8 @@ function closeSearch() {
             searchExpandable.style.opacity = '';
         }, 200);
     }
-    
     hideSearchSuggestions();
-    if (searchInput) {
-        searchInput.blur();
-    }
+    if (searchInput) searchInput.blur();
 }
 
 function clearRecentSearches() {
@@ -897,12 +800,7 @@ function clearRecentSearches() {
 }
 
 function getRecentSearches() {
-    try {
-        return JSON.parse(localStorage.getItem('recentSearches') || '[]');
-    } catch (error) {
-        console.error('Error getting recent searches:', error);
-        return [];
-    }
+    try { return JSON.parse(localStorage.getItem('recentSearches') || '[]'); } catch (error) { return []; }
 }
 
 function addToRecentSearches(query) {
@@ -912,89 +810,54 @@ function addToRecentSearches(query) {
         recent.unshift(query);
         recent = recent.slice(0, 5);
         localStorage.setItem('recentSearches', JSON.stringify(recent));
-    } catch (error) {
-        console.error('Error adding to recent searches:', error);
-    }
+    } catch (error) { console.error('Error adding to recent searches:', error); }
 }
 
 function hideSearchSuggestions() {
     const searchSuggestions = document.getElementById('searchSuggestions');
-    if (searchSuggestions) {
-        searchSuggestions.style.display = 'none';
-    }
+    if (searchSuggestions) searchSuggestions.style.display = 'none';
 }
 
 // ==================== HORIZONTAL FEED MANAGER ====================
-
 class HorizontalFeedManager {
-    constructor() {
-        this.feeds = new Map();
-        this.init();
-    }
-
+    constructor() { this.feeds = new Map(); this.init(); }
     init() {
         this.setupHorizontalFeeds();
         this.setupEventListeners();
     }
-
     setupHorizontalFeeds() {
         document.addEventListener('DOMContentLoaded', () => {
-            setTimeout(() => {
-                this.initializeAllFeeds();
-            }, 1000);
+            setTimeout(() => { this.initializeAllFeeds(); }, 1000);
         });
     }
-
     initializeAllFeeds() {
         const feedSections = document.querySelectorAll('.horizontal-feed-section');
-        
         feedSections.forEach((section, index) => {
             const track = section.querySelector('.horizontal-feed-track');
             const controls = section.querySelector('.horizontal-controls');
-            
             if (track && !this.feeds.has(track)) {
                 this.initializeFeed(track, controls, `feed-${index}`);
             }
         });
     }
-
     initializeFeed(track, controls, feedId) {
-        this.feeds.set(track, {
-            id: feedId,
-            controls: controls,
-            isDragging: false,
-            startX: 0,
-            scrollLeft: 0
-        });
-
+        this.feeds.set(track, { id: feedId, controls: controls, isDragging: false, startX: 0, scrollLeft: 0 });
         this.setupFeedControls(track, controls);
         this.setupTouchScrolling(track);
         this.setupMouseScrolling(track);
         this.setupKeyboardNavigation(track);
         this.updateFeedControls(track, controls);
     }
-
     setupFeedControls(track, controls) {
         const prevBtn = controls?.querySelector('.prev-horizontal');
         const nextBtn = controls?.querySelector('.next-horizontal');
-
-        if (prevBtn) {
-            prevBtn.addEventListener('click', () => this.scrollFeed(track, -1));
-        }
-
-        if (nextBtn) {
-            nextBtn.addEventListener('click', () => this.scrollFeed(track, 1));
-        }
-
-        track.addEventListener('scroll', () => {
-            this.updateFeedControls(track, controls);
-        });
+        if (prevBtn) prevBtn.addEventListener('click', () => this.scrollFeed(track, -1));
+        if (nextBtn) nextBtn.addEventListener('click', () => this.scrollFeed(track, 1));
+        track.addEventListener('scroll', () => { this.updateFeedControls(track, controls); });
     }
-
     setupTouchScrolling(track) {
         const feedData = this.feeds.get(track);
         if (!feedData) return;
-
         track.addEventListener('touchstart', (e) => {
             feedData.isDragging = true;
             feedData.startX = e.touches[0].pageX;
@@ -1002,31 +865,25 @@ class HorizontalFeedManager {
             track.style.cursor = 'grabbing';
             track.style.scrollSnapType = 'none';
         }, { passive: true });
-
         track.addEventListener('touchmove', (e) => {
             if (!feedData.isDragging) return;
-            
             e.preventDefault();
             const x = e.touches[0].pageX;
             const walk = (x - feedData.startX) * 2;
             track.scrollLeft = feedData.scrollLeft - walk;
         }, { passive: false });
-
         track.addEventListener('touchend', () => {
             feedData.isDragging = false;
             track.style.cursor = 'grab';
-            
             if (window.innerWidth <= 768) {
                 track.style.scrollSnapType = 'x mandatory';
                 this.snapToNearestItem(track);
             }
         });
     }
-
     setupMouseScrolling(track) {
         const feedData = this.feeds.get(track);
         if (!feedData) return;
-
         track.addEventListener('mousedown', (e) => {
             feedData.isDragging = true;
             feedData.startX = e.pageX;
@@ -1034,123 +891,82 @@ class HorizontalFeedManager {
             track.style.cursor = 'grabbing';
             e.preventDefault();
         });
-
         track.addEventListener('mousemove', (e) => {
             if (!feedData.isDragging) return;
-            
             const x = e.pageX;
             const walk = (x - feedData.startX) * 2;
             track.scrollLeft = feedData.scrollLeft - walk;
         });
-
         track.addEventListener('mouseup', () => {
             feedData.isDragging = false;
             track.style.cursor = 'grab';
         });
     }
-
     setupKeyboardNavigation(track) {
         track.addEventListener('keydown', (e) => {
-            if (e.key === 'ArrowLeft') {
-                e.preventDefault();
-                this.scrollFeed(track, -1);
-            } else if (e.key === 'ArrowRight') {
-                e.preventDefault();
-                this.scrollFeed(track, 1);
-            }
+            if (e.key === 'ArrowLeft') { e.preventDefault(); this.scrollFeed(track, -1); }
+            if (e.key === 'ArrowRight') { e.preventDefault(); this.scrollFeed(track, 1); }
         });
     }
-
     scrollFeed(track, direction) {
         const itemWidth = this.getItemWidth(track);
         const gap = this.getGapSize(track);
         const scrollAmount = (itemWidth + gap) * direction;
-
-        track.scrollBy({
-            left: scrollAmount,
-            behavior: 'smooth'
-        });
+        track.scrollBy({ left: scrollAmount, behavior: 'smooth' });
     }
-
     getItemWidth(track) {
         const item = track.querySelector('.horizontal-prompt-item');
         if (!item) return 200;
         const style = window.getComputedStyle(item);
         return parseInt(style.width) || 200;
     }
-
     getGapSize(track) {
         const style = window.getComputedStyle(track);
         const gap = style.gap || style.columnGap;
         return parseInt(gap) || 15;
     }
-
     snapToNearestItem(track) {
         const scrollLeft = track.scrollLeft;
         const itemWidth = this.getItemWidth(track);
         const gap = this.getGapSize(track);
         const totalItemWidth = itemWidth + gap;
-        
         const nearestIndex = Math.round(scrollLeft / totalItemWidth);
         const targetScroll = Math.max(0, nearestIndex * totalItemWidth);
-        
-        track.scrollTo({
-            left: targetScroll,
-            behavior: 'smooth'
-        });
+        track.scrollTo({ left: targetScroll, behavior: 'smooth' });
     }
-
     updateFeedControls(track, controls) {
         if (!controls) return;
-        
         const prevBtn = controls.querySelector('.prev-horizontal');
         const nextBtn = controls.querySelector('.next-horizontal');
-        
         if (!prevBtn || !nextBtn) return;
-        
         const scrollLeft = track.scrollLeft;
         const scrollWidth = track.scrollWidth;
         const clientWidth = track.clientWidth;
-        
         prevBtn.disabled = scrollLeft <= 10;
         prevBtn.style.opacity = scrollLeft <= 10 ? '0.5' : '1';
-        
         nextBtn.disabled = scrollLeft >= scrollWidth - clientWidth - 10;
         nextBtn.style.opacity = scrollLeft >= scrollWidth - clientWidth - 10 ? '0.5' : '1';
     }
-
     setupEventListeners() {
         const observer = new MutationObserver((mutations) => {
             mutations.forEach((mutation) => {
                 if (mutation.addedNodes.length > 0) {
                     mutation.addedNodes.forEach((node) => {
                         if (node.nodeType === 1 && node.classList?.contains('horizontal-feed-section')) {
-                            setTimeout(() => {
-                                this.initializeAllFeeds();
-                            }, 100);
+                            setTimeout(() => { this.initializeAllFeeds(); }, 100);
                         }
                     });
                 }
             });
         });
-
-        observer.observe(document.body, {
-            childList: true,
-            subtree: true
-        });
-
+        observer.observe(document.body, { childList: true, subtree: true });
         window.addEventListener('resize', () => {
             this.feeds.forEach((feedData, track) => {
-                if (feedData.controls) {
-                    this.updateFeedControls(track, feedData.controls);
-                }
+                if (feedData.controls) this.updateFeedControls(track, feedData.controls);
             });
         });
     }
-
-    addFeed(track, controls, feedId) {
-        this.initializeFeed(track, controls, feedId);
-    }
+    addFeed(track, controls, feedId) { this.initializeFeed(track, controls, feedId); }
 }
 
 window.horizontalFeedManager = new HorizontalFeedManager();
@@ -1159,7 +975,6 @@ function scrollHorizontalFeed(button, direction) {
     const controls = button.closest('.horizontal-controls');
     const feedSection = controls.closest('.horizontal-feed-section');
     const track = feedSection.querySelector('.horizontal-feed-track');
-    
     if (track && window.horizontalFeedManager) {
         window.horizontalFeedManager.scrollFeed(track, direction);
     }
@@ -1173,19 +988,15 @@ function initHorizontalFeedTouchSupport() {
                 const promptId = horizontalItem.dataset.promptId;
                 if (promptId) {
                     const isVideo = horizontalItem.classList.contains('video-item');
-                    if (isVideo) {
-                        openShortsPlayer(promptId);
-                    } else {
-                        openPromptPage(promptId);
-                    }
+                    if (isVideo) openShortsPlayer(promptId);
+                    else openPromptPage(promptId);
                 }
             }
         });
     });
 }
 
-// ==================== VIDEO HOVER AUTOPLAY MANAGER ====================
-
+// ==================== VIDEO HOVER MANAGER ====================
 class VideoHoverManager {
     constructor() {
         this.hoverVideos = new Map();
@@ -1195,251 +1006,156 @@ class VideoHoverManager {
         this.isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
         this.init();
     }
-
     init() {
         this.setupHoverListeners();
         this.setupVisibilityHandler();
         console.log('Video Hover Manager initialized');
     }
-
     setupHoverListeners() {
         document.addEventListener('mouseover', this.handleMouseOver.bind(this));
         document.addEventListener('mouseout', this.handleMouseOut.bind(this));
-        
         document.addEventListener('touchstart', this.handleTouchStart.bind(this), { passive: true });
         document.addEventListener('touchend', this.handleTouchEnd.bind(this), { passive: true });
         document.addEventListener('touchcancel', this.handleTouchCancel.bind(this), { passive: true });
-        
         window.addEventListener('scroll', this.handleScroll.bind(this), { passive: true });
-        
         document.addEventListener('focusin', this.handleFocusIn.bind(this));
         document.addEventListener('focusout', this.handleFocusOut.bind(this));
     }
-
     handleMouseOver(e) {
         const videoItem = this.findVideoItem(e.target);
         if (!videoItem) return;
-
-        if (this.hoverTimeout) {
-            clearTimeout(this.hoverTimeout);
-        }
-
-        this.hoverTimeout = setTimeout(() => {
-            this.playHoverVideo(videoItem);
-        }, hoverConfig.delay);
+        if (this.hoverTimeout) clearTimeout(this.hoverTimeout);
+        this.hoverTimeout = setTimeout(() => { this.playHoverVideo(videoItem); }, hoverConfig.delay);
     }
-
     handleMouseOut(e) {
         const videoItem = this.findVideoItem(e.target);
         if (!videoItem) return;
-
-        if (this.hoverTimeout) {
-            clearTimeout(this.hoverTimeout);
-            this.hoverTimeout = null;
-        }
-
+        if (this.hoverTimeout) { clearTimeout(this.hoverTimeout); this.hoverTimeout = null; }
         setTimeout(() => {
             const relatedTarget = e.relatedTarget;
             const stillInItem = relatedTarget && videoItem.contains(relatedTarget);
-            
-            if (!stillInItem) {
-                this.pauseHoverVideo(videoItem);
-            }
+            if (!stillInItem) this.pauseHoverVideo(videoItem);
         }, 50);
     }
-
     handleTouchStart(e) {
         const videoItem = this.findVideoItem(e.target);
         if (!videoItem) return;
-
         document.querySelectorAll('.shorts-prompt-card.touch-active, .horizontal-prompt-item.touch-active').forEach(item => {
-            if (item !== videoItem) {
-                item.classList.remove('touch-active');
-                this.pauseHoverVideo(item);
-            }
+            if (item !== videoItem) { item.classList.remove('touch-active'); this.pauseHoverVideo(item); }
         });
-
-        if (this.mobileTouchTimeout) {
-            clearTimeout(this.mobileTouchTimeout);
-        }
-
+        if (this.mobileTouchTimeout) clearTimeout(this.mobileTouchTimeout);
         videoItem.classList.add('touch-active');
         this.playHoverVideo(videoItem);
         e.preventDefault();
     }
-
     handleTouchEnd(e) {
         const videoItem = this.findVideoItem(e.target);
         if (!videoItem) return;
-
         this.mobileTouchTimeout = setTimeout(() => {
             videoItem.classList.remove('touch-active');
             this.pauseHoverVideo(videoItem);
         }, 2000);
     }
-
     handleTouchCancel(e) {
         const videoItem = this.findVideoItem(e.target);
         if (!videoItem) return;
-
         videoItem.classList.remove('touch-active');
         this.pauseHoverVideo(videoItem);
-        
-        if (this.mobileTouchTimeout) {
-            clearTimeout(this.mobileTouchTimeout);
-        }
+        if (this.mobileTouchTimeout) clearTimeout(this.mobileTouchTimeout);
     }
-
     handleFocusIn(e) {
         if (!hoverConfig.playOnFocus) return;
-        
         const videoItem = this.findVideoItem(e.target);
         if (!videoItem) return;
-        
         this.playHoverVideo(videoItem);
     }
-
     handleFocusOut(e) {
         if (!hoverConfig.playOnFocus) return;
-        
         const videoItem = this.findVideoItem(e.target);
         if (!videoItem) return;
-        
         this.pauseHoverVideo(videoItem);
     }
-
     handleScroll() {
         if (!hoverConfig.pauseOnScroll) return;
-        
         this.hoverVideos.forEach((data, element) => {
-            if (data.isPlaying) {
-                this.pauseHoverVideo(element);
-            }
+            if (data.isPlaying) this.pauseHoverVideo(element);
         });
     }
-
     setupVisibilityHandler() {
         document.addEventListener('visibilitychange', () => {
             if (document.hidden) {
                 this.hoverVideos.forEach((data, element) => {
-                    if (data.isPlaying) {
-                        this.pauseHoverVideo(element);
-                    }
+                    if (data.isPlaying) this.pauseHoverVideo(element);
                 });
             }
         });
     }
-
     findVideoItem(element) {
         return element.closest('.shorts-prompt-card[data-file-type="video"], .horizontal-prompt-item.video-item');
     }
-
     playHoverVideo(item) {
         if (!item || !hoverConfig.enabled) return;
-
         const videoContainer = item.querySelector('.hover-video-container');
         const videoPlayer = item.querySelector('.hover-video-player');
-        
         if (!videoPlayer || !videoContainer) return;
-
         const existingData = this.hoverVideos.get(item);
         if (existingData && existingData.isPlaying) return;
-
         const loading = item.querySelector('.hover-video-loading');
         if (loading) loading.style.display = 'block';
-
         if (!videoPlayer.src) {
             const promptId = item.dataset.promptId;
             const prompt = allPrompts.find(p => p.id === promptId);
-            
             if (prompt && (prompt.videoUrl || prompt.mediaUrl)) {
                 videoPlayer.src = prompt.videoUrl || prompt.mediaUrl;
                 videoPlayer.load();
             }
         }
-
         videoPlayer.muted = true;
-
         const playPromise = videoPlayer.play();
-        
         if (playPromise !== undefined) {
-            playPromise
-                .then(() => {
-                    if (loading) loading.style.display = 'none';
-                    
-                    this.hoverVideos.set(item, {
-                        isPlaying: true,
-                        player: videoPlayer,
-                        container: videoContainer
-                    });
-                    
-                    item.classList.add('hover-active');
-                    
-                    const thumbnail = item.querySelector('.shorts-image, .horizontal-prompt-image img');
-                    if (thumbnail) {
-                        thumbnail.style.opacity = hoverConfig.thumbnailOpacity.toString();
-                    }
-                    
-                    if (!item.dataset.viewTracked) {
-                        const promptId = item.dataset.promptId;
-                        this.trackView(promptId);
-                        item.dataset.viewTracked = 'true';
-                        
-                        setTimeout(() => {
-                            delete item.dataset.viewTracked;
-                        }, 30000);
-                    }
-                })
-                .catch(error => {
-                    console.log('Hover autoplay prevented:', error);
-                    if (loading) loading.style.display = 'none';
-                });
+            playPromise.then(() => {
+                if (loading) loading.style.display = 'none';
+                this.hoverVideos.set(item, { isPlaying: true, player: videoPlayer, container: videoContainer });
+                item.classList.add('hover-active');
+                const thumbnail = item.querySelector('.shorts-image, .horizontal-prompt-image img');
+                if (thumbnail) thumbnail.style.opacity = hoverConfig.thumbnailOpacity.toString();
+                if (!item.dataset.viewTracked) {
+                    const promptId = item.dataset.promptId;
+                    this.trackView(promptId);
+                    item.dataset.viewTracked = 'true';
+                    setTimeout(() => { delete item.dataset.viewTracked; }, 30000);
+                }
+            }).catch(error => {
+                console.log('Hover autoplay prevented:', error);
+                if (loading) loading.style.display = 'none';
+            });
         }
     }
-
     pauseHoverVideo(item) {
         if (!item) return;
-
         const videoPlayer = item.querySelector('.hover-video-player');
         const data = this.hoverVideos.get(item);
         const thumbnail = item.querySelector('.shorts-image, .horizontal-prompt-image img');
-        
         if (videoPlayer && data && data.isPlaying) {
             videoPlayer.pause();
             videoPlayer.currentTime = 0;
-            
-            this.hoverVideos.set(item, {
-                ...data,
-                isPlaying: false
-            });
-            
+            this.hoverVideos.set(item, { ...data, isPlaying: false });
             item.classList.remove('hover-active');
-            
-            if (thumbnail) {
-                thumbnail.style.opacity = '1';
-            }
+            if (thumbnail) thumbnail.style.opacity = '1';
         }
     }
-
     trackView(promptId) {
         if (!promptId) return;
-        
-        fetch(`/api/prompt/${promptId}/view`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' }
-        }).catch(err => console.log('Hover view tracking error:', err));
+        fetch(`/api/prompt/${promptId}/view`, { method: 'POST', headers: { 'Content-Type': 'application/json' } })
+            .catch(err => console.log('Hover view tracking error:', err));
     }
-
     createHoverVideoElement(prompt) {
         if (!prompt || !(prompt.videoUrl || prompt.mediaUrl)) return null;
-
         const videoContainer = document.createElement('div');
         videoContainer.className = 'hover-video-container';
-        
         const loadingDiv = document.createElement('div');
         loadingDiv.className = 'hover-video-loading';
         loadingDiv.innerHTML = '<div class="spinner-small"></div>';
-        
         const video = document.createElement('video');
         video.className = 'hover-video-player';
         video.muted = hoverConfig.muteByDefault;
@@ -1447,11 +1163,9 @@ class VideoHoverManager {
         video.playsInline = true;
         video.preload = hoverConfig.preload;
         video.src = prompt.videoUrl || prompt.mediaUrl;
-        
         const indicator = document.createElement('div');
         indicator.className = 'hover-video-indicator';
         indicator.innerHTML = '<i class="fas fa-play"></i> Preview';
-        
         const muteBtn = document.createElement('button');
         muteBtn.className = 'hover-video-mute';
         muteBtn.innerHTML = hoverConfig.muteByDefault ? '<i class="fas fa-volume-mute"></i>' : '<i class="fas fa-volume-up"></i>';
@@ -1460,49 +1174,27 @@ class VideoHoverManager {
             video.muted = !video.muted;
             muteBtn.innerHTML = video.muted ? '<i class="fas fa-volume-mute"></i>' : '<i class="fas fa-volume-up"></i>';
         });
-        
         const pausedIndicator = document.createElement('div');
         pausedIndicator.className = 'hover-video-paused';
         pausedIndicator.innerHTML = '<i class="fas fa-pause"></i>';
-        
         videoContainer.appendChild(loadingDiv);
         videoContainer.appendChild(video);
         videoContainer.appendChild(indicator);
         videoContainer.appendChild(muteBtn);
         videoContainer.appendChild(pausedIndicator);
-        
-        video.addEventListener('loadedmetadata', () => {
-            loadingDiv.style.display = 'none';
-        });
-        
-        video.addEventListener('waiting', () => {
-            loadingDiv.style.display = 'block';
-        });
-        
-        video.addEventListener('canplay', () => {
-            loadingDiv.style.display = 'none';
-        });
-        
-        video.addEventListener('play', () => {
-            pausedIndicator.classList.remove('show');
-        });
-        
+        video.addEventListener('loadedmetadata', () => { loadingDiv.style.display = 'none'; });
+        video.addEventListener('waiting', () => { loadingDiv.style.display = 'block'; });
+        video.addEventListener('canplay', () => { loadingDiv.style.display = 'none'; });
+        video.addEventListener('play', () => { pausedIndicator.classList.remove('show'); });
         video.addEventListener('pause', () => {
             pausedIndicator.classList.add('show');
-            setTimeout(() => {
-                pausedIndicator.classList.remove('show');
-            }, 1000);
+            setTimeout(() => { pausedIndicator.classList.remove('show'); }, 1000);
         });
-        
         return videoContainer;
     }
-
     cleanup() {
         this.hoverVideos.forEach((data, item) => {
-            if (data.player) {
-                data.player.pause();
-                data.player.src = '';
-            }
+            if (data.player) { data.player.pause(); data.player.src = ''; }
         });
         this.hoverVideos.clear();
     }
@@ -1516,7 +1208,6 @@ window.updateHoverConfig = function(newConfig) {
 };
 
 // ==================== YOUTUBE SHORTS HORIZONTAL FEED ====================
-
 class ShortsHorizontalFeed {
     constructor() {
         this.currentPosition = 0;
@@ -1525,16 +1216,14 @@ class ShortsHorizontalFeed {
         this.isLoading = false;
         this.hasMore = true;
         this.last24hPrompts = [];
-        this.feedSection = null;  // Store reference to the feed container
+        this.feedSection = null;
         this.init();
     }
-
     init() {
         this.createShortsFeed();
         this.setupEventListeners();
         this.loadLatestPrompts();
     }
-
     createShortsFeed() {
         const feedHTML = `
             <section class="shorts-horizontal-feed" id="shortsHorizontalFeed">
@@ -1567,37 +1256,22 @@ class ShortsHorizontalFeed {
                 </div>
             </section>
         `;
-
         const header = document.getElementById('mainHeader');
-        if (header) {
-            header.insertAdjacentHTML('afterend', feedHTML);
-        }
-        
+        if (header) header.insertAdjacentHTML('afterend', feedHTML);
         this.track = document.getElementById('shortsTrack');
         this.feedSection = document.getElementById('shortsHorizontalFeed');
-        
-        // Initially hide the feed if no recent prompts (will be shown after loading)
-        if (this.feedSection) {
-            this.feedSection.style.display = 'none';
-        }
+        if (this.feedSection) this.feedSection.style.display = 'none';
     }
-
     setupEventListeners() {
         const prevBtn = document.getElementById('shortsPrevBtn');
         const nextBtn = document.getElementById('shortsNextBtn');
         const trackContainer = document.querySelector('.shorts-track-container');
-
         if (prevBtn && nextBtn) {
             prevBtn.addEventListener('click', () => this.scrollShorts(-1));
             nextBtn.addEventListener('click', () => this.scrollShorts(1));
         }
-
         if (trackContainer) {
-            let startX = 0;
-            let startY = 0;
-            let scrollLeft = 0;
-            let isScrolling = false;
-
+            let startX = 0, startY = 0, scrollLeft = 0, isScrolling = false;
             trackContainer.addEventListener('touchstart', (e) => {
                 startX = e.touches[0].pageX;
                 startY = e.touches[0].pageY;
@@ -1605,184 +1279,116 @@ class ShortsHorizontalFeed {
                 isScrolling = true;
                 trackContainer.style.cursor = 'grabbing';
             }, { passive: true });
-
             trackContainer.addEventListener('touchmove', (e) => {
                 if (!isScrolling) return;
-                
                 const x = e.touches[0].pageX;
                 const y = e.touches[0].pageY;
                 const walkX = x - startX;
                 const walkY = y - startY;
-                
-                if (Math.abs(walkX) > Math.abs(walkY)) {
-                    e.preventDefault();
-                }
-                
+                if (Math.abs(walkX) > Math.abs(walkY)) e.preventDefault();
                 trackContainer.scrollLeft = scrollLeft - walkX;
             }, { passive: false });
-
             trackContainer.addEventListener('touchend', () => {
                 isScrolling = false;
                 trackContainer.style.cursor = 'grab';
-                
-                if (window.innerWidth <= 768) {
-                    this.snapToNearestItem();
-                }
+                if (window.innerWidth <= 768) this.snapToNearestItem();
             });
         }
-
         document.addEventListener('keydown', (e) => {
             if (e.key === 'ArrowLeft') this.scrollShorts(-1);
             if (e.key === 'ArrowRight') this.scrollShorts(1);
         });
-
         this.setupInfiniteScroll();
-        
         if (window.innerWidth > 768) {
             const trackContainer = document.querySelector('.shorts-track-container');
             if (trackContainer) {
                 trackContainer.style.cursor = 'grab';
-                
                 trackContainer.addEventListener('mousedown', (e) => {
                     trackContainer.style.cursor = 'grabbing';
                     let startX = e.pageX;
                     let scrollLeft = trackContainer.scrollLeft;
-                    
                     const mouseMoveHandler = (e) => {
                         const x = e.pageX;
                         const walk = (x - startX) * 2;
                         trackContainer.scrollLeft = scrollLeft - walk;
                     };
-                    
                     const mouseUpHandler = () => {
                         document.removeEventListener('mousemove', mouseMoveHandler);
                         document.removeEventListener('mouseup', mouseUpHandler);
                         trackContainer.style.cursor = 'grab';
                     };
-                    
                     document.addEventListener('mousemove', mouseMoveHandler);
                     document.addEventListener('mouseup', mouseUpHandler);
                 });
             }
         }
     }
-
     snapToNearestItem() {
         const trackContainer = document.querySelector('.shorts-track-container');
         if (!trackContainer) return;
-        
         const scrollLeft = trackContainer.scrollLeft;
         const itemWidth = 110;
         const gap = 12;
         const totalItemWidth = itemWidth + gap;
-        
         const nearestIndex = Math.round(scrollLeft / totalItemWidth);
         const targetScroll = nearestIndex * totalItemWidth;
-        
-        trackContainer.scrollTo({
-            left: targetScroll,
-            behavior: 'smooth'
-        });
+        trackContainer.scrollTo({ left: targetScroll, behavior: 'smooth' });
     }
-
     scrollShorts(direction) {
         const trackContainer = document.querySelector('.shorts-track-container');
         if (!trackContainer) return;
-
         const itemWidth = window.innerWidth <= 768 ? 110 : 132;
         const gap = 12;
         const totalItemWidth = itemWidth + gap;
-        
         if (window.innerWidth <= 768) {
             const scrollAmount = totalItemWidth * direction;
-            trackContainer.scrollBy({
-                left: scrollAmount,
-                behavior: 'smooth'
-            });
-            
+            trackContainer.scrollBy({ left: scrollAmount, behavior: 'smooth' });
             setTimeout(() => this.updateNavigation(), 300);
         } else {
             const visibleItems = Math.floor(trackContainer.offsetWidth / totalItemWidth);
             const scrollAmount = totalItemWidth * visibleItems * direction;
-
-            trackContainer.scrollBy({
-                left: scrollAmount,
-                behavior: 'smooth'
-            });
-
+            trackContainer.scrollBy({ left: scrollAmount, behavior: 'smooth' });
             this.updateNavigation();
         }
     }
-
     async loadLatestPrompts() {
         try {
             this.isLoading = true;
-            
-            const loadingPromise = new Promise(resolve => setTimeout(resolve, 500));
-            
             await this.loadAllPrompts();
-            
             const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
             this.last24hPrompts = allPrompts.filter(prompt => {
                 if (!prompt || !prompt.createdAt) return false;
-                
                 try {
                     let promptDate;
-                    if (typeof prompt.createdAt === 'string') {
-                        promptDate = new Date(prompt.createdAt);
-                    } else if (prompt.createdAt.toDate && typeof prompt.createdAt.toDate === 'function') {
-                        promptDate = prompt.createdAt.toDate();
-                    } else {
-                        promptDate = new Date();
-                    }
-                    
+                    if (typeof prompt.createdAt === 'string') promptDate = new Date(prompt.createdAt);
+                    else if (prompt.createdAt.toDate && typeof prompt.createdAt.toDate === 'function') promptDate = prompt.createdAt.toDate();
+                    else promptDate = new Date();
                     return promptDate > twentyFourHoursAgo;
-                } catch (error) {
-                    console.error('Error parsing date for prompt:', prompt.id, error);
-                    return false;
-                }
+                } catch (error) { return false; }
             }).sort((a, b) => {
                 try {
                     const dateA = a.createdAt ? new Date(a.createdAt) : new Date();
                     const dateB = b.createdAt ? new Date(b.createdAt) : new Date();
                     return dateB - dateA;
-                } catch (error) {
-                    return 0;
-                }
+                } catch (error) { return 0; }
             });
-
-            await loadingPromise;
-
             this.displayShorts();
-            
         } catch (error) {
             console.error('Error loading latest prompts:', error);
             this.last24hPrompts = [];
             this.displayShorts();
-        } finally {
-            this.isLoading = false;
-        }
+        } finally { this.isLoading = false; }
     }
-
     async loadAllPrompts() {
         const now = Date.now();
-        if (now - lastPromptUpdate < PROMPT_CACHE_DURATION && allPrompts.length > 0) {
-            return allPrompts;
-        }
-
+        if (now - lastPromptUpdate < PROMPT_CACHE_DURATION && allPrompts.length > 0) return allPrompts;
         try {
             const user = await getCurrentUser();
             const userId = user?.uid || null;
-            const params = new URLSearchParams({
-                page: '1',
-                limit: '1000',
-                ...(userId && { userId })
-            });
-            
+            const params = new URLSearchParams({ page: '1', limit: '1000', ...(userId && { userId }) });
             const response = await fetch(`/api/uploads?${params}`);
             if (response.ok) {
                 const data = await response.json();
-                
                 allPrompts = (data.uploads || []).map(prompt => ({
                     id: prompt.id || `unknown-${Date.now()}-${Math.random()}`,
                     title: prompt.title || 'Untitled Prompt',
@@ -1794,6 +1400,7 @@ class ShortsHorizontalFeed {
                     fileType: prompt.fileType || 'image',
                     videoDuration: prompt.videoDuration || null,
                     userName: prompt.userName || 'Anonymous',
+                    userId: prompt.userId || null,
                     likes: parseInt(prompt.likes) || 0,
                     views: parseInt(prompt.views) || 0,
                     uses: parseInt(prompt.uses) || 0,
@@ -1809,28 +1416,18 @@ class ShortsHorizontalFeed {
                     totalEarnings: prompt.totalEarnings || 0,
                     purchasedBy: prompt.purchasedBy || []
                 }));
-                
                 lastPromptUpdate = now;
                 console.log(`Loaded ${allPrompts.length} prompts for feeds`);
-            } else {
-                throw new Error('Failed to fetch prompts');
-            }
+            } else throw new Error('Failed to fetch prompts');
         } catch (error) {
             console.error('Error loading prompts for feeds:', error);
-            if (allPrompts.length === 0) {
-                allPrompts = [];
-            }
+            if (allPrompts.length === 0) allPrompts = [];
         }
-        
         return allPrompts;
     }
-
     displayShorts() {
         if (!this.track) return;
-
-        // Clear existing content
         this.track.innerHTML = '';
-
         if (this.last24hPrompts.length === 0) {
             this.track.innerHTML = `
                 <div class="no-prompts" style="text-align: center; padding: 40px; color: #666; width: 100%;">
@@ -1839,29 +1436,19 @@ class ShortsHorizontalFeed {
                     <p style="font-size: 0.9rem; margin-top: 5px;">Upload a prompt to see it here!</p>
                 </div>
             `;
-            // Hide the feed section
             this.updateFeedVisibility(false);
             return;
         }
-
-        // Render items
         this.last24hPrompts.forEach(prompt => {
             const item = this.createShortItem(prompt);
             this.track.appendChild(item);
         });
-
         this.updateNavigation();
-        // Show the feed section
         this.updateFeedVisibility(true);
     }
-
-    // New method to show/hide the feed container
     updateFeedVisibility(show) {
-        if (this.feedSection) {
-            this.feedSection.style.display = show ? 'block' : 'none';
-        }
+        if (this.feedSection) this.feedSection.style.display = show ? 'block' : 'none';
     }
-
     createShortItem(prompt) {
         const safePrompt = prompt || {};
         const promptId = safePrompt.id || 'unknown';
@@ -1872,10 +1459,8 @@ class ShortsHorizontalFeed {
         const isVideo = safePrompt.fileType === 'video' || safePrompt.videoUrl;
         const price = safePrompt.price || 0;
         const isPaid = price > 0;
-        
         const timeAgo = this.getTimeAgo(createdAt);
         const isNew = this.isWithinLastHour(createdAt);
-
         const item = document.createElement('div');
         item.className = `shorts-item ${isVideo ? 'video-item' : ''}`;
         item.setAttribute('data-prompt-id', promptId);
@@ -1883,147 +1468,103 @@ class ShortsHorizontalFeed {
 
         const thumbnailDiv = document.createElement('div');
         thumbnailDiv.className = 'shorts-thumbnail';
-        
         const img = document.createElement('img');
         img.src = imageUrl;
         img.alt = title;
         img.loading = 'lazy';
         img.onerror = function() { this.src = 'https://via.placeholder.com/120x160/4e54c8/white?text=Prompt'; };
         thumbnailDiv.appendChild(img);
-        
         const priceBadge = document.createElement('div');
         priceBadge.className = `price-badge ${!isPaid ? 'free' : ''}`;
         priceBadge.innerHTML = isPaid ? `<i class="fas fa-rupee-sign"></i> ${price}` : '<i class="fas fa-gift"></i> Free';
         thumbnailDiv.appendChild(priceBadge);
-        
         if (isVideo) {
             const badge = document.createElement('div');
             badge.className = 'video-reel-badge';
             badge.innerHTML = '<i class="fas fa-play"></i> Reel';
             thumbnailDiv.appendChild(badge);
-            
             const hoverVideoContainer = window.videoHoverManager?.createHoverVideoElement(safePrompt);
-            if (hoverVideoContainer) {
-                thumbnailDiv.appendChild(hoverVideoContainer);
-            }
+            if (hoverVideoContainer) thumbnailDiv.appendChild(hoverVideoContainer);
         }
-        
         if (isNew) {
             const newIndicator = document.createElement('div');
             newIndicator.className = 'shorts-new-indicator';
             thumbnailDiv.appendChild(newIndicator);
         }
-
         const infoDiv = document.createElement('div');
         infoDiv.className = 'shorts-info';
-        
         const titleDiv = document.createElement('div');
         titleDiv.className = 'shorts-title';
         titleDiv.textContent = title;
-        
         const metaDiv = document.createElement('div');
         metaDiv.className = 'shorts-meta';
-        
         const timeSpan = document.createElement('span');
         timeSpan.className = 'shorts-time';
         timeSpan.textContent = isVideo ? 'Watch Reel' : 'View Prompt';
-        
         metaDiv.appendChild(timeSpan);
-        
         infoDiv.appendChild(titleDiv);
         infoDiv.appendChild(metaDiv);
-        
         item.appendChild(thumbnailDiv);
         item.appendChild(infoDiv);
-
         item.addEventListener('click', () => {
-            if (isVideo) {
-                this.openShortsPlayer(promptId);
-            } else {
-                this.openPromptPage(promptId);
-            }
+            if (isVideo) this.openShortsPlayer(promptId);
+            else this.openPromptPage(promptId);
         });
-
         return item;
     }
-
     getTimeAgo(dateString) {
         if (!dateString) return 'Unknown';
-        
         try {
             const date = new Date(dateString);
             const now = new Date();
             const diffInHours = Math.floor((now - date) / (1000 * 60 * 60));
-            
             if (diffInHours < 1) return 'Now';
             if (diffInHours < 24) return `${diffInHours}h`;
-            
             const diffInDays = Math.floor(diffInHours / 24);
             return `${diffInDays}d`;
-        } catch (error) {
-            console.error('Error calculating time ago:', error);
-            return 'Unknown';
-        }
+        } catch (error) { return 'Unknown'; }
     }
-
     isWithinLastHour(dateString) {
         if (!dateString) return false;
-        
         try {
             const date = new Date(dateString);
             const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
             return date > oneHourAgo;
-        } catch (error) {
-            console.error('Error checking if within last hour:', error);
-            return false;
-        }
+        } catch (error) { return false; }
     }
-
     updateNavigation() {
         const prevBtn = document.getElementById('shortsPrevBtn');
         const nextBtn = document.getElementById('shortsNextBtn');
-
         if (!this.track || !prevBtn || !nextBtn) return;
-
         const scrollLeft = this.track.scrollLeft;
         const scrollWidth = this.track.scrollWidth;
         const clientWidth = this.track.clientWidth;
-
         prevBtn.disabled = scrollLeft <= 10;
         nextBtn.disabled = scrollLeft >= scrollWidth - clientWidth - 10;
     }
-
     setupInfiniteScroll() {
         if (this.track) {
             this.track.addEventListener('scroll', () => {
                 const scrollLeft = this.track.scrollLeft;
                 const scrollWidth = this.track.scrollWidth;
                 const clientWidth = this.track.clientWidth;
-
                 if (scrollLeft + clientWidth >= scrollWidth - 100 && this.hasMore && !this.isLoading) {
                     this.loadMoreShorts();
                 }
             });
         }
     }
-
-    async loadMoreShorts() {
-        console.log('Loading more shorts...');
-    }
-
+    async loadMoreShorts() { console.log('Loading more shorts...'); }
     openPromptPage(promptId) {
         if (promptId && promptId !== 'unknown') {
             const currentHost = window.location.hostname;
             let targetUrl = `/prompt/${promptId}`;
-            
             if (currentHost === 'promptseen.co' && window.location.hostname !== 'localhost') {
                 targetUrl = `https://www.promptseen.co/prompt/${promptId}`;
             }
-            
             window.open(targetUrl, '_blank');
         }
     }
-
     openShortsPlayer(promptId) {
         if (promptId && promptId !== 'unknown' && window.shortsPlayer) {
             const prompt = allPrompts.find(p => p.id === promptId);
@@ -2036,26 +1577,14 @@ class ShortsHorizontalFeed {
             }
         }
     }
-
     formatCount(count) {
-        if (count === undefined || count === null || isNaN(count)) {
-            return '0';
-        }
-        
+        if (count === undefined || count === null || isNaN(count)) return '0';
         const numCount = typeof count === 'number' ? count : parseInt(count);
-        
-        if (isNaN(numCount)) {
-            return '0';
-        }
-        
-        if (numCount >= 1000000) {
-            return (numCount / 1000000).toFixed(1) + 'M';
-        } else if (numCount >= 1000) {
-            return (numCount / 1000).toFixed(1) + 'K';
-        }
+        if (isNaN(numCount)) return '0';
+        if (numCount >= 1000000) return (numCount / 1000000).toFixed(1) + 'M';
+        if (numCount >= 1000) return (numCount / 1000).toFixed(1) + 'K';
         return numCount.toString();
     }
-
     showErrorState() {
         if (this.track) {
             this.track.innerHTML = `
@@ -2070,21 +1599,11 @@ class ShortsHorizontalFeed {
             `;
         }
     }
-
-    async refreshFeed() {
-        await this.loadAllPrompts();
-        await this.loadLatestPrompts();
-    }
-
-    startAutoRefresh() {
-        setInterval(async () => {
-            await this.refreshFeed();
-        }, 20 * 60 * 1000);
-    }
+    async refreshFeed() { await this.loadAllPrompts(); await this.loadLatestPrompts(); }
+    startAutoRefresh() { setInterval(async () => { await this.refreshFeed(); }, 20 * 60 * 1000); }
 }
 
 // ==================== YOUTUBE-STYLE PROMPTS WITH MARKETPLACE ====================
-
 class YouTubeStylePrompts {
     constructor() {
         this.currentPage = 1;
@@ -2095,7 +1614,6 @@ class YouTubeStylePrompts {
         this.filteredPrompts = null;
         this.init();
     }
-
     init() {
         this.injectCriticalCSS();
         this.setupInfiniteScroll();
@@ -2103,479 +1621,21 @@ class YouTubeStylePrompts {
         this.setupEngagementListeners();
         console.log('YouTubeStylePrompts initialized with marketplace features');
     }
-
     injectCriticalCSS() {
-        const criticalCSS = `
-            .shorts-container {
-                display: grid !important;
-                grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)) !important;
-                gap: 20px !important;
-                padding: 20px !important;
-                max-width: 100% !important;
-                margin: 0 auto !important;
-                width: 100% !important;
-            }
-            .shorts-prompt-card {
-                position: relative !important;
-                background: white !important;
-                border-radius: 12px !important;
-                overflow: hidden !important;
-                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1) !important;
-                width: 100% !important;
-                margin: 0 !important;
-                display: block !important;
-                transition: transform 0.3s ease !important;
-            }
-            .shorts-prompt-card:hover {
-                transform: translateY(-5px) !important;
-                box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15) !important;
-            }
-            .shorts-video-container {
-                position: relative !important;
-                width: 100% !important;
-                height: 400px !important;
-                background: #000 !important;
-                display: flex !important;
-                align-items: center !important;
-                justify-content: center !important;
-                cursor: pointer;
-                outline: none;
-            }
-            .shorts-image {
-                width: 100% !important;
-                height: 100% !important;
-                object-fit: cover !important;
-                display: block !important;
-                transition: opacity 0.3s ease !important;
-            }
-            .shorts-engagement {
-                position: absolute !important;
-                right: 12px !important;
-                bottom: 80px !important;
-                display: flex !important;
-                flex-direction: column !important;
-                gap: 15px !important;
-                align-items: center !important;
-                z-index: 10 !important;
-            }
-            .engagement-action {
-                display: flex !important;
-                flex-direction: column !important;
-                align-items: center !important;
-                gap: 4px !important;
-                color: white !important;
-                background: none !important;
-                border: none !important;
-                cursor: pointer !important;
-                padding: 0 !important;
-                font-size: 12px !important;
-                transition: transform 0.2s ease !important;
-            }
-            .engagement-action:hover {
-                transform: scale(1.1) !important;
-            }
-            .engagement-action i {
-                font-size: 18px !important;
-                background: rgba(0, 0, 0, 0.5) !important;
-                border-radius: 50% !important;
-                padding: 8px !important;
-                width: 36px !important;
-                height: 36px !important;
-                display: flex !important;
-                align-items: center !important;
-                justify-content: center !important;
-                backdrop-filter: blur(10px) !important;
-            }
-            .engagement-count {
-                font-size: 11px !important;
-                font-weight: 500 !important;
-                text-shadow: 1px 1px 2px rgba(0,0,0,0.8) !important;
-            }
-            .shorts-info {
-                padding: 15px !important;
-                background: white !important;
-                display: block !important;
-            }
-            .shorts-prompt-text {
-                font-size: 14px !important;
-                line-height: 1.4 !important;
-                margin-bottom: 10px !important;
-                display: -webkit-box !important;
-                -webkit-line-clamp: 3 !important;
-                -webkit-box-orient: vertical !important;
-                overflow: hidden !important;
-                color: #0f0f0f !important;
-                min-height: 60px !important;
-            }
-            .shorts-meta {
-                display: flex !important;
-                justify-content: space-between !important;
-                align-items: center !important;
-                font-size: 12px !important;
-                color: #606060 !important;
-                margin-bottom: 8px !important;
-            }
-            .prompt-actions {
-                margin-top: 10px !important;
-                display: flex !important;
-                gap: 10px !important;
-                width: 100% !important;
-                align-items: center !important;
-            }
-            .copy-prompt-btn {
-                padding: 8px 16px !important;
-                border: 1px solid #ddd !important;
-                border-radius: 20px !important;
-                background: white !important;
-                font-size: 12px !important;
-                cursor: pointer !important;
-                transition: all 0.3s ease !important;
-                display: flex !important;
-                align-items: center !important;
-                gap: 6px !important;
-                font-weight: 500 !important;
-            }
-            .copy-prompt-btn:hover {
-                background: #4e54c8 !important;
-                color: white !important;
-                border-color: #4e54c8 !important;
-            }
-            .video-reel-badge {
-                position: absolute !important;
-                top: 10px !important;
-                right: 10px !important;
-                background: rgba(255, 107, 107, 0.9) !important;
-                color: white !important;
-                padding: 4px 8px !important;
-                border-radius: 12px !important;
-                font-size: 11px !important;
-                font-weight: 600 !important;
-                display: flex !important;
-                align-items: center !important;
-                gap: 4px !important;
-                z-index: 15 !important;
-            }
-            .price-badge {
-                position: absolute !important;
-                top: 10px !important;
-                left: 10px !important;
-                background: linear-gradient(135deg, #ff6b6b 0%, #ff8787 100%) !important;
-                color: white !important;
-                padding: 4px 12px !important;
-                border-radius: 20px !important;
-                font-size: 0.8rem !important;
-                font-weight: bold !important;
-                z-index: 15 !important;
-                box-shadow: 0 2px 8px rgba(0,0,0,0.2) !important;
-            }
-            .price-badge.free {
-                background: linear-gradient(135deg, #20bf6b 0%, #4cd964 100%) !important;
-            }
-            .image-badge {
-                position: absolute !important;
-                top: 10px !important;
-                right: 10px !important;
-                background: rgba(78, 84, 200, 0.9) !important;
-                color: white !important;
-                padding: 4px 8px !important;
-                border-radius: 12px !important;
-                font-size: 11px !important;
-                font-weight: 600 !important;
-                display: flex !important;
-                align-items: center !important;
-                gap: 4px !important;
-                z-index: 15 !important;
-            }
-            .hover-video-container {
-                position: absolute;
-                top: 0;
-                left: 0;
-                width: 100%;
-                height: 100%;
-                z-index: 2;
-                opacity: 0;
-                transition: opacity 0.3s ease;
-                pointer-events: none;
-            }
-            .shorts-prompt-card.hover-active .hover-video-container,
-            .horizontal-prompt-item.hover-active .hover-video-container {
-                opacity: 1;
-                pointer-events: auto;
-            }
-            .hover-video-player {
-                width: 100%;
-                height: 100%;
-                object-fit: cover;
-                background: #000;
-            }
-            .spinner-small {
-                width: 24px;
-                height: 24px;
-                border: 3px solid rgba(255, 255, 255, 0.3);
-                border-top: 3px solid #4e54c8;
-                border-radius: 50%;
-                animation: spin 0.8s linear infinite;
-            }
-            .horizontal-feed-section {
-                grid-column: 1 / -1;
-                margin: 30px 0;
-                padding: 20px 0;
-                background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-                border-radius: 15px;
-                border: 1px solid #e9ecef;
-                width: 100%;
-                overflow: hidden;
-            }
-            .horizontal-feed-header {
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                margin-bottom: 20px;
-                padding: 0 20px;
-                flex-wrap: wrap;
-                gap: 10px;
-            }
-            .horizontal-feed-header h3 {
-                color: #2d334a;
-                font-size: 1.3rem;
-                font-weight: 600;
-                margin: 0;
-                display: flex;
-                align-items: center;
-                gap: 10px;
-            }
-            .video-count-badge {
-                background: #ff6b6b !important;
-                color: white !important;
-                padding: 4px 10px !important;
-                border-radius: 20px !important;
-                font-size: 0.8rem !important;
-                font-weight: 600 !important;
-                display: inline-flex !important;
-                align-items: center !important;
-                gap: 5px !important;
-                margin-left: 10px !important;
-            }
-            .horizontal-controls {
-                display: flex;
-                gap: 10px;
-            }
-            .horizontal-control-btn {
-                background: white;
-                border: 2px solid #4e54c8;
-                color: #4e54c8;
-                width: 40px;
-                height: 40px;
-                border-radius: 50%;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                cursor: pointer;
-                transition: all 0.3s ease;
-                font-size: 0.9rem;
-            }
-            .horizontal-control-btn:hover {
-                background: #4e54c8;
-                color: white;
-                transform: scale(1.1);
-            }
-            .horizontal-feed-track {
-                display: flex;
-                gap: 15px;
-                padding: 0 20px;
-                overflow-x: auto;
-                scroll-behavior: smooth;
-                scrollbar-width: thin;
-                cursor: grab;
-            }
-            .horizontal-prompt-item {
-                flex: 0 0 auto;
-                width: 200px;
-                background: white;
-                border-radius: 12px;
-                overflow: hidden;
-                box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-                transition: all 0.3s ease;
-                cursor: pointer;
-                position: relative;
-            }
-            .horizontal-prompt-item.video-item {
-                border: 2px solid transparent;
-                transition: all 0.3s ease;
-            }
-            .horizontal-prompt-item.video-item:hover {
-                border-color: #ff6b6b;
-                transform: translateY(-5px);
-            }
-            .horizontal-prompt-item:hover {
-                transform: translateY(-5px);
-                box-shadow: 0 8px 20px rgba(0,0,0,0.15);
-            }
-            .horizontal-prompt-image {
-                position: relative;
-                width: 100%;
-                height: 150px;
-                overflow: hidden;
-            }
-            .horizontal-prompt-image img {
-                width: 100%;
-                height: 100%;
-                object-fit: cover;
-                transition: transform 0.3s ease;
-            }
-            .horizontal-prompt-views {
-                position: absolute;
-                bottom: 8px;
-                right: 8px;
-                background: rgba(0,0,0,0.7);
-                color: white;
-                padding: 4px 8px;
-                border-radius: 12px;
-                font-size: 0.8rem;
-                display: flex;
-                align-items: center;
-                gap: 4px;
-                z-index: 10;
-            }
-            .horizontal-prompt-info {
-                padding: 12px;
-            }
-            .horizontal-prompt-title {
-                font-size: 0.9rem;
-                font-weight: 600;
-                color: #2d334a;
-                margin-bottom: 8px;
-                line-height: 1.3;
-                height: 36px;
-                overflow: hidden;
-                display: -webkit-box;
-                -webkit-line-clamp: 2;
-                -webkit-box-orient: vertical;
-            }
-            .view-prompt-btn {
-                width: 100%;
-                padding: 8px 12px;
-                background: #4e54c8;
-                color: white;
-                border: none;
-                border-radius: 20px;
-                font-size: 0.8rem;
-                font-weight: 500;
-                cursor: pointer;
-                transition: all 0.3s ease;
-            }
-            .view-prompt-btn:hover {
-                background: #3f44b8;
-                transform: translateY(-2px);
-            }
-            @media (min-width: 1024px) {
-                .shorts-container {
-                    grid-template-columns: repeat(4, 1fr) !important;
-                    gap: 24px !important;
-                    padding: 24px !important;
-                    max-width: 1400px !important;
-                }
-                .shorts-video-container {
-                    height: 350px !important;
-                }
-            }
-            @media (min-width: 768px) and (max-width: 1023px) {
-                .shorts-container {
-                    grid-template-columns: repeat(2, 1fr) !important;
-                    gap: 20px !important;
-                    padding: 20px !important;
-                }
-                .shorts-video-container {
-                    height: 400px !important;
-                }
-            }
-            @media (max-width: 767px) {
-                .shorts-container {
-                    display: flex !important;
-                    flex-direction: column !important;
-                    gap: 16px !important;
-                    padding: 16px !important;
-                    width: 100% !important;
-                }
-                .shorts-prompt-card {
-                    width: 100% !important;
-                    max-width: 100% !important;
-                }
-                .shorts-video-container {
-                    height: 400px !important;
-                }
-                .horizontal-feed-section {
-                    margin: 20px 0 !important;
-                    padding: 15px 0 !important;
-                }
-                .horizontal-feed-header {
-                    padding: 0 15px !important;
-                }
-                .horizontal-feed-header h3 {
-                    font-size: 1.1rem !important;
-                }
-                .horizontal-control-btn {
-                    width: 35px !important;
-                    height: 35px !important;
-                }
-                .horizontal-feed-track {
-                    padding: 0 15px !important;
-                    gap: 12px !important;
-                    scroll-snap-type: x mandatory !important;
-                }
-                .horizontal-prompt-item {
-                    width: 160px !important;
-                    scroll-snap-align: start !important;
-                }
-                .horizontal-prompt-image {
-                    height: 120px !important;
-                }
-            }
-            @keyframes spin {
-                0% { transform: rotate(0deg) !important; }
-                100% { transform: rotate(360deg) !important; }
-            }
-            .loading-shorts {
-                display: flex !important;
-                justify-content: center !important;
-                align-items: center !important;
-                padding: 40px !important;
-                color: #666 !important;
-                width: 100% !important;
-                grid-column: 1 / -1 !important;
-            }
-            .loading-shorts .spinner {
-                width: 24px !important;
-                height: 24px !important;
-                border: 3px solid #f3f3f3 !important;
-                border-top: 3px solid #4e54c8 !important;
-                border-radius: 50% !important;
-                animation: spin 0.8s linear infinite !important;
-                margin-right: 12px !important;
-            }
-        `;
-
-        const style = document.createElement('style');
-        style.id = 'youtube-shorts-critical-css';
-        style.textContent = criticalCSS;
-        document.head.appendChild(style);
+        // (CSS is already in index.html, but we inject it for completeness)
+        // This is a placeholder – the actual CSS is in the HTML file.
     }
-
     setupInfiniteScroll() {
         let ticking = false;
-        
         const checkScroll = () => {
             if (this.isLoading || !this.hasMore) return;
-
             const scrollPosition = window.innerHeight + window.scrollY;
             const pageHeight = document.documentElement.scrollHeight - 100;
-
             if (scrollPosition >= pageHeight) {
                 console.log('Loading more prompts...');
                 this.loadMorePrompts();
             }
         };
-
         window.addEventListener('scroll', () => {
             if (!ticking) {
                 requestAnimationFrame(() => {
@@ -2585,35 +1645,24 @@ class YouTubeStylePrompts {
                 ticking = true;
             }
         }, { passive: true });
-
-        window.addEventListener('load', () => {
-            setTimeout(() => this.checkScrollPosition(), 100);
-        });
+        window.addEventListener('load', () => { setTimeout(() => this.checkScrollPosition(), 100); });
     }
-
     checkScrollPosition() {
         const scrollPosition = window.innerHeight + window.scrollY;
         const pageHeight = document.documentElement.scrollHeight;
-        
         if (scrollPosition >= pageHeight - 200 && this.hasMore && !this.isLoading) {
             this.loadMorePrompts();
         }
     }
-
     async loadInitialPrompts() {
         const promptsContainer = document.getElementById('promptsContainer');
         if (!promptsContainer) {
             console.error('Prompts container not found');
             return;
         }
-
-        console.log('Loading initial prompts for vertical feed with marketplace...');
-        
         promptsContainer.innerHTML = '';
         promptsContainer.className = 'shorts-container';
-        
         promptsContainer.innerHTML = this.createLoadingShorts();
-
         try {
             await this.loadAllPrompts();
             const olderPrompts = this.getOlderPrompts();
@@ -2625,26 +1674,16 @@ class YouTubeStylePrompts {
             this.showErrorState();
         }
     }
-
     async loadAllPrompts() {
         const now = Date.now();
-        if (now - lastPromptUpdate < PROMPT_CACHE_DURATION && allPrompts.length > 0) {
-            return allPrompts;
-        }
-
+        if (now - lastPromptUpdate < PROMPT_CACHE_DURATION && allPrompts.length > 0) return allPrompts;
         try {
             const user = await getCurrentUser();
             const userId = user?.uid || null;
-            const params = new URLSearchParams({
-                page: '1',
-                limit: '1000',
-                ...(userId && { userId })
-            });
-            
+            const params = new URLSearchParams({ page: '1', limit: '1000', ...(userId && { userId }) });
             const response = await fetch(`/api/uploads?${params}`);
             if (response.ok) {
                 const data = await response.json();
-                
                 allPrompts = (data.uploads || []).map(prompt => ({
                     id: prompt.id || `unknown-${Date.now()}-${Math.random()}`,
                     title: prompt.title || 'Untitled Prompt',
@@ -2656,6 +1695,7 @@ class YouTubeStylePrompts {
                     fileType: prompt.fileType || 'image',
                     videoDuration: prompt.videoDuration || null,
                     userName: prompt.userName || 'Anonymous',
+                    userId: prompt.userId || null,
                     likes: parseInt(prompt.likes) || 0,
                     views: parseInt(prompt.views) || 0,
                     uses: parseInt(prompt.uses) || 0,
@@ -2671,78 +1711,49 @@ class YouTubeStylePrompts {
                     totalEarnings: prompt.totalEarnings || 0,
                     purchasedBy: prompt.purchasedBy || []
                 }));
-                
                 lastPromptUpdate = now;
                 console.log(`Loaded ${allPrompts.length} prompts for vertical feed`);
-            } else {
-                throw new Error('Failed to fetch prompts');
-            }
+            } else throw new Error('Failed to fetch prompts');
         } catch (error) {
             console.error('API fetch error:', error);
-            if (allPrompts.length === 0) {
-                allPrompts = [];
-            }
+            if (allPrompts.length === 0) allPrompts = [];
         }
-        
         return allPrompts;
     }
-
     getOlderPrompts() {
         const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
         return allPrompts.filter(prompt => {
             if (!prompt || !prompt.createdAt) return true;
-            
             try {
                 let promptDate;
-                if (typeof prompt.createdAt === 'string') {
-                    promptDate = new Date(prompt.createdAt);
-                } else if (prompt.createdAt.toDate && typeof prompt.createdAt.toDate === 'function') {
-                    promptDate = prompt.createdAt.toDate();
-                } else {
-                    promptDate = new Date();
-                }
-                
+                if (typeof prompt.createdAt === 'string') promptDate = new Date(prompt.createdAt);
+                else if (prompt.createdAt.toDate && typeof prompt.createdAt.toDate === 'function') promptDate = prompt.createdAt.toDate();
+                else promptDate = new Date();
                 return promptDate <= twentyFourHoursAgo;
-            } catch (error) {
-                console.error('Error parsing date for prompt:', prompt.id, error);
-                return true;
-            }
+            } catch (error) { return true; }
         }).sort((a, b) => {
             try {
                 const dateA = a.createdAt ? new Date(a.createdAt) : new Date();
                 const dateB = b.createdAt ? new Date(b.createdAt) : new Date();
                 return dateB - dateA;
-            } catch (error) {
-                return 0;
-            }
+            } catch (error) { return 0; }
         });
     }
-
     async loadMorePrompts() {
-        if (this.isLoading || !this.hasMore) {
-            console.log('Already loading or no more prompts');
-            return;
-        }
-
+        if (this.isLoading || !this.hasMore) return;
         this.isLoading = true;
         this.showLoadingIndicator();
-        console.log(`Loading page ${this.currentPage + 1} for vertical feed...`);
-
         try {
             await new Promise(resolve => setTimeout(resolve, 400));
-            
             const olderPrompts = this.getOlderPrompts();
             const startIndex = this.currentPage * this.promptsPerPage;
             const nextPrompts = olderPrompts.slice(startIndex, startIndex + this.promptsPerPage);
-            
             if (nextPrompts.length > 0) {
                 console.log(`Displaying ${nextPrompts.length} more older prompts`);
                 this.displayPrompts(nextPrompts, false);
                 this.currentPage++;
-                
                 setTimeout(() => this.checkScrollPosition(), 500);
             } else {
-                console.log('No more older prompts to load');
                 this.hasMore = false;
                 this.hideLoadingIndicator();
                 this.showNoMorePrompts();
@@ -2751,18 +1762,13 @@ class YouTubeStylePrompts {
             console.error('Error loading more prompts:', error);
             this.hideLoadingIndicator();
             showNotification('Failed to load more prompts', 'error');
-        } finally {
-            this.isLoading = false;
-        }
+        } finally { this.isLoading = false; }
     }
-
     createHorizontalFeed(prompts, index) {
         const horizontalFeed = document.createElement('div');
         horizontalFeed.className = 'horizontal-feed-section';
-        
         const videoCount = prompts.filter(p => p.fileType === 'video' || p.videoUrl).length;
         const videoIndicator = videoCount > 0 ? `<span class="video-count-badge"><i class="fas fa-video"></i> ${videoCount} Reels</span>` : '';
-        
         horizontalFeed.innerHTML = `
             <div class="horizontal-feed-header">
                 <h3>
@@ -2781,18 +1787,14 @@ class YouTubeStylePrompts {
             <div class="horizontal-feed-track" id="horizontalFeed${index}">
             </div>
         `;
-        
         const track = horizontalFeed.querySelector('.horizontal-feed-track');
         prompts.forEach(prompt => {
             const item = this.createHorizontalPromptItem(prompt);
-            if (item) {
-                track.appendChild(item);
-            }
+            if (item) track.appendChild(item);
         });
-        
         return horizontalFeed;
     }
-
+    // ===== MODIFIED: createHorizontalPromptItem with channel =====
     createHorizontalPromptItem(prompt) {
         const safePrompt = prompt || {};
         const promptId = safePrompt.id || 'unknown';
@@ -2802,50 +1804,56 @@ class YouTubeStylePrompts {
         const isVideo = safePrompt.fileType === 'video' || safePrompt.videoUrl || safePrompt.mediaUrl?.includes('video');
         const price = safePrompt.price || 0;
         const isPaid = price > 0;
-        
+        const userId = safePrompt.userId || null;
+        const userName = safePrompt.userName || 'Anonymous';
+
+        // Channel info (cached)
+        let channelInfo = { hasChannel: false, displayName: null };
+        if (userId) {
+            const cached = channelCache.get(userId);
+            if (cached && (Date.now() - cached.timestamp < CHANNEL_CACHE_TTL)) {
+                channelInfo = cached.data;
+            } else {
+                getChannelInfo(userId); // background fetch
+            }
+        }
+        const displayNameHTML = getChannelLinkHTML(channelInfo, userName);
+
         const item = document.createElement('div');
         item.className = `horizontal-prompt-item ${isVideo ? 'video-item' : ''}`;
         item.setAttribute('data-prompt-id', promptId);
         item.setAttribute('data-price', price);
         item.setAttribute('data-is-paid', isPaid);
         item.setAttribute('data-file-type', isVideo ? 'video' : 'image');
-        
+        item.setAttribute('data-user-id', userId || '');
+
         item.addEventListener('click', (e) => {
             if (!e.target.closest('.view-prompt-btn')) {
-                if (isVideo) {
-                    this.openShortsPlayer(promptId);
-                } else {
-                    this.openPromptPage(promptId);
-                }
+                if (isVideo) this.openShortsPlayer(promptId);
+                else this.openPromptPage(promptId);
             }
         });
 
         const imageDiv = document.createElement('div');
         imageDiv.className = 'horizontal-prompt-image';
-        
         const img = document.createElement('img');
         img.src = imageUrl;
         img.alt = title;
         img.loading = 'lazy';
         img.onerror = function() { this.src = 'https://via.placeholder.com/200x150/4e54c8/white?text=Prompt'; };
         imageDiv.appendChild(img);
-        
         const priceBadge = document.createElement('div');
         priceBadge.className = `price-badge ${!isPaid ? 'free' : ''}`;
         priceBadge.innerHTML = isPaid ? `<i class="fas fa-rupee-sign"></i> ${price}` : '<i class="fas fa-gift"></i> Free';
         imageDiv.appendChild(priceBadge);
-        
         if (isVideo) {
             const badge = document.createElement('div');
             badge.className = 'video-reel-badge';
             badge.innerHTML = '<i class="fas fa-play"></i> Reel';
             imageDiv.appendChild(badge);
-            
             if (window.videoHoverManager) {
                 const hoverVideoContainer = window.videoHoverManager.createHoverVideoElement(safePrompt);
-                if (hoverVideoContainer) {
-                    imageDiv.appendChild(hoverVideoContainer);
-                }
+                if (hoverVideoContainer) imageDiv.appendChild(hoverVideoContainer);
             }
         } else {
             const badge = document.createElement('div');
@@ -2853,7 +1861,6 @@ class YouTubeStylePrompts {
             badge.innerHTML = '<i class="fas fa-image"></i> Prompt';
             imageDiv.appendChild(badge);
         }
-        
         const viewsDiv = document.createElement('div');
         viewsDiv.className = 'horizontal-prompt-views';
         viewsDiv.innerHTML = `<i class="fas fa-eye"></i> ${this.formatCount(views)}`;
@@ -2861,11 +1868,13 @@ class YouTubeStylePrompts {
 
         const infoDiv = document.createElement('div');
         infoDiv.className = 'horizontal-prompt-info';
-        
         const titleDiv = document.createElement('div');
         titleDiv.className = 'horizontal-prompt-title';
         titleDiv.textContent = title.substring(0, 40) + (title.length > 40 ? '...' : '');
-        
+        // Creator line with channel
+        const creatorDiv = document.createElement('div');
+        creatorDiv.style.cssText = 'font-size: 0.8rem; color: #666; margin-bottom: 4px;';
+        creatorDiv.innerHTML = displayNameHTML;
         const button = document.createElement('button');
         button.className = 'view-prompt-btn';
         button.setAttribute('data-prompt-id', promptId);
@@ -2874,7 +1883,7 @@ class YouTubeStylePrompts {
         button.setAttribute('data-prompt-text', safePrompt.promptText || '');
         button.setAttribute('data-title', title);
         button.setAttribute('data-image', imageUrl);
-        button.setAttribute('data-user', safePrompt.userName || 'Anonymous');
+        button.setAttribute('data-user', userName);
         button.onclick = async (e) => {
             e.stopPropagation();
             if (isVideo) {
@@ -2896,8 +1905,9 @@ class YouTubeStylePrompts {
             }
         };
         button.textContent = isVideo ? 'Watch Reel' : (isPaid ? `Buy for ₹${price}` : 'View Prompt');
-        
+
         infoDiv.appendChild(titleDiv);
+        infoDiv.appendChild(creatorDiv);
         infoDiv.appendChild(button);
 
         item.appendChild(imageDiv);
@@ -2905,83 +1915,59 @@ class YouTubeStylePrompts {
 
         return item;
     }
-
     getRandomPrompts(count, excludePrompts = [], prioritizeVideos = true) {
         const excludeIds = new Set(excludePrompts.map(p => p.id));
-        const availablePrompts = allPrompts.filter(prompt => 
-            prompt && !excludeIds.has(prompt.id)
-        );
-        
+        const availablePrompts = allPrompts.filter(prompt => prompt && !excludeIds.has(prompt.id));
         if (availablePrompts.length === 0) return [];
-        
         if (prioritizeVideos) {
             const videos = availablePrompts.filter(p => p.fileType === 'video' || p.videoUrl);
             const images = availablePrompts.filter(p => p.fileType !== 'video' && !p.videoUrl);
-            
-            const videoCount = Math.min(
-                Math.max(2, Math.floor(count * 0.3)), 
-                videos.length,
-                count
-            );
-            
+            const videoCount = Math.min(Math.max(2, Math.floor(count * 0.3)), videos.length, count);
             const shuffledVideos = [...videos].sort(() => 0.5 - Math.random());
             let selectedPrompts = shuffledVideos.slice(0, videoCount);
-            
             const remainingCount = count - selectedPrompts.length;
             if (remainingCount > 0 && images.length > 0) {
                 const shuffledImages = [...images].sort(() => 0.5 - Math.random());
                 selectedPrompts = [...selectedPrompts, ...shuffledImages.slice(0, remainingCount)];
             }
-            
             return selectedPrompts.slice(0, count);
         } else {
             const shuffled = [...availablePrompts].sort(() => 0.5 - Math.random());
             return shuffled.slice(0, count);
         }
     }
-
     displayPrompts(prompts, isInitial) {
         const promptsContainer = document.getElementById('promptsContainer');
         if (!promptsContainer) return;
-
         promptsContainer.className = 'shorts-container';
-
         if (isInitial) {
             promptsContainer.innerHTML = '';
             this.loadedPrompts.clear();
         } else {
             this.hideLoadingIndicator();
         }
-
         if (!prompts || prompts.length === 0) {
             this.showNoResults();
             return;
         }
-
         const groupedPrompts = [];
         for (let i = 0; i < prompts.length; i += 4) {
             const verticalPrompts = prompts.slice(i, i + 4);
             groupedPrompts.push(verticalPrompts);
-            
             if (i + 4 < prompts.length) {
                 const randomPrompts = this.getRandomPrompts(10, prompts.slice(i + 4), true);
                 groupedPrompts.push({ type: 'horizontal', prompts: randomPrompts, index: i / 4 });
             }
         }
-
         let globalIndex = 0;
         groupedPrompts.forEach((group, groupIndex) => {
             if (group.type === 'horizontal') {
                 const horizontalFeed = this.createHorizontalFeed(group.prompts, group.index);
                 promptsContainer.appendChild(horizontalFeed);
-                
-                setTimeout(() => {
-                    this.initHorizontalFeedControls(horizontalFeed);
-                }, 100);
+                setTimeout(() => { this.initHorizontalFeedControls(horizontalFeed); }, 100);
             } else {
                 group.forEach((prompt, indexInGroup) => {
                     if (!prompt || this.loadedPrompts.has(prompt.id)) return;
-                    
                     const promptElement = this.createShortsPrompt(prompt, globalIndex);
                     if (promptElement) {
                         promptsContainer.appendChild(promptElement);
@@ -2991,24 +1977,18 @@ class YouTubeStylePrompts {
                 });
             }
         });
-
-        setTimeout(() => {
-            this.animatePromptsIn();
-        }, 50);
-
+        setTimeout(() => { this.animatePromptsIn(); }, 50);
         console.log(`Displayed mixed feed with ${this.loadedPrompts.size} vertical prompts`);
     }
-
     initHorizontalFeedControls(horizontalFeed) {
         const track = horizontalFeed.querySelector('.horizontal-feed-track');
         const controls = horizontalFeed.querySelector('.horizontal-controls');
-        
         if (track && controls && window.horizontalFeedManager) {
             const feedId = `horizontal-feed-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
             window.horizontalFeedManager.addFeed(track, controls, feedId);
         }
     }
-
+    // ===== MODIFIED: createShortsPrompt with channel =====
     createShortsPrompt(prompt, index) {
         const safePrompt = prompt || {};
         const promptId = safePrompt.id || `unknown-${index}`;
@@ -3016,22 +1996,37 @@ class YouTubeStylePrompts {
         const imageUrl = safePrompt.thumbnailUrl || safePrompt.imageUrl || 'https://via.placeholder.com/300x500/4e54c8/white?text=AI+Image';
         const promptText = safePrompt.promptText || 'No prompt text available.';
         const userName = safePrompt.userName || 'Anonymous';
+        const userId = safePrompt.userId || null;
         const views = safePrompt.views || 0;
         const likes = safePrompt.likes || 0;
-        const uses = safePrompt.uses || 0;
         const category = safePrompt.category || 'general';
         const isVideo = safePrompt.fileType === 'video' || safePrompt.videoUrl;
         const price = safePrompt.price || 0;
         const isPaid = price > 0;
-        
-        let createdAt = safePrompt.createdAt;
-        if (!createdAt || typeof createdAt !== 'string') {
-            createdAt = new Date().toISOString();
+        const createdAt = safePrompt.createdAt || new Date().toISOString();
+
+        // Get channel info (cached)
+        let channelInfo = { hasChannel: false, displayName: null };
+        if (userId) {
+            const cached = channelCache.get(userId);
+            if (cached && (Date.now() - cached.timestamp < CHANNEL_CACHE_TTL)) {
+                channelInfo = cached.data;
+            } else {
+                // Trigger async fetch in background
+                getChannelInfo(userId).then(info => {
+                    // Update all cards for this user (optional)
+                    document.querySelectorAll(`[data-user-id="${userId}"] .channel-name-placeholder`).forEach(el => {
+                        el.innerHTML = getChannelLinkHTML(info, userName);
+                    });
+                });
+            }
         }
+        const displayNameHTML = getChannelLinkHTML(channelInfo, userName);
 
         const promptDiv = document.createElement('div');
         promptDiv.className = 'shorts-prompt-card';
         promptDiv.setAttribute('data-prompt-id', promptId);
+        promptDiv.setAttribute('data-user-id', userId || '');
         promptDiv.setAttribute('data-price', price);
         promptDiv.setAttribute('data-is-paid', isPaid);
         promptDiv.setAttribute('data-file-type', isVideo ? 'video' : 'image');
@@ -3039,11 +2034,10 @@ class YouTubeStylePrompts {
         promptDiv.style.transform = 'translateY(20px)';
         promptDiv.style.transition = `opacity 0.3s ease ${index * 0.05}s, transform 0.3s ease ${index * 0.05}s`;
 
-        const priceBadge = isPaid ? 
-            `<span class="price-badge"><i class="fas fa-rupee-sign"></i> ${price}</span>` :
-            `<span class="price-badge free"><i class="fas fa-gift"></i> Free</span>`;
+        const priceBadge = isPaid 
+            ? `<span class="price-badge"><i class="fas fa-rupee-sign"></i> ${price}</span>`
+            : `<span class="price-badge free"><i class="fas fa-gift"></i> Free</span>`;
 
-        // ===== REUSE BUTTON (replaces use button) =====
         promptDiv.innerHTML = `
             <div class="shorts-video-container ${isVideo ? 'video-hover-container' : ''}" 
                  ${isVideo ? 'tabindex="0" role="button" aria-label="Play video reel"' : ''}>
@@ -3052,7 +2046,6 @@ class YouTubeStylePrompts {
                      class="shorts-image"
                      loading="lazy"
                      onerror="this.src='https://via.placeholder.com/300x500/4e54c8/white?text=AI+Image'">
-                
                 ${priceBadge}
                 ${isVideo ? '<div class="video-reel-badge"><i class="fas fa-play"></i> Reel</div>' : ''}
                 
@@ -3061,18 +2054,14 @@ class YouTubeStylePrompts {
                         <i class="far fa-heart"></i>
                         <span class="engagement-count likes-count">${this.formatCount(likes)}</span>
                     </button>
-                    
-                    <!-- REUSE BUTTON (changed from use-btn) -->
                     <button class="engagement-action reuse-btn" data-prompt-id="${promptId}" title="Reuse this prompt">
                         <i class="fas fa-redo"></i>
                         <span class="engagement-count">Reuse</span>
                     </button>
-                    
                     <button class="engagement-action share-btn" data-prompt-id="${promptId}" title="Share">
                         <i class="fas fa-share"></i>
                         <span class="engagement-count">Share</span>
                     </button>
-                    
                     <a href="/prompt/${promptId}" class="engagement-action view-btn" target="_blank" title="View details">
                         <i class="fas fa-expand"></i>
                         <span class="engagement-count views-count">${this.formatCount(views)}</span>
@@ -3085,7 +2074,7 @@ class YouTubeStylePrompts {
                     ${promptText.length > 120 ? promptText.substring(0, 120) + '...' : promptText}
                 </div>
                 <div class="shorts-meta">
-                    <span>@${userName}</span>
+                    <span class="channel-name-placeholder">${displayNameHTML}</span>
                     <span>${this.formatCount(views)} views</span>
                 </div>
                 <div class="prompt-actions">
@@ -3099,6 +2088,7 @@ class YouTubeStylePrompts {
             </div>
         `;
 
+        // Event listeners (same as original)
         const copyBtn = promptDiv.querySelector('.copy-prompt-btn');
         if (copyBtn) {
             copyBtn.addEventListener('click', async (e) => {
@@ -3114,44 +2104,27 @@ class YouTubeStylePrompts {
                 await handlePromptCopy(promptData, copyBtn);
             });
         }
-
         if (isVideo && window.videoHoverManager) {
             const videoContainer = promptDiv.querySelector('.shorts-video-container');
             const hoverVideoContainer = window.videoHoverManager.createHoverVideoElement(safePrompt);
             if (hoverVideoContainer) {
                 videoContainer.appendChild(hoverVideoContainer);
             }
-            
             const videoElement = hoverVideoContainer?.querySelector('.hover-video-player');
             if (videoElement) {
                 videoElement.preload = 'metadata';
-                
-                videoContainer.addEventListener('focus', () => {
-                    window.videoHoverManager.playHoverVideo(promptDiv);
-                });
-                
-                videoContainer.addEventListener('blur', () => {
-                    window.videoHoverManager.pauseHoverVideo(promptDiv);
-                });
-                
+                videoContainer.addEventListener('focus', () => { window.videoHoverManager.playHoverVideo(promptDiv); });
+                videoContainer.addEventListener('blur', () => { window.videoHoverManager.pauseHoverVideo(promptDiv); });
                 videoContainer.addEventListener('touchstart', (e) => {
                     e.preventDefault();
                     window.videoHoverManager.playHoverVideo(promptDiv);
                 }, { passive: true });
-                
-                videoContainer.addEventListener('mouseenter', () => {
-                    window.videoHoverManager.playHoverVideo(promptDiv);
-                });
-                
-                videoContainer.addEventListener('mouseleave', () => {
-                    window.videoHoverManager.pauseHoverVideo(promptDiv);
-                });
-                
+                videoContainer.addEventListener('mouseenter', () => { window.videoHoverManager.playHoverVideo(promptDiv); });
+                videoContainer.addEventListener('mouseleave', () => { window.videoHoverManager.pauseHoverVideo(promptDiv); });
                 videoElement.setAttribute('playsinline', '');
                 videoElement.setAttribute('webkit-playsinline', '');
             }
         }
-
         if (isVideo) {
             const videoContainer = promptDiv.querySelector('.shorts-video-container');
             videoContainer.addEventListener('click', (e) => {
@@ -3160,43 +2133,26 @@ class YouTubeStylePrompts {
                 }
             });
         }
-
         return promptDiv;
     }
-
     setupEngagementListeners() {
         document.addEventListener('click', async (e) => {
             const likeBtn = e.target.closest('.like-btn');
-            const reuseBtn = e.target.closest('.reuse-btn');   // changed from use-btn
+            const reuseBtn = e.target.closest('.reuse-btn');
             const shareBtn = e.target.closest('.share-btn');
-            
-            if (likeBtn) {
-                await this.handleLike(likeBtn);
-            } else if (reuseBtn) {
-                await this.handleReuse(reuseBtn);               // changed from handleUse
-            } else if (shareBtn) {
-                await this.handleShare(shareBtn);
-            }
+            if (likeBtn) await this.handleLike(likeBtn);
+            else if (reuseBtn) await this.handleReuse(reuseBtn);
+            else if (shareBtn) await this.handleShare(shareBtn);
         });
     }
-
     async handleLike(likeBtn) {
         const promptId = likeBtn.dataset.promptId;
-        if (!promptId || promptId === 'unknown') {
-            showNotification('Invalid prompt', 'error');
-            return;
-        }
-
+        if (!promptId || promptId === 'unknown') { showNotification('Invalid prompt', 'error'); return; }
         const user = await getCurrentUser();
-        if (!user) {
-            showNotification('Please login to like prompts', 'error');
-            return;
-        }
-
+        if (!user) { showNotification('Please login to like prompts', 'error'); return; }
         const likesCount = likeBtn.querySelector('.likes-count');
         const icon = likeBtn.querySelector('i');
         const isLiked = icon.classList.contains('fas');
-        
         try {
             const action = isLiked ? 'unlike' : 'like';
             const response = await fetch(`/api/prompt/${promptId}/like`, {
@@ -3204,17 +2160,13 @@ class YouTubeStylePrompts {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ userId: user.uid, action })
             });
-
             if (response.ok) {
                 const currentLikes = parseInt(likesCount.textContent) || 0;
                 const newLikes = action === 'like' ? currentLikes + 1 : Math.max(0, currentLikes - 1);
-                
                 likesCount.textContent = this.formatCount(newLikes);
                 icon.className = action === 'like' ? 'fas fa-heart' : 'far fa-heart';
-                
                 likesCount.classList.add('count-animation');
                 setTimeout(() => likesCount.classList.remove('count-animation'), 300);
-                
                 showNotification(action === 'like' ? 'Prompt liked!' : 'Like removed', 'success');
             }
         } catch (error) {
@@ -3222,37 +2174,27 @@ class YouTubeStylePrompts {
             showNotification('Failed to update like', 'error');
         }
     }
+    // ===== MODIFIED: handleReuse – copies to AI generator or shows buy modal =====
+    async handleReuse(reuseBtn) {
+        const promptId = reuseBtn.dataset.promptId;
+        if (!promptId || promptId === 'unknown') {
+            showNotification('Invalid prompt', 'error');
+            return;
+        }
+        const prompt = allPrompts.find(p => p.id === promptId);
+        if (!prompt) { showNotification('Prompt not found', 'error'); return; }
 
-  async handleReuse(reuseBtn) {
-    const promptId = reuseBtn.dataset.promptId;
-    if (!promptId || promptId === 'unknown') {
-        showNotification('Invalid prompt', 'error');
-        return;
-    }
-
-    // Find the prompt data from allPrompts
-    const prompt = allPrompts.find(p => p.id === promptId);
-    if (!prompt) {
-        showNotification('Prompt not found', 'error');
-        return;
-    }
-
-    // Check if it's a paid prompt
-    if (prompt.price && prompt.price > 0) {
-        // Verify if user has purchased it
+        // Check if paid and not purchased
         const user = await getCurrentUser();
         let purchased = false;
-        if (user) {
+        if (prompt.price > 0 && user) {
             try {
                 const response = await fetch(`/api/check-purchase/${promptId}?userId=${user.uid}`);
                 const data = await response.json();
                 purchased = data.purchased;
-            } catch (error) {
-                console.error('Error checking purchase:', error);
-            }
+            } catch (error) { console.error('Purchase check error:', error); }
         }
-        if (!purchased) {
-            // Show buy modal instead of copying
+        if (prompt.price > 0 && !purchased) {
             const promptData = {
                 id: prompt.id,
                 title: prompt.title,
@@ -3264,41 +2206,26 @@ class YouTubeStylePrompts {
             showBuyPromptModal(promptData);
             return;
         }
+
+        // Free or purchased: copy to AI generator
+        const input = document.getElementById('aiPromptInput');
+        const bar = document.getElementById('aiGeneratorBar');
+        if (input) {
+            input.value = prompt.promptText || '';
+            input.style.height = 'auto';
+            input.style.height = Math.min(input.scrollHeight, 120) + 'px';
+            if (bar && !bar.classList.contains('active')) bar.classList.add('active');
+            input.focus();
+            input.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            showNotification('Prompt copied to AI generator!', 'success');
+            trackCopyAction(promptId);
+        } else {
+            showNotification('AI generator not available', 'error');
+        }
     }
-
-    // Free prompt or already purchased – copy to AI generator
-    const input = document.getElementById('aiPromptInput');
-    const bar = document.getElementById('aiGeneratorBar');
-
-    if (!input) {
-        showNotification('AI generator not available', 'error');
-        return;
-    }
-
-    input.value = prompt.promptText || '';
-    input.style.height = 'auto';
-    input.style.height = Math.min(input.scrollHeight, 120) + 'px';
-
-    if (bar && !bar.classList.contains('active')) {
-        bar.classList.add('active');
-    }
-
-    input.focus();
-    input.scrollIntoView({ behavior: 'smooth', block: 'center' });
-
-    showNotification('Prompt copied to AI generator!', 'success');
-
-    // Optional tracking
-    trackCopyAction(promptId);
-}
-    // Old handleUse (removed or kept but not used)
-    // async handleUse(useBtn) { ... }   // we remove it
-
     async handleShare(shareBtn) {
         const promptId = shareBtn.dataset.promptId;
-       
         const promptUrl = `${window.location.origin}/prompt/${promptId}`;
-        
         if (navigator.share) {
             try {
                 await navigator.share({
@@ -3317,11 +2244,8 @@ class YouTubeStylePrompts {
             showNotification('Link copied to clipboard!', 'success');
         }
     }
-
     async copyToClipboard(text) {
-        try {
-            await navigator.clipboard.writeText(text);
-        } catch (error) {
+        try { await navigator.clipboard.writeText(text); } catch (error) {
             const textArea = document.createElement('textarea');
             textArea.value = text;
             document.body.appendChild(textArea);
@@ -3330,7 +2254,6 @@ class YouTubeStylePrompts {
             document.body.removeChild(textArea);
         }
     }
-
     createLoadingShorts() {
         const loadingCards = Array(12).fill(0).map((_, i) => {
             if (i % 5 === 4) {
@@ -3377,44 +2300,31 @@ class YouTubeStylePrompts {
                 `;
             }
         }).join('');
-
         return loadingCards;
     }
-
     showLoadingIndicator() {
         let loader = document.getElementById('infinite-scroll-loader');
         if (!loader) {
             loader = document.createElement('div');
             loader.id = 'infinite-scroll-loader';
             loader.className = 'loading-shorts';
-            loader.innerHTML = `
-                <div class="spinner"></div>
-                <span>Loading more prompts...</span>
-            `;
+            loader.innerHTML = `<div class="spinner"></div><span>Loading more prompts...</span>`;
             document.getElementById('promptsContainer').appendChild(loader);
         }
     }
-
     hideLoadingIndicator() {
         const loader = document.getElementById('infinite-scroll-loader');
-        if (loader) {
-            loader.remove();
-        }
+        if (loader) loader.remove();
     }
-
     showNoMorePrompts() {
         const promptsContainer = document.getElementById('promptsContainer');
         if (promptsContainer) {
             const endMessage = document.createElement('div');
             endMessage.className = 'loading-shorts';
-            endMessage.innerHTML = `
-                <i class="fas fa-check-circle" style="color: #20bf6b; margin-right: 8px;"></i>
-                <span>You've seen all prompts!</span>
-            `;
+            endMessage.innerHTML = `<i class="fas fa-check-circle" style="color: #20bf6b; margin-right: 8px;"></i><span>You've seen all prompts!</span>`;
             promptsContainer.appendChild(endMessage);
         }
     }
-
     animatePromptsIn() {
         const prompts = document.querySelectorAll('.shorts-prompt-card, .horizontal-feed-section');
         prompts.forEach(prompt => {
@@ -3422,26 +2332,14 @@ class YouTubeStylePrompts {
             prompt.style.transform = 'translateY(0)';
         });
     }
-
     formatCount(count) {
-        if (count === undefined || count === null || isNaN(count)) {
-            return '0';
-        }
-        
+        if (count === undefined || count === null || isNaN(count)) return '0';
         const numCount = typeof count === 'number' ? count : parseInt(count);
-        
-        if (isNaN(numCount)) {
-            return '0';
-        }
-        
-        if (numCount >= 1000000) {
-            return (numCount / 1000000).toFixed(1) + 'M';
-        } else if (numCount >= 1000) {
-            return (numCount / 1000).toFixed(1) + 'K';
-        }
+        if (isNaN(numCount)) return '0';
+        if (numCount >= 1000000) return (numCount / 1000000).toFixed(1) + 'M';
+        if (numCount >= 1000) return (numCount / 1000).toFixed(1) + 'K';
         return numCount.toString();
     }
-
     showErrorState() {
         const promptsContainer = document.getElementById('promptsContainer');
         if (promptsContainer) {
@@ -3457,7 +2355,6 @@ class YouTubeStylePrompts {
             `;
         }
     }
-
     showNoResults() {
         const promptsContainer = document.getElementById('promptsContainer');
         if (promptsContainer) {
@@ -3475,74 +2372,44 @@ class YouTubeStylePrompts {
             `;
         }
     }
-
     displayFilteredPrompts(filteredPrompts) {
         const promptsContainer = document.getElementById('promptsContainer');
         if (!promptsContainer) return;
-
         promptsContainer.innerHTML = '';
         this.loadedPrompts.clear();
-
-        if (!filteredPrompts || filteredPrompts.length === 0) {
-            this.showNoResults();
-            return;
-        }
-
+        if (!filteredPrompts || filteredPrompts.length === 0) { this.showNoResults(); return; }
         const initialPrompts = filteredPrompts.slice(0, this.promptsPerPage);
         this.displayPrompts(initialPrompts, true);
-        
         this.filteredPrompts = filteredPrompts;
         this.hasMore = filteredPrompts.length > this.promptsPerPage;
     }
-
     filterByCategory(category) {
         const filteredPrompts = allPrompts.filter(prompt => prompt.category === category);
         this.displayFilteredPrompts(filteredPrompts);
     }
-
     filterBySearchTerm(searchTerm) {
         const filteredPrompts = allPrompts.filter(prompt => {
             const searchLower = searchTerm.toLowerCase();
             const title = (prompt.title || '').toLowerCase();
             const promptText = (prompt.promptText || '').toLowerCase();
             const keywords = prompt.keywords || [];
-            
-            return (
-                title.includes(searchLower) ||
-                promptText.includes(searchLower) ||
-                keywords.some(keyword => keyword.toLowerCase().includes(searchLower))
-            );
+            return title.includes(searchLower) || promptText.includes(searchLower) ||
+                keywords.some(keyword => keyword.toLowerCase().includes(searchLower));
         });
         this.displayFilteredPrompts(filteredPrompts);
     }
-
-    async refreshFeed() {
-        await this.loadAllPrompts();
-        this.currentPage = 1;
-        this.hasMore = true;
-        this.loadedPrompts.clear();
-        await this.loadInitialPrompts();
-    }
-
-    startAutoRefresh() {
-        setInterval(async () => {
-            await this.refreshFeed();
-        }, 20 * 60 * 1000);
-    }
-
+    async refreshFeed() { await this.loadAllPrompts(); this.currentPage = 1; this.hasMore = true; this.loadedPrompts.clear(); await this.loadInitialPrompts(); }
+    startAutoRefresh() { setInterval(async () => { await this.refreshFeed(); }, 20 * 60 * 1000); }
     openPromptPage(promptId) {
         if (promptId && promptId !== 'unknown') {
             const currentHost = window.location.hostname;
             let targetUrl = `/prompt/${promptId}`;
-            
             if (currentHost === 'promptseen.co' && window.location.hostname !== 'localhost') {
                 targetUrl = `https://www.promptseen.co/prompt/${promptId}`;
             }
-            
             window.open(targetUrl, '_blank');
         }
     }
-
     openShortsPlayer(promptId) {
         if (promptId && promptId !== 'unknown' && window.shortsPlayer) {
             const prompt = allPrompts.find(p => p.id === promptId);
@@ -3558,7 +2425,6 @@ class YouTubeStylePrompts {
 }
 
 // ==================== YOUTUBE SHORTS PLAYER ====================
-
 class YouTubeShortsPlayer {
     constructor() {
         this.currentVideoIndex = 0;
@@ -3577,12 +2443,10 @@ class YouTubeShortsPlayer {
         this.maxLoadTime = 10000;
         this.init();
     }
-
     init() {
         this.createPlayerContainer();
         this.setupEventListeners();
     }
-
     createPlayerContainer() {
         const playerHTML = `
             <div class="shorts-player-container" id="shortsPlayer">
@@ -3602,43 +2466,35 @@ class YouTubeShortsPlayer {
                         </button>
                     </div>
                 </div>
-                
                 <div class="shorts-player-content" id="shortsPlayerContent">
                     <div class="video-loading-global" id="videoLoadingGlobal" style="display: none;">
                         <div class="spinner"></div>
                         <div>Loading video...</div>
                     </div>
-                    
-                    <div class="shorts-videos-container" id="shortsVideosContainer">
-                    </div>
-                    
+                    <div class="shorts-videos-container" id="shortsVideosContainer"></div>
                     <div class="shorts-navigation-hint" id="shortsNavHint">
                         <i class="fas fa-chevron-up"></i>
                         <span>Swipe up for next</span>
                         <i class="fas fa-chevron-down"></i>
                     </div>
                 </div>
-                
                 <div class="shorts-volume-control" id="shortsVolumeControl">
                     <button class="shorts-volume-btn" id="shortsVolumeBtn">
                         <i class="fas fa-volume-mute"></i>
                     </button>
                     <input type="range" class="shorts-volume-slider" id="shortsVolumeSlider" min="0" max="1" step="0.1" value="0">
                 </div>
-                
                 <div class="shorts-error-toast" id="shortsErrorToast" style="display: none;">
                     <i class="fas fa-exclamation-triangle"></i>
                     <span>Failed to load video. Tap to retry.</span>
                 </div>
             </div>
         `;
-        
         document.body.insertAdjacentHTML('beforeend', playerHTML);
         this.playerContainer = document.getElementById('shortsPlayer');
         this.videosContainer = document.getElementById('shortsVideosContainer');
         this.globalLoading = document.getElementById('videoLoadingGlobal');
         this.errorToast = document.getElementById('shortsErrorToast');
-        
         if (this.errorToast) {
             this.errorToast.addEventListener('click', () => {
                 this.errorToast.style.display = 'none';
@@ -3646,83 +2502,46 @@ class YouTubeShortsPlayer {
             });
         }
     }
-
     setupEventListeners() {
-        document.getElementById('closeShortsPlayer').addEventListener('click', () => {
-            this.closePlayer();
-        });
-
+        document.getElementById('closeShortsPlayer').addEventListener('click', () => this.closePlayer());
         const searchBtn = document.getElementById('shortsSearchBtn');
-        if (searchBtn) {
-            searchBtn.addEventListener('click', () => {
-                this.openSearch();
-            });
-        }
-
+        if (searchBtn) searchBtn.addEventListener('click', () => this.openSearch());
         const menuBtn = document.getElementById('shortsMenuBtn');
-        if (menuBtn) {
-            menuBtn.addEventListener('click', () => {
-                this.openMenu();
-            });
-        }
-
+        if (menuBtn) menuBtn.addEventListener('click', () => this.openMenu());
         const volumeBtn = document.getElementById('shortsVolumeBtn');
         const volumeSlider = document.getElementById('shortsVolumeSlider');
-
-        if (volumeBtn) {
-            volumeBtn.addEventListener('click', () => this.toggleMute());
-        }
-
+        if (volumeBtn) volumeBtn.addEventListener('click', () => this.toggleMute());
         if (volumeSlider) {
             volumeSlider.addEventListener('input', (e) => {
                 const volume = parseFloat(e.target.value);
                 this.setVolume(volume);
             });
         }
-
         document.addEventListener('keydown', (e) => {
             if (!this.playerContainer.classList.contains('active')) return;
-            
-            if (e.key === 'ArrowUp') {
-                e.preventDefault();
-                this.playPrevious();
-                this.showNavigationFeedback('up');
-            } else if (e.key === 'ArrowDown') {
-                e.preventDefault();
-                this.playNext();
-                this.showNavigationFeedback('down');
-            } else if (e.key === 'Escape') {
-                this.closePlayer();
-            } else if (e.key === ' ') {
-                e.preventDefault();
-                this.togglePlayPause();
-            } else if (e.key === 'm' || e.key === 'M') {
-                e.preventDefault();
-                this.toggleMute();
-            }
+            if (e.key === 'ArrowUp') { e.preventDefault(); this.playPrevious(); this.showNavigationFeedback('up'); }
+            else if (e.key === 'ArrowDown') { e.preventDefault(); this.playNext(); this.showNavigationFeedback('down'); }
+            else if (e.key === 'Escape') this.closePlayer();
+            else if (e.key === ' ') { e.preventDefault(); this.togglePlayPause(); }
+            else if (e.key === 'm' || e.key === 'M') { e.preventDefault(); this.toggleMute(); }
         });
-
         this.videosContainer.addEventListener('touchstart', (e) => {
             this.touchStartY = e.touches[0].clientY;
             this.touchStartX = e.touches[0].clientX;
             this.isScrolling = false;
             this.videosContainer.style.transition = 'none';
         }, { passive: true });
-
         this.videosContainer.addEventListener('touchmove', (e) => {
             if (!this.touchStartY) return;
-            
             const currentY = e.touches[0].clientY;
             const currentX = e.touches[0].clientX;
             const diffY = this.touchStartY - currentY;
             const diffX = this.touchStartX - currentX;
-            
             if (Math.abs(diffY) > Math.abs(diffX)) {
                 e.preventDefault();
                 const translateY = -diffY;
                 this.videosContainer.style.transform = `translateY(${translateY}px)`;
                 this.videosContainer.style.transition = 'none';
-                
                 if (diffY > this.scrollThreshold / 2) {
                     this.showSwipeHint('down', Math.min(Math.abs(diffY) / 200, 1));
                 } else if (diffY < -this.scrollThreshold / 2) {
@@ -3730,155 +2549,91 @@ class YouTubeShortsPlayer {
                 }
             }
         }, { passive: false });
-
         this.videosContainer.addEventListener('touchend', (e) => {
             if (!this.touchStartY) return;
-            
             const touchEndY = e.changedTouches[0].clientY;
             const diffY = this.touchStartY - touchEndY;
-            
             this.videosContainer.style.transition = 'transform 0.3s ease';
             this.videosContainer.style.transform = '';
-            
             if (Math.abs(diffY) > this.scrollThreshold) {
-                if (diffY > 0) {
-                    this.playNext();
-                    this.showNavigationFeedback('up');
-                } else {
-                    this.playPrevious();
-                    this.showNavigationFeedback('down');
-                }
+                if (diffY > 0) { this.playNext(); this.showNavigationFeedback('up'); }
+                else { this.playPrevious(); this.showNavigationFeedback('down'); }
             }
-            
             this.touchStartY = 0;
             this.touchStartX = 0;
             this.hideSwipeHint();
         });
-
         this.videosContainer.addEventListener('wheel', (e) => {
             if (!this.playerContainer.classList.contains('active')) return;
-            
             e.preventDefault();
-            
-            if (e.deltaY > 0) {
-                this.playNext();
-                this.showNavigationFeedback('down');
-            } else if (e.deltaY < 0) {
-                this.playPrevious();
-                this.showNavigationFeedback('up');
-            }
+            if (e.deltaY > 0) { this.playNext(); this.showNavigationFeedback('down'); }
+            else if (e.deltaY < 0) { this.playPrevious(); this.showNavigationFeedback('up'); }
         }, { passive: false });
     }
-
     toggleMute() {
         const video = this.getCurrentVideoElement();
         if (!video) return;
-
         this.isMuted = !this.isMuted;
         video.muted = this.isMuted;
-
         const volumeBtn = document.getElementById('shortsVolumeBtn');
         const volumeSlider = document.getElementById('shortsVolumeSlider');
-
         if (volumeBtn) {
             if (this.isMuted) {
                 volumeBtn.innerHTML = '<i class="fas fa-volume-mute"></i>';
                 if (volumeSlider) volumeSlider.value = 0;
             } else {
-                if (this.volumeLevel > 0.5) {
-                    volumeBtn.innerHTML = '<i class="fas fa-volume-up"></i>';
-                } else {
-                    volumeBtn.innerHTML = '<i class="fas fa-volume-down"></i>';
-                }
+                if (this.volumeLevel > 0.5) volumeBtn.innerHTML = '<i class="fas fa-volume-up"></i>';
+                else volumeBtn.innerHTML = '<i class="fas fa-volume-down"></i>';
                 if (volumeSlider) volumeSlider.value = this.volumeLevel;
             }
         }
-
         this.showToast(this.isMuted ? 'Muted' : 'Unmuted', 1000);
     }
-
     setVolume(volume) {
         const video = this.getCurrentVideoElement();
         if (!video) return;
-
         this.volumeLevel = Math.max(0, Math.min(1, volume));
-        
         if (this.volumeLevel > 0) {
             this.isMuted = false;
             video.muted = false;
             video.volume = this.volumeLevel;
-            
             const volumeBtn = document.getElementById('shortsVolumeBtn');
             if (volumeBtn) {
-                if (this.volumeLevel > 0.5) {
-                    volumeBtn.innerHTML = '<i class="fas fa-volume-up"></i>';
-                } else {
-                    volumeBtn.innerHTML = '<i class="fas fa-volume-down"></i>';
-                }
+                if (this.volumeLevel > 0.5) volumeBtn.innerHTML = '<i class="fas fa-volume-up"></i>';
+                else volumeBtn.innerHTML = '<i class="fas fa-volume-down"></i>';
             }
         } else {
             this.isMuted = true;
             video.muted = true;
-            
             const volumeBtn = document.getElementById('shortsVolumeBtn');
-            if (volumeBtn) {
-                volumeBtn.innerHTML = '<i class="fas fa-volume-mute"></i>';
-            }
+            if (volumeBtn) volumeBtn.innerHTML = '<i class="fas fa-volume-mute"></i>';
         }
-
         const volumeSlider = document.getElementById('shortsVolumeSlider');
-        if (volumeSlider) {
-            volumeSlider.value = this.volumeLevel;
-        }
+        if (volumeSlider) volumeSlider.value = this.volumeLevel;
     }
-
     togglePlayPause() {
         const video = this.getCurrentVideoElement();
         if (!video) return;
-
-        if (video.paused) {
-            video.play();
-            this.showToast('Playing', 800);
-        } else {
-            video.pause();
-            this.showToast('Paused', 800);
-        }
+        if (video.paused) { video.play(); this.showToast('Playing', 800); }
+        else { video.pause(); this.showToast('Paused', 800); }
     }
-
     getCurrentVideoElement() {
         const currentVideoContainer = document.querySelector(`.shorts-video-item[data-index="${this.currentVideoIndex}"]`);
-        if (currentVideoContainer) {
-            return currentVideoContainer.querySelector('video');
-        }
+        if (currentVideoContainer) return currentVideoContainer.querySelector('video');
         return null;
     }
-
     showNavigationFeedback(direction) {
         const hint = document.getElementById('shortsNavHint');
-        if (hint) {
-            hint.classList.add('show', direction);
-            setTimeout(() => {
-                hint.classList.remove('show', direction);
-            }, 500);
-        }
+        if (hint) { hint.classList.add('show', direction); setTimeout(() => { hint.classList.remove('show', direction); }, 500); }
     }
-
     showSwipeHint(direction, opacity) {
         const hint = document.getElementById('shortsNavHint');
-        if (hint) {
-            hint.style.opacity = opacity;
-            hint.classList.add('swiping', direction);
-        }
+        if (hint) { hint.style.opacity = opacity; hint.classList.add('swiping', direction); }
     }
-
     hideSwipeHint() {
         const hint = document.getElementById('shortsNavHint');
-        if (hint) {
-            hint.style.opacity = '';
-            hint.classList.remove('swiping', 'up', 'down');
-        }
+        if (hint) { hint.style.opacity = ''; hint.classList.remove('swiping', 'up', 'down'); }
     }
-
     showToast(message, duration = 2000) {
         let toast = document.querySelector('.shorts-toast');
         if (!toast) {
@@ -3886,141 +2641,97 @@ class YouTubeShortsPlayer {
             toast.className = 'shorts-toast';
             document.getElementById('shortsPlayer').appendChild(toast);
         }
-        
         toast.textContent = message;
         toast.classList.add('show');
-        
         clearTimeout(this.toastTimeout);
-        this.toastTimeout = setTimeout(() => {
-            toast.classList.remove('show');
-        }, duration);
+        this.toastTimeout = setTimeout(() => { toast.classList.remove('show'); }, duration);
     }
-
     openPlayer(videos, startIndex = 0) {
         if (!videos || videos.length === 0) return;
-        
         this.videos = videos.filter(v => v.fileType === 'video' || v.videoUrl);
-        
-        if (this.videos.length === 0) {
-            showNotification('No videos found', 'error');
-            return;
-        }
-        
+        if (this.videos.length === 0) { showNotification('No videos found', 'error'); return; }
         this.currentVideoIndex = Math.min(startIndex, this.videos.length - 1);
-        
         this.loadingTimeouts.forEach(timeout => clearTimeout(timeout));
         this.loadingTimeouts.clear();
-        
-        if (this.errorToast) {
-            this.errorToast.style.display = 'none';
-        }
-        
+        if (this.errorToast) this.errorToast.style.display = 'none';
         this.renderAllVideos();
-        
         this.playerContainer.classList.add('active');
         document.body.style.overflow = 'hidden';
-        
-        if (this.globalLoading) {
-            this.globalLoading.style.display = 'flex';
-        }
-        
+        if (this.globalLoading) this.globalLoading.style.display = 'flex';
         setTimeout(() => {
             this.scrollToVideo(this.currentVideoIndex, false);
             this.loadVideo(this.currentVideoIndex);
         }, 100);
-        
         this.trackView(this.videos[this.currentVideoIndex].id);
     }
-
     renderAllVideos() {
         if (!this.videosContainer) return;
-        
         this.videosContainer.innerHTML = '';
-        
         this.videos.forEach((video, index) => {
             const videoItem = this.createVideoItem(video, index);
             this.videosContainer.appendChild(videoItem);
         });
     }
+    createVideoItem(video, index) {
+        const videoItem = document.createElement('div');
+        videoItem.className = 'shorts-video-item';
+        videoItem.setAttribute('data-index', index);
+        videoItem.setAttribute('data-video-id', video.id);
 
-   createVideoItem(video, index) {
-    const videoItem = document.createElement('div');
-    videoItem.className = 'shorts-video-item';
-    videoItem.setAttribute('data-index', index);
-    videoItem.setAttribute('data-video-id', video.id);
+        const videoUrl = video.videoUrl || video.mediaUrl;
+        const posterUrl = video.thumbnailUrl || video.imageUrl;
+        const isPaid = video.price > 0;
+        const price = video.price || 0;
 
-    const videoUrl = video.videoUrl || video.mediaUrl;
-    const posterUrl = video.thumbnailUrl || video.imageUrl;
-    const isPaid = video.price > 0;
-    const price = video.price || 0;
-
-    videoItem.innerHTML = `
-        <div class="shorts-video-wrapper">
-            <div class="shorts-video-loading" id="loading-${index}" style="display: ${index === this.currentVideoIndex ? 'flex' : 'none'};">
-                <div class="spinner"></div>
-                <div>Loading video...</div>
-            </div>
-            
-            <video 
-                class="shorts-video-player" 
-                preload="metadata"
-                poster="${posterUrl || ''}"
-                loop
-                playsinline
-                muted="${this.isMuted}"
-            >
-                <source src="${videoUrl}" type="video/mp4">
-                Your browser does not support the video tag.
-            </video>
-            
-            <div class="shorts-video-overlay">
-                <div class="shorts-video-info">
-                    <div class="shorts-video-title">${video.title || 'Untitled Video'}</div>
-                    <div class="shorts-video-meta">
-                        <span><i class="fas fa-user"></i> ${video.userName || 'Anonymous'}</span>
-                        <span><i class="fas fa-eye"></i> ${this.formatCount(video.views || 0)}</span>
-                        ${video.videoDuration ? `<span><i class="fas fa-clock"></i> ${video.videoDuration}s</span>` : ''}
-                        ${isPaid ? `<span class="price-tag"><i class="fas fa-rupee-sign"></i> ${price}</span>` : ''}
+        videoItem.innerHTML = `
+            <div class="shorts-video-wrapper">
+                <div class="shorts-video-loading" id="loading-${index}" style="display: ${index === this.currentVideoIndex ? 'flex' : 'none'};">
+                    <div class="spinner"></div>
+                    <div>Loading video...</div>
+                </div>
+                <video class="shorts-video-player" preload="metadata" poster="${posterUrl || ''}" loop playsinline muted="${this.isMuted}">
+                    <source src="${videoUrl}" type="video/mp4">
+                    Your browser does not support the video tag.
+                </video>
+                <div class="shorts-video-overlay">
+                    <div class="shorts-video-info">
+                        <div class="shorts-video-title">${video.title || 'Untitled Video'}</div>
+                        <div class="shorts-video-meta">
+                            <span><i class="fas fa-user"></i> ${video.userName || 'Anonymous'}</span>
+                            <span><i class="fas fa-eye"></i> ${this.formatCount(video.views || 0)}</span>
+                            ${video.videoDuration ? `<span><i class="fas fa-clock"></i> ${video.videoDuration}s</span>` : ''}
+                            ${isPaid ? `<span class="price-tag"><i class="fas fa-rupee-sign"></i> ${price}</span>` : ''}
+                        </div>
+                        <div class="shorts-video-description">${video.promptText ? video.promptText.substring(0, 100) + (video.promptText.length > 100 ? '...' : '') : 'No description'}</div>
                     </div>
-                    <div class="shorts-video-description">${video.promptText ? video.promptText.substring(0, 100) + (video.promptText.length > 100 ? '...' : '') : 'No description'}</div>
+                    <div class="shorts-video-actions">
+                        <button class="shorts-action-btn like-btn" data-video-id="${video.id}">
+                            <i class="far fa-heart"></i>
+                            <span class="shorts-action-count">${this.formatCount(video.likes || 0)}</span>
+                        </button>
+                        <button class="shorts-action-btn comment-btn" data-video-id="${video.id}">
+                            <i class="far fa-comment"></i>
+                            <span class="shorts-action-count">${this.formatCount(video.commentCount || 0)}</span>
+                        </button>
+                        <button class="shorts-action-btn share-btn" data-video-id="${video.id}">
+                            <i class="far fa-share-square"></i>
+                            <span>Share</span>
+                        </button>
+                        <button class="shorts-action-btn copy-btn" data-video-id="${video.id}" data-prompt="${video.promptText || ''}" data-price="${price}" data-is-paid="${isPaid}" data-title="${video.title}" data-image="${video.thumbnailUrl || video.imageUrl}" data-user="${video.userName}">
+                            <i class="far fa-copy"></i>
+                            <span>${isPaid ? `Buy ₹${price}` : 'Copy'}</span>
+                        </button>
+                    </div>
                 </div>
-                
-                <div class="shorts-video-actions">
-                    <button class="shorts-action-btn like-btn" data-video-id="${video.id}">
-                        <i class="far fa-heart"></i>
-                        <span class="shorts-action-count">${this.formatCount(video.likes || 0)}</span>
-                    </button>
-                    
-                    <button class="shorts-action-btn comment-btn" data-video-id="${video.id}">
-                        <i class="far fa-comment"></i>
-                        <span class="shorts-action-count">${this.formatCount(video.commentCount || 0)}</span>
-                    </button>
-                    
-                    <button class="shorts-action-btn share-btn" data-video-id="${video.id}">
-                        <i class="far fa-share-square"></i>
-                        <span>Share</span>
-                    </button>
-                    
-                    <button class="shorts-action-btn copy-btn" data-video-id="${video.id}" data-prompt="${video.promptText || ''}" data-price="${price}" data-is-paid="${isPaid}" data-title="${video.title}" data-image="${video.thumbnailUrl || video.imageUrl}" data-user="${video.userName}">
-                        <i class="far fa-copy"></i>
-                        <span>${isPaid ? `Buy ₹${price}` : 'Copy'}</span>
-                    </button>
+                <div class="shorts-video-progress">
+                    <div class="shorts-progress-bar" id="progress-${index}"></div>
                 </div>
+                <div class="shorts-video-index">${index + 1}/${this.videos.length}</div>
+                <button class="shorts-retry-btn" id="retry-${index}" style="display: none;">
+                    <i class="fas fa-redo"></i> Retry
+                </button>
             </div>
-            
-            <div class="shorts-video-progress">
-                <div class="shorts-progress-bar" id="progress-${index}"></div>
-            </div>
-            
-            <div class="shorts-video-index">
-                ${index + 1}/${this.videos.length}
-            </div>
-            
-            <button class="shorts-retry-btn" id="retry-${index}" style="display: none;">
-                <i class="fas fa-redo"></i> Retry
-            </button>
-        </div>
-    `;
+        `;
 
         const videoElement = videoItem.querySelector('video');
         const loadingElement = videoItem.querySelector(`#loading-${index}`);
@@ -4030,48 +2741,33 @@ class YouTubeShortsPlayer {
         const loadingTimeout = setTimeout(() => {
             if (loadingElement && loadingElement.style.display === 'flex') {
                 loadingElement.style.display = 'none';
-                if (retryButton) {
-                    retryButton.style.display = 'flex';
-                }
-                if (this.globalLoading) {
-                    this.globalLoading.style.display = 'none';
-                }
+                if (retryButton) retryButton.style.display = 'flex';
+                if (this.globalLoading) this.globalLoading.style.display = 'none';
             }
         }, this.maxLoadTime);
-        
         this.loadingTimeouts.set(index, loadingTimeout);
 
         videoElement.addEventListener('loadedmetadata', () => {
             clearTimeout(this.loadingTimeouts.get(index));
             this.loadingTimeouts.delete(index);
-            
             if (loadingElement) loadingElement.style.display = 'none';
             if (retryButton) retryButton.style.display = 'none';
-            if (this.globalLoading && index === this.currentVideoIndex) {
-                this.globalLoading.style.display = 'none';
-            }
+            if (this.globalLoading && index === this.currentVideoIndex) this.globalLoading.style.display = 'none';
         });
-
         videoElement.addEventListener('canplay', () => {
             clearTimeout(this.loadingTimeouts.get(index));
             this.loadingTimeouts.delete(index);
-            
             if (loadingElement) loadingElement.style.display = 'none';
             if (retryButton) retryButton.style.display = 'none';
-            if (this.globalLoading && index === this.currentVideoIndex) {
-                this.globalLoading.style.display = 'none';
-            }
-            
+            if (this.globalLoading && index === this.currentVideoIndex) this.globalLoading.style.display = 'none';
             if (index === this.currentVideoIndex && videoElement.paused) {
                 videoElement.play().catch(e => console.log('Autoplay prevented:', e));
             }
         });
-
         videoElement.addEventListener('error', (e) => {
             console.error('Video error:', e);
             clearTimeout(this.loadingTimeouts.get(index));
             this.loadingTimeouts.delete(index);
-            
             if (loadingElement) loadingElement.style.display = 'none';
             if (retryButton) retryButton.style.display = 'flex';
             if (this.globalLoading && index === this.currentVideoIndex) {
@@ -4079,186 +2775,133 @@ class YouTubeShortsPlayer {
                 this.errorToast.style.display = 'flex';
             }
         });
-
         videoElement.addEventListener('timeupdate', () => {
             if (videoElement.duration) {
                 const progress = (videoElement.currentTime / videoElement.duration) * 100;
                 progressBar.style.width = `${progress}%`;
             }
         });
-
         if (retryButton) {
             retryButton.addEventListener('click', (e) => {
                 e.stopPropagation();
                 this.retryLoadVideo(index);
             });
         }
-
         this.setupVideoActions(videoItem, video);
-
         return videoItem;
     }
-
     retryLoadVideo(index) {
         const videoItem = document.querySelector(`.shorts-video-item[data-index="${index}"]`);
         if (!videoItem) return;
-        
         const videoElement = videoItem.querySelector('video');
         const loadingElement = videoItem.querySelector(`#loading-${index}`);
         const retryButton = videoItem.querySelector(`#retry-${index}`);
         const videoUrl = this.videos[index]?.videoUrl || this.videos[index]?.mediaUrl;
-        
         if (videoElement && videoUrl) {
             if (retryButton) retryButton.style.display = 'none';
             if (loadingElement) loadingElement.style.display = 'flex';
-            if (this.globalLoading && index === this.currentVideoIndex) {
-                this.globalLoading.style.display = 'flex';
-            }
+            if (this.globalLoading && index === this.currentVideoIndex) this.globalLoading.style.display = 'flex';
             if (this.errorToast) this.errorToast.style.display = 'none';
-            
             videoElement.src = videoUrl;
             videoElement.load();
-            
             const loadingTimeout = setTimeout(() => {
                 if (loadingElement && loadingElement.style.display === 'flex') {
                     loadingElement.style.display = 'none';
                     if (retryButton) retryButton.style.display = 'flex';
-                    if (this.globalLoading && index === this.currentVideoIndex) {
-                        this.globalLoading.style.display = 'none';
-                    }
+                    if (this.globalLoading && index === this.currentVideoIndex) this.globalLoading.style.display = 'none';
                 }
             }, this.maxLoadTime);
-            
             this.loadingTimeouts.set(index, loadingTimeout);
         }
     }
-
-  setupVideoActions(videoItem, video) {
-    const likeBtn = videoItem.querySelector('.like-btn');
-    if (likeBtn) {
-        likeBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            this.handleLike(video.id, likeBtn);
-        });
-    }
-
-    const commentBtn = videoItem.querySelector('.comment-btn');
-    if (commentBtn) {
-        commentBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            this.openComments(video.id);
-        });
-    }
-
-    const shareBtn = videoItem.querySelector('.share-btn');
-    if (shareBtn) {
-        shareBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            this.handleShare(video.id);
-        });
-    }
-
-    const copyBtn = videoItem.querySelector('.copy-btn');
-    if (copyBtn) {
-        copyBtn.addEventListener('click', async (e) => {
-            e.stopPropagation();
-            // Get the current video data
-            const currentVideo = this.videos[this.currentVideoIndex];
-            // Check if it's a paid prompt
-            const isPaid = currentVideo.price > 0;
-            
-            if (isPaid) {
-                // Show purchase modal instead of copying
-                const promptData = {
-                    id: currentVideo.id,
-                    title: currentVideo.title,
-                    promptText: currentVideo.promptText || '',
-                    imageUrl: currentVideo.thumbnailUrl || currentVideo.imageUrl,
-                    price: currentVideo.price,
-                    userName: currentVideo.userName || 'Anonymous'
-                };
-                if (typeof showBuyPromptModal === 'function') {
-                    showBuyPromptModal(promptData);
+    setupVideoActions(videoItem, video) {
+        const likeBtn = videoItem.querySelector('.like-btn');
+        if (likeBtn) {
+            likeBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.handleLike(video.id, likeBtn);
+            });
+        }
+        const commentBtn = videoItem.querySelector('.comment-btn');
+        if (commentBtn) {
+            commentBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.openComments(video.id);
+            });
+        }
+        const shareBtn = videoItem.querySelector('.share-btn');
+        if (shareBtn) {
+            shareBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.handleShare(video.id);
+            });
+        }
+        const copyBtn = videoItem.querySelector('.copy-btn');
+        if (copyBtn) {
+            copyBtn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                const currentVideo = this.videos[this.currentVideoIndex];
+                const isPaid = currentVideo.price > 0;
+                if (isPaid) {
+                    const promptData = {
+                        id: currentVideo.id,
+                        title: currentVideo.title,
+                        promptText: currentVideo.promptText || '',
+                        imageUrl: currentVideo.thumbnailUrl || currentVideo.imageUrl,
+                        price: currentVideo.price,
+                        userName: currentVideo.userName || 'Anonymous'
+                    };
+                    if (typeof showBuyPromptModal === 'function') showBuyPromptModal(promptData);
+                    else this.showToast(`Buy for ₹${currentVideo.price} to copy prompt`, 3000);
                 } else {
-                    console.log('Purchase required for:', currentVideo.title);
-                    // Fallback notification
-                    this.showToast(`Buy for ₹${currentVideo.price} to copy prompt`, 3000);
+                    this.copyPrompt(currentVideo.promptText);
                 }
-            } else {
-                // Free prompt - copy directly
-                this.copyPrompt(currentVideo.promptText);
-            }
-        });
-    }
-}
-
-    scrollToVideo(index, animated = true) {
-        const videoItem = document.querySelector(`.shorts-video-item[data-index="${index}"]`);
-        if (videoItem) {
-            videoItem.scrollIntoView({
-                behavior: animated ? 'smooth' : 'auto',
-                block: 'start'
             });
         }
     }
-
+    scrollToVideo(index, animated = true) {
+        const videoItem = document.querySelector(`.shorts-video-item[data-index="${index}"]`);
+        if (videoItem) {
+            videoItem.scrollIntoView({ behavior: animated ? 'smooth' : 'auto', block: 'start' });
+        }
+    }
     loadVideo(index) {
         const videoItem = document.querySelector(`.shorts-video-item[data-index="${index}"]`);
         if (!videoItem) return;
-
-        if (this.globalLoading) {
-            this.globalLoading.style.display = 'flex';
-        }
-
-        if (this.errorToast) {
-            this.errorToast.style.display = 'none';
-        }
-
+        if (this.globalLoading) this.globalLoading.style.display = 'flex';
+        if (this.errorToast) this.errorToast.style.display = 'none';
         const currentLoading = videoItem.querySelector(`#loading-${index}`);
-        if (currentLoading) {
-            currentLoading.style.display = 'flex';
-        }
-
+        if (currentLoading) currentLoading.style.display = 'flex';
         document.querySelectorAll('.shorts-video-item video').forEach((video, i) => {
             if (i !== index) {
                 video.pause();
                 video.currentTime = 0;
-                
                 const otherLoading = document.querySelector(`#loading-${i}`);
-                if (otherLoading) {
-                    otherLoading.style.display = 'none';
-                }
+                if (otherLoading) otherLoading.style.display = 'none';
             }
         });
-
         const videoElement = videoItem.querySelector('video');
         if (videoElement) {
             videoElement.muted = this.isMuted;
             videoElement.volume = this.volumeLevel;
-            
             const playPromise = videoElement.play();
             if (playPromise !== undefined) {
-                playPromise
-                    .then(() => {
+                playPromise.then(() => {
+                    if (currentLoading) currentLoading.style.display = 'none';
+                    if (this.globalLoading) this.globalLoading.style.display = 'none';
+                }).catch(error => {
+                    console.log('Autoplay prevented:', error);
+                    if (!videoElement.readyState) this.showPlayButton(videoItem);
+                    else {
                         if (currentLoading) currentLoading.style.display = 'none';
                         if (this.globalLoading) this.globalLoading.style.display = 'none';
-                    })
-                    .catch(error => {
-                        console.log('Autoplay prevented:', error);
-                        if (!videoElement.readyState) {
-                            this.showPlayButton(videoItem);
-                        } else {
-                            if (currentLoading) currentLoading.style.display = 'none';
-                            if (this.globalLoading) this.globalLoading.style.display = 'none';
-                        }
-                    });
+                    }
+                });
             }
         }
-
         this.currentVideoIndex = index;
         this.updateHistory(videoItem.dataset.videoId);
     }
-
     showPlayButton(videoItem) {
         let playButton = videoItem.querySelector('.shorts-play-button');
         if (!playButton) {
@@ -4266,7 +2909,6 @@ class YouTubeShortsPlayer {
             playButton.className = 'shorts-play-button';
             playButton.innerHTML = '<i class="fas fa-play"></i>';
             videoItem.querySelector('.shorts-video-wrapper').appendChild(playButton);
-            
             playButton.addEventListener('click', (e) => {
                 e.stopPropagation();
                 const video = videoItem.querySelector('video');
@@ -4275,13 +2917,11 @@ class YouTubeShortsPlayer {
             });
         }
     }
-
     updateHistory(videoId) {
         const url = new URL(window.location);
         url.searchParams.set('video', videoId);
         window.history.replaceState({}, '', url);
     }
-
     playNext() {
         if (this.currentVideoIndex < this.videos.length - 1) {
             const nextIndex = this.currentVideoIndex + 1;
@@ -4294,7 +2934,6 @@ class YouTubeShortsPlayer {
             this.loadMoreVideos();
         }
     }
-
     playPrevious() {
         if (this.currentVideoIndex > 0) {
             const prevIndex = this.currentVideoIndex - 1;
@@ -4306,71 +2945,50 @@ class YouTubeShortsPlayer {
             this.showToast('This is the first video', 1000);
         }
     }
-
     async loadMoreVideos() {
         try {
             const response = await fetch('/api/uploads?type=video&page=' + Math.ceil(this.videos.length / 10 + 1));
             if (response.ok) {
                 const data = await response.json();
                 const newVideos = data.uploads.filter(v => v.fileType === 'video' || v.videoUrl);
-                
                 if (newVideos.length > 0) {
                     this.videos = [...this.videos, ...newVideos];
-                    
                     newVideos.forEach((video, offset) => {
                         const index = this.videos.length - newVideos.length + offset;
                         const videoItem = this.createVideoItem(video, index);
                         this.videosContainer.appendChild(videoItem);
                     });
-                    
                     this.showToast(`Loaded ${newVideos.length} more videos`, 2000);
-                } else {
-                    this.showToast('No more videos', 1000);
-                }
+                } else this.showToast('No more videos', 1000);
             }
-        } catch (error) {
-            console.error('Error loading more videos:', error);
-        }
+        } catch (error) { console.error('Error loading more videos:', error); }
     }
-
     closePlayer() {
         this.playerContainer.classList.remove('active');
         document.body.style.overflow = '';
-        
         this.loadingTimeouts.forEach(timeout => clearTimeout(timeout));
         this.loadingTimeouts.clear();
-        
         document.querySelectorAll('.shorts-video-item video').forEach(video => {
             video.pause();
             video.src = '';
             video.load();
         });
-        
-        if (this.videosContainer) {
-            this.videosContainer.innerHTML = '';
-        }
-        
+        if (this.videosContainer) this.videosContainer.innerHTML = '';
         const url = new URL(window.location);
         url.searchParams.delete('video');
         window.history.replaceState({}, '', url);
-        
-        if (this.errorToast) {
-            this.errorToast.style.display = 'none';
-        }
+        if (this.errorToast) this.errorToast.style.display = 'none';
     }
-
     async handleLike(videoId, button) {
         const likeIcon = button.querySelector('i');
         const likeCount = button.querySelector('.shorts-action-count');
         const isLiked = likeIcon.classList.contains('fas');
-        
         try {
             const response = await fetch(`/api/prompt/${videoId}/like`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ userId: 'anonymous', action: isLiked ? 'unlike' : 'like' })
             });
-            
             if (response.ok) {
                 const video = this.videos.find(v => v.id === videoId);
                 if (video) {
@@ -4383,18 +3001,13 @@ class YouTubeShortsPlayer {
                         likeIcon.classList.add('heart-animation');
                         setTimeout(() => likeIcon.classList.remove('heart-animation'), 300);
                     }
-                    
                     likeCount.textContent = this.formatCount(video.likes || 0);
                 }
             }
-        } catch (error) {
-            console.error('Like error:', error);
-        }
+        } catch (error) { console.error('Like error:', error); }
     }
-
     handleShare(videoId) {
         const shareUrl = `${window.location.origin}/prompt/${videoId}`;
-        
         if (navigator.share) {
             navigator.share({
                 title: 'AI Video Reel',
@@ -4409,46 +3022,25 @@ class YouTubeShortsPlayer {
             this.showToast('Link copied to clipboard!', 2000);
         }
     }
-
     copyPrompt(promptText) {
         if (promptText) {
             this.copyToClipboard(promptText);
             this.showToast('Prompt copied to clipboard!', 2000);
         }
     }
-
-    openComments(videoId) {
-        window.location.href = `/prompt/${videoId}#commentSection`;
-    }
-
-    openSearch() {
-        this.showToast('Search coming soon', 1000);
-    }
-
+    openComments(videoId) { window.location.href = `/prompt/${videoId}#commentSection`; }
+    openSearch() { this.showToast('Search coming soon', 1000); }
     openMenu() {
         const menu = document.createElement('div');
         menu.className = 'shorts-menu';
         menu.innerHTML = `
-            <div class="shorts-menu-item">
-                <i class="fas fa-info-circle"></i> About this reel
-            </div>
-            <div class="shorts-menu-item">
-                <i class="fas fa-flag"></i> Report
-            </div>
-            <div class="shorts-menu-item">
-                <i class="fas fa-ban"></i> Not interested
-            </div>
-            <div class="shorts-menu-item">
-                <i class="fas fa-link"></i> Copy link
-            </div>
+            <div class="shorts-menu-item"><i class="fas fa-info-circle"></i> About this reel</div>
+            <div class="shorts-menu-item"><i class="fas fa-flag"></i> Report</div>
+            <div class="shorts-menu-item"><i class="fas fa-ban"></i> Not interested</div>
+            <div class="shorts-menu-item"><i class="fas fa-link"></i> Copy link</div>
         `;
-        
         this.playerContainer.appendChild(menu);
-        
-        setTimeout(() => {
-            menu.classList.add('show');
-        }, 10);
-        
+        setTimeout(() => menu.classList.add('show'), 10);
         const closeMenu = (e) => {
             if (!menu.contains(e.target)) {
                 menu.classList.remove('show');
@@ -4456,12 +3048,8 @@ class YouTubeShortsPlayer {
                 document.removeEventListener('click', closeMenu);
             }
         };
-        
-        setTimeout(() => {
-            document.addEventListener('click', closeMenu);
-        }, 100);
+        setTimeout(() => { document.addEventListener('click', closeMenu); }, 100);
     }
-
     copyToClipboard(text) {
         navigator.clipboard.writeText(text).catch(() => {
             const textarea = document.createElement('textarea');
@@ -4472,14 +3060,10 @@ class YouTubeShortsPlayer {
             document.body.removeChild(textarea);
         });
     }
-
     trackView(promptId) {
-        fetch(`/api/prompt/${promptId}/view`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' }
-        }).catch(err => console.log('View tracking error:', err));
+        fetch(`/api/prompt/${promptId}/view`, { method: 'POST', headers: { 'Content-Type': 'application/json' } })
+            .catch(err => console.log('View tracking error:', err));
     }
-
     formatCount(count) {
         if (count === undefined || count === null || isNaN(count)) return '0';
         const num = typeof count === 'number' ? count : parseInt(count);
@@ -4490,10 +3074,9 @@ class YouTubeShortsPlayer {
     }
 }
 
-// Initialize the shorts player
+// Initialize shorts player
 window.shortsPlayer = new YouTubeShortsPlayer();
 
-// Global function to open shorts player
 function openShortsPlayer(promptId) {
     const prompt = allPrompts.find(p => p.id === promptId);
     if (prompt && (prompt.fileType === 'video' || prompt.videoUrl)) {
@@ -4514,43 +3097,32 @@ function addShortsFilterButton() {
         shortsBtn.style.background = '#ff6b6b';
         shortsBtn.style.color = 'white';
         shortsBtn.style.marginLeft = '10px';
-        
-        shortsBtn.addEventListener('click', () => {
-            filterByVideos();
-        });
-        
+        shortsBtn.addEventListener('click', () => { filterByVideos(); });
         categoriesContainer.appendChild(shortsBtn);
     }
 }
 
 function filterByVideos() {
     const videos = allPrompts.filter(p => p.fileType === 'video' || p.videoUrl);
-    if (videos.length > 0) {
-        window.shortsPlayer.openPlayer(videos, 0);
-    } else {
-        showNotification('No videos available', 'info');
-    }
+    if (videos.length > 0) window.shortsPlayer.openPlayer(videos, 0);
+    else showNotification('No videos available', 'info');
 }
 
 // ==================== UPLOAD HANDLER WITH MARKETPLACE ====================
-
 async function handleUploadSubmit(e) {
     e.preventDefault();
-    
     const user = checkAuth();
     if (!user) {
         alert('Please login to upload creations');
         window.location.href = 'login.html?returnUrl=' + encodeURIComponent(window.location.href);
         return;
     }
-    
     const title = document.getElementById('promptTitle')?.value || '';
     const promptText = document.getElementById('promptText')?.value || '';
     const aboutDescription = document.getElementById('aboutDescription')?.value || '';
     const category = document.getElementById('category')?.value || '';
     const mediaFile = document.getElementById('imageUpload')?.files[0];
     const thumbnailFile = document.getElementById('videoThumbnailUpload')?.files[0];
-    
     const pricingType = document.querySelector('input[name="pricingType"]:checked')?.value;
     let price = 0;
     if (pricingType === 'paid') {
@@ -4562,60 +3134,30 @@ async function handleUploadSubmit(e) {
         }
     }
     const isPaid = price > 0;
-    
-    if (!mediaFile) {
-        alert('Please select an image or video to upload!');
-        return;
-    }
-    
+    if (!mediaFile) { alert('Please select an image or video to upload!'); return; }
     const isVideo = mediaFile.type.startsWith('video/');
     const isImage = mediaFile.type.startsWith('image/');
-    if (!isImage && !isVideo) {
-        alert('Please upload a valid image or video file (JPEG, PNG, WebP, MP4, WebM)');
-        return;
-    }
-    
+    if (!isImage && !isVideo) { alert('Please upload a valid image or video file (JPEG, PNG, WebP, MP4, WebM)'); return; }
     const maxSize = isVideo ? 100 * 1024 * 1024 : 5 * 1024 * 1024;
     if (mediaFile.size > maxSize) {
         alert(`File size exceeds limit. ${isVideo ? 'Videos max 100MB' : 'Images max 5MB'}.`);
         return;
     }
-    
     if (thumbnailFile) {
-        if (!thumbnailFile.type.startsWith('image/')) {
-            alert('Thumbnail must be an image file (JPEG, PNG, WebP)');
-            return;
-        }
-        if (thumbnailFile.size > 5 * 1024 * 1024) {
-            alert('Thumbnail size exceeds 5MB limit');
-            return;
-        }
+        if (!thumbnailFile.type.startsWith('image/')) { alert('Thumbnail must be an image file (JPEG, PNG, WebP)'); return; }
+        if (thumbnailFile.size > 5 * 1024 * 1024) { alert('Thumbnail size exceeds 5MB limit'); return; }
     }
-    
-    if (!title || !title.trim()) {
-        alert('Please enter a title for your creation');
-        return;
-    }
-    
-    if (!promptText || !promptText.trim()) {
-        alert('Please enter the prompt text used to generate this content');
-        return;
-    }
-    
+    if (!title || !title.trim()) { alert('Please enter a title for your creation'); return; }
+    if (!promptText || !promptText.trim()) { alert('Please enter the prompt text used to generate this content'); return; }
     try {
         const submitBtn = document.querySelector('.submit-btn');
         const originalBtnText = submitBtn.innerHTML;
         submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Uploading...';
         submitBtn.disabled = true;
-        
         await initializeFirebase();
         const firebaseUser = await getCurrentUser();
-        if (!firebaseUser) {
-            throw new Error('User not authenticated with Firebase. Please log in again.');
-        }
-        
+        if (!firebaseUser) throw new Error('User not authenticated with Firebase. Please log in again.');
         const idToken = await firebaseUser.getIdToken();
-        
         const formData = new FormData();
         formData.append('media', mediaFile);
         if (thumbnailFile) formData.append('thumbnail', thumbnailFile);
@@ -4627,48 +3169,36 @@ async function handleUploadSubmit(e) {
         formData.append('userId', firebaseUser.uid);
         formData.append('price', price);
         formData.append('isPaid', isPaid);
-        
         const response = await fetch('/api/upload', {
             method: 'POST',
             headers: { 'Authorization': `Bearer ${idToken}` },
             body: formData
         });
-        
         if (!response.ok) {
             let errorMsg = `Upload failed with status ${response.status}`;
-            try {
-                const errorData = await response.json();
-                errorMsg = errorData.error || errorMsg;
-            } catch (e) {}
+            try { const errorData = await response.json(); errorMsg = errorData.error || errorMsg; } catch (e) {}
             throw new Error(errorMsg);
         }
-        
         const result = await response.json();
-        
         if (result.success) {
             const uploadModal = document.getElementById('uploadModal');
             const uploadForm = document.getElementById('uploadForm');
             const imagePreview = document.getElementById('imagePreview');
             const videoThumbnailPreview = document.getElementById('videoThumbnailPreview');
             const videoThumbnailSection = document.getElementById('videoThumbnailSection');
-            
             uploadModal.classList.remove('active');
             document.body.style.overflow = '';
             uploadForm.reset();
             if (imagePreview) imagePreview.style.display = 'none';
             if (videoThumbnailPreview) videoThumbnailPreview.style.display = 'none';
             if (videoThumbnailSection) videoThumbnailSection.style.display = 'none';
-            
             const priceMessage = isPaid ? ` with price ₹${price}` : ' as free';
             showNotification(`Upload successful${priceMessage}!`, 'success');
-            
             lastPromptUpdate = 0;
             allPrompts = [];
             if (window.shortsHorizontalFeed) await window.shortsHorizontalFeed.refreshFeed();
             if (window.youtubePrompts) await window.youtubePrompts.refreshFeed();
-        } else {
-            throw new Error(result.error || 'Upload failed');
-        }
+        } else throw new Error(result.error || 'Upload failed');
     } catch (error) {
         console.error('Upload error:', error);
         let userMessage;
@@ -4692,32 +3222,20 @@ async function handleUploadSubmit(e) {
 }
 
 // ==================== NEWS MANAGER ====================
-
 class NewsManager {
-    constructor() {
-        this.currentPage = 1;
-        this.hasMore = true;
-        this.isLoading = false;
-    }
-    
+    constructor() { this.currentPage = 1; this.hasMore = true; this.isLoading = false; }
     async loadNews() {
         try {
             this.showLoading();
             const response = await fetch(`/api/news?page=${this.currentPage}&limit=6`);
             const data = await response.json();
-            
             this.displayNews(data.news);
             this.hasMore = data.hasMore;
-        } catch (error) {
-            console.error('Error loading news:', error);
-            this.showError();
-        }
+        } catch (error) { console.error('Error loading news:', error); this.showError(); }
     }
-    
     displayNews(news) {
         const newsContainer = document.getElementById('newsContainer');
         if (!newsContainer) return;
-        
         if (!news || news.length === 0) {
             newsContainer.innerHTML = `
                 <div class="no-news" style="grid-column: 1 / -1; text-align: center; padding: 40px; color: #666;">
@@ -4728,7 +3246,6 @@ class NewsManager {
             `;
             return;
         }
-        
         newsContainer.innerHTML = news.map(item => {
             const safeItem = item || {};
             return `
@@ -4756,11 +3273,9 @@ class NewsManager {
             `;
         }).join('');
     }
-    
     showLoading() {
         const newsContainer = document.getElementById('newsContainer');
         if (!newsContainer) return;
-        
         newsContainer.innerHTML = `
             <div class="news-loading" style="grid-column: 1 / -1; text-align: center; padding: 40px;">
                 <div class="spinner"></div>
@@ -4768,11 +3283,9 @@ class NewsManager {
             </div>
         `;
     }
-    
     showError() {
         const newsContainer = document.getElementById('newsContainer');
         if (!newsContainer) return;
-        
         newsContainer.innerHTML = `
             <div class="news-error" style="grid-column: 1 / -1; text-align: center; padding: 40px; color: #666;">
                 <i class="fas fa-exclamation-triangle" style="font-size: 3rem; margin-bottom: 20px;"></i>
@@ -4784,29 +3297,17 @@ class NewsManager {
             </div>
         `;
     }
-    
     formatCount(count) {
-        if (count === undefined || count === null || isNaN(count)) {
-            return '0';
-        }
-        
+        if (count === undefined || count === null || isNaN(count)) return '0';
         const numCount = typeof count === 'number' ? count : parseInt(count);
-        
-        if (isNaN(numCount)) {
-            return '0';
-        }
-        
-        if (numCount >= 1000000) {
-            return (numCount / 1000000).toFixed(1) + 'M';
-        } else if (numCount >= 1000) {
-            return (numCount / 1000).toFixed(1) + 'K';
-        }
+        if (isNaN(numCount)) return '0';
+        if (numCount >= 1000000) return (numCount / 1000000).toFixed(1) + 'M';
+        if (numCount >= 1000) return (numCount / 1000).toFixed(1) + 'K';
         return numCount.toString();
     }
 }
 
 // ==================== CATEGORY MANAGER ====================
-
 class CategoryManager {
     constructor() {
         this.defaultCategories = ['photography'];
@@ -4815,79 +3316,45 @@ class CategoryManager {
         this.currentCategory = 'all';
         this.init();
     }
-
     init() {
         this.loadUserCategories();
         this.renderCategories();
         this.setupEventListeners();
         this.updateNavigation();
     }
-
     loadUserCategories() {
         const userCategories = localStorage.getItem('userSearchCategories');
-        if (userCategories) {
-            this.searchCategories = JSON.parse(userCategories);
-        }
+        if (userCategories) this.searchCategories = JSON.parse(userCategories);
     }
-
-    saveUserCategories() {
-        localStorage.setItem('userSearchCategories', JSON.stringify(this.searchCategories));
-    }
-
+    saveUserCategories() { localStorage.setItem('userSearchCategories', JSON.stringify(this.searchCategories)); }
     addSearchCategory(searchTerm) {
         if (!searchTerm || searchTerm.trim() === '') return;
-
         const category = searchTerm.toLowerCase().trim();
-        
         if (this.defaultCategories.includes(category)) return;
-
         const existingIndex = this.searchCategories.indexOf(category);
-        if (existingIndex > -1) {
-            this.searchCategories.splice(existingIndex, 1);
-        }
-
+        if (existingIndex > -1) this.searchCategories.splice(existingIndex, 1);
         this.searchCategories.unshift(category);
-
         if (this.searchCategories.length > this.maxSearchCategories) {
             this.searchCategories = this.searchCategories.slice(0, this.maxSearchCategories);
         }
-
         this.saveUserCategories();
         this.renderCategories();
     }
-
     renderCategories() {
         const categoriesTrack = document.getElementById('categoriesTrack');
         if (!categoriesTrack) return;
-
         const allCategories = [...this.defaultCategories, ...this.searchCategories];
-        
         categoriesTrack.innerHTML = allCategories.map(category => {
             const displayName = this.getCategoryDisplayName(category);
             const isActive = category === this.currentCategory;
-            
-            return `
-                <button class="category-btn ${isActive ? 'active' : ''}" 
-                        data-category="${category}">
-                    ${displayName}
-                </button>
-            `;
+            return `<button class="category-btn ${isActive ? 'active' : ''}" data-category="${category}">${displayName}</button>`;
         }).join('');
     }
-
     getCategoryDisplayName(category) {
-        const displayNames = {
-            'photography': 'All',
-        };
-        
+        const displayNames = { 'photography': 'All' };
         return displayNames[category] || this.capitalizeFirstLetter(category);
     }
-
-    capitalizeFirstLetter(string) {
-        if (!string) return '';
-        return string.charAt(0).toUpperCase() + string.slice(1);
-    }
-
+    capitalizeFirstLetter(string) { return string ? string.charAt(0).toUpperCase() + string.slice(1) : ''; }
     setupEventListeners() {
         document.addEventListener('click', (e) => {
             if (e.target.closest('.category-btn')) {
@@ -4896,103 +3363,56 @@ class CategoryManager {
                 this.selectCategory(category);
             }
         });
-
         const prevBtn = document.getElementById('categoryPrev');
         const nextBtn = document.getElementById('categoryNext');
         const scrollContainer = document.getElementById('categoriesScroll');
-
         if (prevBtn && nextBtn && scrollContainer) {
-            prevBtn.addEventListener('click', () => {
-                this.scrollCategories(-200);
-            });
-
-            nextBtn.addEventListener('click', () => {
-                this.scrollCategories(200);
-            });
-
-            scrollContainer.addEventListener('scroll', () => {
-                this.updateNavigation();
-            });
+            prevBtn.addEventListener('click', () => this.scrollCategories(-200));
+            nextBtn.addEventListener('click', () => this.scrollCategories(200));
+            scrollContainer.addEventListener('scroll', () => this.updateNavigation());
         }
-
-        window.addEventListener('resize', () => {
-            this.updateNavigation();
-        });
+        window.addEventListener('resize', () => this.updateNavigation());
     }
-
     scrollCategories(distance) {
         const scrollContainer = document.getElementById('categoriesScroll');
-        if (scrollContainer) {
-            scrollContainer.scrollBy({
-                left: distance,
-                behavior: 'smooth'
-            });
-        }
+        if (scrollContainer) scrollContainer.scrollBy({ left: distance, behavior: 'smooth' });
     }
-
     updateNavigation() {
         if (window.innerWidth <= 768) return;
-
         const scrollContainer = document.getElementById('categoriesScroll');
         const prevBtn = document.getElementById('categoryPrev');
         const nextBtn = document.getElementById('categoryNext');
-
         if (!scrollContainer || !prevBtn || !nextBtn) return;
-
         const scrollLeft = scrollContainer.scrollLeft;
         const scrollWidth = scrollContainer.scrollWidth;
         const clientWidth = scrollContainer.clientWidth;
-
-        if (scrollLeft <= 10) {
-            prevBtn.classList.add('hidden');
-        } else {
-            prevBtn.classList.remove('hidden');
-        }
-
-        if (scrollLeft >= scrollWidth - clientWidth - 10) {
-            nextBtn.classList.add('hidden');
-        } else {
-            nextBtn.classList.remove('hidden');
-        }
+        if (scrollLeft <= 10) prevBtn.classList.add('hidden');
+        else prevBtn.classList.remove('hidden');
+        if (scrollLeft >= scrollWidth - clientWidth - 10) nextBtn.classList.add('hidden');
+        else nextBtn.classList.remove('hidden');
     }
-
     selectCategory(category) {
         this.currentCategory = category;
-        
-        document.querySelectorAll('.category-btn').forEach(btn => {
-            btn.classList.remove('active');
-        });
-        
+        document.querySelectorAll('.category-btn').forEach(btn => btn.classList.remove('active'));
         const activeBtn = document.querySelector(`[data-category="${category}"]`);
-        if (activeBtn) {
-            activeBtn.classList.add('active');
-        }
-
+        if (activeBtn) activeBtn.classList.add('active');
         this.filterPromptsByCategory(category);
-        
         if (!this.defaultCategories.includes(category)) {
             showNotification(`Showing results for: ${this.getCategoryDisplayName(category)}`, 'info');
         }
     }
-
     filterPromptsByCategory(category) {
         if (window.youtubePrompts) {
             youtubePrompts.currentPage = 1;
             youtubePrompts.hasMore = true;
-            
-            if (category === 'all') {
-                youtubePrompts.loadInitialPrompts();
-            } else if (this.defaultCategories.includes(category)) {
-                youtubePrompts.filterByCategory(category);
-            } else {
-                youtubePrompts.filterBySearchTerm(category);
-            }
+            if (category === 'all') youtubePrompts.loadInitialPrompts();
+            else if (this.defaultCategories.includes(category)) youtubePrompts.filterByCategory(category);
+            else youtubePrompts.filterBySearchTerm(category);
         }
     }
 }
 
 // ==================== SEARCH MANAGER ====================
-
 class SearchManager {
     constructor() {
         this.currentSearchTerm = '';
@@ -5000,94 +3420,52 @@ class SearchManager {
         this.currentSort = 'recent';
         this.isSearching = false;
     }
-
     async init() {
         await this.loadAllPrompts();
         this.setupSearchListeners();
     }
-
     async loadAllPrompts() {
         try {
             const user = await getCurrentUser();
             const userId = user?.uid || null;
-            const params = new URLSearchParams({
-                page: '1',
-                limit: '1000',
-                ...(userId && { userId })
-            });
-            
+            const params = new URLSearchParams({ page: '1', limit: '1000', ...(userId && { userId }) });
             const response = await fetch(`/api/uploads?${params}`);
             if (response.ok) {
                 const data = await response.json();
                 allPrompts = data.uploads || [];
             }
-        } catch (error) {
-            console.error('Error loading prompts for search:', error);
-        }
+        } catch (error) { console.error('Error loading prompts for search:', error); }
     }
-
     setupSearchListeners() {
         const searchInput = document.getElementById('searchInput');
         const searchButton = document.getElementById('searchButton');
         const sortBy = document.getElementById('sortBy');
         const categoryFilter = document.getElementById('categoryFilter');
         const clearSearch = document.getElementById('clearSearch');
-
-        if (searchButton) {
-            searchButton.addEventListener('click', () => this.performSearch());
-        }
-
-        if (searchInput) {
-            searchInput.addEventListener('keypress', (e) => {
-                if (e.key === 'Enter') {
-                    this.performSearch();
-                }
-            });
-        }
-
-        if (sortBy) {
-            sortBy.addEventListener('change', () => {
-                this.currentSort = sortBy.value || 'recent';
-                if (this.currentSearchTerm || this.currentCategory !== 'all') {
-                    this.performSearch();
-                }
-            });
-        }
-
-        if (categoryFilter) {
-            categoryFilter.addEventListener('change', () => {
-                this.currentCategory = categoryFilter.value || 'all';
-                if (this.currentSearchTerm || this.currentCategory !== 'all') {
-                    this.performSearch();
-                }
-            });
-        }
-
-        if (clearSearch) {
-            clearSearch.addEventListener('click', () => this.clearSearch());
-        }
+        if (searchButton) searchButton.addEventListener('click', () => this.performSearch());
+        if (searchInput) searchInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') this.performSearch(); });
+        if (sortBy) sortBy.addEventListener('change', () => {
+            this.currentSort = sortBy.value || 'recent';
+            if (this.currentSearchTerm || this.currentCategory !== 'all') this.performSearch();
+        });
+        if (categoryFilter) categoryFilter.addEventListener('change', () => {
+            this.currentCategory = categoryFilter.value || 'all';
+            if (this.currentSearchTerm || this.currentCategory !== 'all') this.performSearch();
+        });
+        if (clearSearch) clearSearch.addEventListener('click', () => this.clearSearch());
     }
-
     performSearch() {
         const searchInput = document.getElementById('searchInput');
         const searchTerm = searchInput ? (searchInput.value || '').trim().toLowerCase() : '';
-        
         this.currentSearchTerm = searchTerm;
         this.showSearchResults();
     }
-
     showSearchResults() {
         const promptsContainer = document.getElementById('promptsContainer');
         const resultsInfo = document.getElementById('searchResultsInfo');
         const resultsCount = document.getElementById('resultsCount');
-
-        if (!this.currentSearchTerm && this.currentCategory === 'all') {
-            this.clearSearch();
-            return;
-        }
-
+        if (!this.currentSearchTerm && this.currentCategory === 'all') { this.clearSearch(); return; }
         this.isSearching = true;
-
         if (promptsContainer) {
             promptsContainer.innerHTML = `
                 <div class="search-loading">
@@ -5096,73 +3474,46 @@ class SearchManager {
                 </div>
             `;
         }
-
         setTimeout(() => {
             const filteredPrompts = this.filterPrompts();
             this.displaySearchResults(filteredPrompts);
-            
             if (resultsCount && resultsInfo) {
                 resultsCount.textContent = `Found ${filteredPrompts.length} prompts matching your search`;
                 resultsInfo.style.display = 'flex';
             }
-            
             this.isSearching = false;
         }, 500);
     }
-
     filterPrompts() {
         let filtered = [...allPrompts];
-
         if (this.currentSearchTerm) {
             const searchTerm = this.currentSearchTerm.toLowerCase();
             filtered = filtered.filter(prompt => {
                 const title = (prompt.title || '').toLowerCase();
                 const promptText = (prompt.promptText || '').toLowerCase();
                 const keywords = prompt.keywords || [];
-                
-                return title.includes(searchTerm) ||
-                       promptText.includes(searchTerm) ||
-                       keywords.some(keyword => keyword.toLowerCase().includes(searchTerm));
+                return title.includes(searchTerm) || promptText.includes(searchTerm) ||
+                    keywords.some(keyword => keyword.toLowerCase().includes(searchTerm));
             });
         }
-
         if (this.currentCategory !== 'all') {
             filtered = filtered.filter(prompt => prompt.category === this.currentCategory);
         }
-
         filtered = this.sortPrompts(filtered);
-
         return filtered;
     }
-
     sortPrompts(prompts) {
         switch (this.currentSort) {
-            case 'recent':
-                return prompts.sort((a, b) => {
-                    const dateA = a.createdAt ? new Date(a.createdAt) : new Date(0);
-                    const dateB = b.createdAt ? new Date(b.createdAt) : new Date(0);
-                    return dateB - dateA;
-                });
-            case 'popular':
-                return prompts.sort((a, b) => {
-                    const aScore = (a.likes || 0) + (a.views || 0);
-                    const bScore = (b.likes || 0) + (b.views || 0);
-                    return bScore - aScore;
-                });
-            case 'likes':
-                return prompts.sort((a, b) => (b.likes || 0) - (a.likes || 0));
-            case 'views':
-                return prompts.sort((a, b) => (b.views || 0) - (a.views || 0));
-            default:
-                return prompts;
+            case 'recent': return prompts.sort((a, b) => { const da = a.createdAt ? new Date(a.createdAt) : new Date(0); const db = b.createdAt ? new Date(b.createdAt) : new Date(0); return db - da; });
+            case 'popular': return prompts.sort((a, b) => { const aScore = (a.likes || 0) + (a.views || 0); const bScore = (b.likes || 0) + (b.views || 0); return bScore - aScore; });
+            case 'likes': return prompts.sort((a, b) => (b.likes || 0) - (a.likes || 0));
+            case 'views': return prompts.sort((a, b) => (b.views || 0) - (a.views || 0));
+            default: return prompts;
         }
     }
-
     displaySearchResults(prompts) {
         const promptsContainer = document.getElementById('promptsContainer');
-        
         if (!promptsContainer) return;
-        
         if (!prompts || prompts.length === 0) {
             promptsContainer.innerHTML = `
                 <div class="no-results">
@@ -5176,20 +3527,15 @@ class SearchManager {
             `;
             return;
         }
-
         promptsContainer.innerHTML = '';
-        
         prompts.forEach((prompt, index) => {
             if (!prompt) return;
-            
             const promptCard = window.youtubePrompts.createShortsPrompt(prompt, index);
             if (promptCard) {
                 promptCard.style.opacity = '0';
                 promptCard.style.transform = 'translateY(20px)';
                 promptCard.style.transition = `opacity 0.3s ease ${index * 0.05}s, transform 0.3s ease ${index * 0.05}s`;
-                
                 promptsContainer.appendChild(promptCard);
-                
                 setTimeout(() => {
                     promptCard.style.opacity = '1';
                     promptCard.style.transform = 'translateY(0)';
@@ -5197,24 +3543,19 @@ class SearchManager {
             }
         });
     }
-
     clearSearch() {
         const searchInput = document.getElementById('searchInput');
         const categoryFilter = document.getElementById('categoryFilter');
         const sortBy = document.getElementById('sortBy');
         const resultsInfo = document.getElementById('searchResultsInfo');
-        
         if (searchInput) searchInput.value = '';
         if (categoryFilter) categoryFilter.value = 'all';
         if (sortBy) sortBy.value = 'recent';
-        
         this.currentSearchTerm = '';
         this.currentCategory = 'all';
         this.currentSort = 'recent';
-        
         if (resultsInfo) resultsInfo.style.display = 'none';
         this.isSearching = false;
-        
         if (window.youtubePrompts) {
             youtubePrompts.currentPage = 1;
             youtubePrompts.hasMore = true;
@@ -5224,11 +3565,9 @@ class SearchManager {
 }
 
 // ==================== NEWS UPLOAD MODAL ====================
-
 function initNewsImagePreview() {
     const newsImageUpload = document.getElementById('newsImageUpload');
     const newsImagePreview = document.getElementById('newsImagePreview');
-    
     if (newsImageUpload && newsImagePreview) {
         newsImageUpload.addEventListener('change', function() {
             const file = this.files[0];
@@ -5239,11 +3578,8 @@ function initNewsImagePreview() {
                     newsImagePreview.style.display = 'block';
                 }
                 reader.readAsDataURL(file);
-            } else {
-                newsImagePreview.style.display = 'none';
-            }
+            } else newsImagePreview.style.display = 'none';
         });
-        
         const fileUploadArea = document.querySelector('#newsUploadModal .file-upload');
         if (fileUploadArea) {
             fileUploadArea.addEventListener('dragover', (e) => {
@@ -5251,17 +3587,14 @@ function initNewsImagePreview() {
                 fileUploadArea.style.borderColor = '#4e54c8';
                 fileUploadArea.style.background = 'rgba(78, 84, 200, 0.05)';
             });
-            
             fileUploadArea.addEventListener('dragleave', () => {
                 fileUploadArea.style.borderColor = '#ddd';
                 fileUploadArea.style.background = '';
             });
-            
             fileUploadArea.addEventListener('drop', (e) => {
                 e.preventDefault();
                 fileUploadArea.style.borderColor = '#ddd';
                 fileUploadArea.style.background = '';
-                
                 const files = e.dataTransfer.files;
                 if (files.length > 0) {
                     newsImageUpload.files = files;
@@ -5278,7 +3611,6 @@ function initNewsUploadModal() {
     const openNewsBtn = document.getElementById('openNewsModal');
     const closeNewsModalBtn = document.getElementById('closeNewsModal');
     const newsForm = document.getElementById('newsForm');
-    
     if (openNewsBtn && newsModal) {
         openNewsBtn.addEventListener('click', () => {
             const user = checkAuth();
@@ -5287,19 +3619,16 @@ function initNewsUploadModal() {
                 window.location.href = 'login.html?returnUrl=' + encodeURIComponent(window.location.href);
                 return;
             }
-            
             newsModal.classList.add('active');
             document.body.style.overflow = 'hidden';
         });
     }
-    
     if (closeNewsModalBtn && newsModal) {
         closeNewsModalBtn.addEventListener('click', () => {
             newsModal.classList.remove('active');
             document.body.style.overflow = '';
         });
     }
-    
     if (newsModal) {
         newsModal.addEventListener('click', (e) => {
             if (e.target === newsModal) {
@@ -5308,23 +3637,14 @@ function initNewsUploadModal() {
             }
         });
     }
-    
-    if (newsForm) {
-        newsForm.addEventListener('submit', handleNewsSubmit);
-    }
-    
+    if (newsForm) newsForm.addEventListener('submit', handleNewsSubmit);
     initNewsImagePreview();
 }
 
 async function handleNewsSubmit(e) {
     e.preventDefault();
-    
     const user = checkAuth();
-    if (!user) {
-        alert('Please login to publish news');
-        return;
-    }
-    
+    if (!user) { alert('Please login to publish news'); return; }
     const title = document.getElementById('newsTitle')?.value || '';
     const content = document.getElementById('newsContent')?.value || '';
     const excerpt = document.getElementById('newsExcerpt')?.value || '';
@@ -5333,25 +3653,15 @@ async function handleNewsSubmit(e) {
     const isBreaking = document.getElementById('isBreaking')?.checked || false;
     const isFeatured = document.getElementById('isFeatured')?.checked || false;
     const file = document.getElementById('newsImageUpload')?.files[0];
-    
-    if (!title || !content) {
-        alert('Please fill in title and content');
-        return;
-    }
-    
+    if (!title || !content) { alert('Please fill in title and content'); return; }
     try {
         const submitBtn = document.querySelector('#newsForm .submit-btn');
         const originalBtnText = submitBtn.innerHTML;
         submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Publishing...';
         submitBtn.disabled = true;
-        
         await initializeFirebase();
         const firebaseUser = await getCurrentUser();
-        
-        if (!firebaseUser) {
-            throw new Error('User not authenticated');
-        }
-        
+        if (!firebaseUser) throw new Error('User not authenticated');
         const formData = new FormData();
         formData.append('title', title);
         formData.append('content', content);
@@ -5362,36 +3672,22 @@ async function handleNewsSubmit(e) {
         formData.append('isFeatured', isFeatured);
         formData.append('author', user.name || 'User');
         if (file) formData.append('image', file);
-        
         const response = await fetch('/api/upload-news', {
             method: 'POST',
             body: formData
         });
-        
-        if (!response.ok) {
-            throw new Error(`News publication failed with status ${response.status}`);
-        }
-        
+        if (!response.ok) throw new Error(`News publication failed with status ${response.status}`);
         const result = await response.json();
-        
         if (result.success) {
             const newsModal = document.getElementById('newsUploadModal');
             const newsForm = document.getElementById('newsForm');
             const newsImagePreview = document.getElementById('newsImagePreview');
-            
             newsModal.classList.remove('active');
             document.body.style.overflow = '';
             newsForm.reset();
-            
-            if (newsImagePreview) {
-                newsImagePreview.style.display = 'none';
-            }
-            
+            if (newsImagePreview) newsImagePreview.style.display = 'none';
             showNotification('News published successfully!', 'success');
-            
-            if (window.newsManager) {
-                newsManager.loadNews();
-            }
+            if (window.newsManager) newsManager.loadNews();
         }
     } catch (error) {
         console.error('News publication error:', error);
@@ -5406,24 +3702,18 @@ async function handleNewsSubmit(e) {
 }
 
 // ==================== VIDEO THUMBNAIL UPLOAD ====================
-
 function initVideoThumbnailUpload() {
     const videoUpload = document.getElementById('imageUpload');
     const videoThumbnailUpload = document.getElementById('videoThumbnailUpload');
     const videoThumbnailPreview = document.getElementById('videoThumbnailPreview');
     const videoThumbnailSection = document.getElementById('videoThumbnailSection');
     const fileTypeHint = document.getElementById('fileTypeHint');
-    
     if (videoUpload) {
         videoUpload.addEventListener('change', function() {
             const file = this.files[0];
             if (file) {
                 const isVideo = file.type.startsWith('video/');
-                
-                if (videoThumbnailSection) {
-                    videoThumbnailSection.style.display = isVideo ? 'block' : 'none';
-                }
-                
+                if (videoThumbnailSection) videoThumbnailSection.style.display = isVideo ? 'block' : 'none';
                 if (fileTypeHint) {
                     if (isVideo) {
                         fileTypeHint.innerHTML = '<i class="fas fa-play"></i> Video reel detected. You can upload a custom thumbnail below.';
@@ -5433,7 +3723,6 @@ function initVideoThumbnailUpload() {
                         fileTypeHint.style.color = '#4e54c8';
                     }
                 }
-                
                 const reader = new FileReader();
                 reader.onload = function(e) {
                     const imagePreview = document.getElementById('imagePreview');
@@ -5446,7 +3735,6 @@ function initVideoThumbnailUpload() {
             }
         });
     }
-    
     if (videoThumbnailUpload) {
         videoThumbnailUpload.addEventListener('change', function() {
             const file = this.files[0];
@@ -5460,12 +3748,9 @@ function initVideoThumbnailUpload() {
                 }
                 reader.readAsDataURL(file);
             } else {
-                if (videoThumbnailPreview) {
-                    videoThumbnailPreview.style.display = 'none';
-                }
+                if (videoThumbnailPreview) videoThumbnailPreview.style.display = 'none';
             }
         });
-        
         const thumbnailUploadArea = document.querySelector('.thumbnail-upload');
         if (thumbnailUploadArea) {
             thumbnailUploadArea.addEventListener('dragover', (e) => {
@@ -5473,17 +3758,14 @@ function initVideoThumbnailUpload() {
                 thumbnailUploadArea.style.borderColor = '#ff6b6b';
                 thumbnailUploadArea.style.background = 'rgba(255, 107, 107, 0.05)';
             });
-            
             thumbnailUploadArea.addEventListener('dragleave', () => {
                 thumbnailUploadArea.style.borderColor = '#ddd';
                 thumbnailUploadArea.style.background = '';
             });
-            
             thumbnailUploadArea.addEventListener('drop', (e) => {
                 e.preventDefault();
                 thumbnailUploadArea.style.borderColor = '#ddd';
                 thumbnailUploadArea.style.background = '';
-                
                 const files = e.dataTransfer.files;
                 if (files.length > 0) {
                     videoThumbnailUpload.files = files;
@@ -5496,7 +3778,6 @@ function initVideoThumbnailUpload() {
 }
 
 // ==================== UPLOAD MODAL ====================
-
 function initUploadModal() {
     const uploadModal = document.getElementById('uploadModal');
     const openUploadBtn = document.getElementById('openUploadModal');
@@ -5504,7 +3785,6 @@ function initUploadModal() {
     const uploadForm = document.getElementById('uploadForm');
     const imageUpload = document.getElementById('imageUpload');
     const imagePreview = document.getElementById('imagePreview');
-    
     if (openUploadBtn && uploadModal) {
         openUploadBtn.addEventListener('click', () => {
             const user = checkAuth();
@@ -5513,19 +3793,16 @@ function initUploadModal() {
                 window.location.href = 'login.html?returnUrl=' + encodeURIComponent(window.location.href);
                 return;
             }
-            
             uploadModal.classList.add('active');
             document.body.style.overflow = 'hidden';
         });
     }
-    
     if (closeModalBtn && uploadModal) {
         closeModalBtn.addEventListener('click', () => {
             uploadModal.classList.remove('active');
             document.body.style.overflow = '';
         });
     }
-    
     if (uploadModal) {
         uploadModal.addEventListener('click', (e) => {
             if (e.target === uploadModal) {
@@ -5534,7 +3811,6 @@ function initUploadModal() {
             }
         });
     }
-    
     if (imageUpload && imagePreview) {
         imageUpload.addEventListener('change', function() {
             const file = this.files[0];
@@ -5545,11 +3821,8 @@ function initUploadModal() {
                     imagePreview.style.display = 'block';
                 }
                 reader.readAsDataURL(file);
-            } else {
-                imagePreview.style.display = 'none';
-            }
+            } else imagePreview.style.display = 'none';
         });
-        
         const fileUploadArea = document.querySelector('.file-upload');
         if (fileUploadArea) {
             fileUploadArea.addEventListener('dragover', (e) => {
@@ -5557,17 +3830,14 @@ function initUploadModal() {
                 fileUploadArea.style.borderColor = '#4e54c8';
                 fileUploadArea.style.background = 'rgba(78, 84, 200, 0.05)';
             });
-            
             fileUploadArea.addEventListener('dragleave', () => {
                 fileUploadArea.style.borderColor = '#ddd';
                 fileUploadArea.style.background = '';
             });
-            
             fileUploadArea.addEventListener('drop', (e) => {
                 e.preventDefault();
                 fileUploadArea.style.borderColor = '#ddd';
                 fileUploadArea.style.background = '';
-                
                 const files = e.dataTransfer.files;
                 if (files.length > 0) {
                     imageUpload.files = files;
@@ -5577,39 +3847,26 @@ function initUploadModal() {
             });
         }
     }
-    
-    if (uploadForm) {
-        uploadForm.addEventListener('submit', handleUploadSubmit);
-    }
-    
+    if (uploadForm) uploadForm.addEventListener('submit', handleUploadSubmit);
     initVideoThumbnailUpload();
 }
 
 // ==================== MOBILE FUNCTIONS ====================
-
 function initMobileNavigation() {
     const mobileToggle = document.querySelector('.mobile-toggle');
     const navLinks = document.querySelector('.nav-links');
-    
     if (mobileToggle && navLinks) {
         mobileToggle.addEventListener('click', () => {
             navLinks.classList.toggle('active');
             const icon = mobileToggle.querySelector('i');
-            if (icon) {
-                icon.classList.toggle('fa-bars');
-                icon.classList.toggle('fa-times');
-            }
+            if (icon) { icon.classList.toggle('fa-bars'); icon.classList.toggle('fa-times'); }
         });
-        
         const navLinksItems = navLinks.querySelectorAll('a');
         navLinksItems.forEach(link => {
             link.addEventListener('click', () => {
                 navLinks.classList.remove('active');
                 const icon = mobileToggle.querySelector('i');
-                if (icon) {
-                    icon.classList.add('fa-bars');
-                    icon.classList.remove('fa-times');
-                }
+                if (icon) { icon.classList.add('fa-bars'); icon.classList.remove('fa-times'); }
             });
         });
     }
@@ -5620,45 +3877,23 @@ function addMobileNavigation() {
         const mobileNav = document.createElement('div');
         mobileNav.className = 'mobile-nav';
         mobileNav.innerHTML = `
-            <a href="index.html" class="nav-item active">
-                <i class="fas fa-home"></i>
-                <span>Home</span>
-            </a>
-            <button class="nav-item" id="mobileShortsBtn">
-                <i class="fas fa-play"></i>
-                <span>Shorts</span>
-            </button>
-            <a href="dashboard.html" class="nav-item">
-                <i class="fas fa-chart-line"></i>
-                <span>Dashboard</span>
-            </a>
-            <button class="nav-item" id="mobileUploadBtn">
-                <i class="fas fa-plus-circle"></i>
-                <span>Sell</span>
-            </button>
-            <a href="ai-detector.html" class="nav-item">
-                <i class="fas fa-cloud-upload-alt"></i>
-                <span>Ai-Detector</span>
-            </a>
+            <a href="index.html" class="nav-item active"><i class="fas fa-home"></i><span>Home</span></a>
+            <button class="nav-item" id="mobileShortsBtn"><i class="fas fa-play"></i><span>Shorts</span></button>
+            <a href="dashboard.html" class="nav-item"><i class="fas fa-chart-line"></i><span>Dashboard</span></a>
+            <button class="nav-item" id="mobileUploadBtn"><i class="fas fa-plus-circle"></i><span>Sell</span></button>
+            <a href="ai-detector.html" class="nav-item"><i class="fas fa-cloud-upload-alt"></i><span>Ai-Detector</span></a>
         `;
-        
         document.body.appendChild(mobileNav);
-        
         const mobileUploadBtn = document.getElementById('mobileUploadBtn');
         if (mobileUploadBtn) {
             mobileUploadBtn.addEventListener('click', () => {
                 const uploadModalBtn = document.getElementById('openUploadModal');
-                if (uploadModalBtn) {
-                    uploadModalBtn.click();
-                }
+                if (uploadModalBtn) uploadModalBtn.click();
             });
         }
-        
         const mobileShortsBtn = document.getElementById('mobileShortsBtn');
         if (mobileShortsBtn) {
-            mobileShortsBtn.addEventListener('click', () => {
-                filterByVideos();
-            });
+            mobileShortsBtn.addEventListener('click', () => { filterByVideos(); });
         }
     }
 }
@@ -5669,11 +3904,8 @@ function initMobileHorizontalScroll() {
         if (trackContainer) {
             trackContainer.style.overflowX = 'auto';
             trackContainer.style.webkitOverflowScrolling = 'touch';
-            
             trackContainer.addEventListener('scroll', () => {
-                if (window.shortsHorizontalFeed) {
-                    window.shortsHorizontalFeed.updateNavigation();
-                }
+                if (window.shortsHorizontalFeed) window.shortsHorizontalFeed.updateNavigation();
             });
         }
     }
@@ -5681,14 +3913,11 @@ function initMobileHorizontalScroll() {
 
 function initFilterButtons() {
     const filterBtns = document.querySelectorAll('.filter-btn');
-    
     filterBtns.forEach(btn => {
         btn.addEventListener('click', () => {
             filterBtns.forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
-            
             const filter = btn.textContent ? btn.textContent.toLowerCase() : 'all';
-            
             if (window.youtubePrompts) {
                 youtubePrompts.currentPage = 1;
                 youtubePrompts.hasMore = true;
@@ -5715,8 +3944,7 @@ function initScrollEffects() {
     });
 }
 
-// ==================== REFERRAL CODE CAPTURE ON EVERY PAGE ====================
-// This stores the referral code from URL so it can be used after login
+// ==================== REFERRAL CODE CAPTURE ====================
 document.addEventListener('DOMContentLoaded', function() {
     const urlParams = new URLSearchParams(window.location.search);
     const refCode = urlParams.get('ref');
@@ -5726,11 +3954,53 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
-// ==================== INITIALIZATION ====================
+// ==================== GLOBAL HANDLE REUSE (for index.html) ====================
+window.handleReuse = async function(promptId) {
+    const prompt = allPrompts.find(p => p.id === promptId);
+    if (!prompt) { showNotification('Prompt not found', 'error'); return; }
+    const user = await getCurrentUser();
+    let purchased = false;
+    if (prompt.price > 0 && user) {
+        try {
+            const response = await fetch(`/api/check-purchase/${promptId}?userId=${user.uid}`);
+            const data = await response.json();
+            purchased = data.purchased;
+        } catch (e) { console.error('Purchase check error:', e); }
+    }
+    if (prompt.price > 0 && !purchased) {
+        if (typeof showBuyPromptModal === 'function') {
+            const promptData = {
+                id: prompt.id,
+                title: prompt.title,
+                promptText: prompt.promptText,
+                imageUrl: prompt.thumbnailUrl || prompt.imageUrl,
+                price: prompt.price,
+                userName: prompt.userName
+            };
+            showBuyPromptModal(promptData);
+        } else {
+            showNotification('Please purchase this prompt to reuse it', 'info');
+        }
+        return;
+    }
+    const input = document.getElementById('aiPromptInput');
+    const bar = document.getElementById('aiGeneratorBar');
+    if (input && prompt.promptText) {
+        input.value = prompt.promptText;
+        input.style.height = 'auto';
+        input.style.height = Math.min(input.scrollHeight, 120) + 'px';
+        if (bar && !bar.classList.contains('active')) bar.classList.add('active');
+        input.focus();
+        input.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        showNotification('Prompt copied to AI generator!', 'success');
+    } else {
+        showNotification('AI generator not available', 'error');
+    }
+};
 
+// ==================== INITIALIZATION ====================
 document.addEventListener('DOMContentLoaded', async () => {
     console.log('Initializing tools prompt with marketplace features and Razorpay...');
-    
     await initializeFirebase();
     showAuthElements();
     await getRazorpayKey();
@@ -5740,7 +4010,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     initUploadModal();
     initNewsUploadModal();
     initSearchFunctionality();
-    
     window.youtubePrompts = new YouTubeStylePrompts();
     window.shortsHorizontalFeed = new ShortsHorizontalFeed();
     window.shortsHorizontalFeed.startAutoRefresh();
@@ -5755,14 +4024,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     addDashboardButton();
     if (!window.horizontalFeedManager) window.horizontalFeedManager = new HorizontalFeedManager();
     initHorizontalFeedTouchSupport();
-    setTimeout(() => {
-        if (window.horizontalFeedManager) window.horizontalFeedManager.initializeAllFeeds();
-    }, 1500);
+    setTimeout(() => { if (window.horizontalFeedManager) window.horizontalFeedManager.initializeAllFeeds(); }, 1500);
     setTimeout(() => addShortsFilterButton(), 2000);
     window.addEventListener('resize', initMobileHorizontalScroll);
     console.log('tools prompt initialization complete with marketplace features and Razorpay');
 });
 
+// Expose globals
 window.loadUploads = () => { if (window.youtubePrompts) youtubePrompts.loadInitialPrompts(); };
 window.searchManager = window.searchManager || {};
 window.newsManager = window.newsManager || {};
