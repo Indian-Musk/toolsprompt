@@ -9298,7 +9298,8 @@ function generateChannelHTML(channel, channelId, prompts, isOwner, isSubscribed,
   const bannerUrl = channel.bannerUrl || 'https://via.placeholder.com/1200x300/2d334a/ffffff?text=' + encodeURIComponent(channel.channelName);
   const description = channel.description || `Channel of ${channel.channelName} - AI prompts and creations.`;
   const title = `${channel.channelName} - tools prompt Channel`;
-  
+
+  const totalLikes = prompts.reduce((sum, p) => sum + (p.likes || 0), 0); // <-- ADD THIS LINE
   const promptsHTML = prompts.map(p => {
     const isVideo = p.fileType === 'video' || p.videoUrl;
     const imageUrl = p.thumbnailUrl || p.imageUrl || 'https://via.placeholder.com/300x200/4e54c8/ffffff?text=Prompt';
