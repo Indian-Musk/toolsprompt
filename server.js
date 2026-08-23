@@ -9351,7 +9351,7 @@ function generateChannelHTML(channel, channelId, prompts, isOwner, isSubscribed,
     <meta name="twitter:description" content="${description.replace(/"/g, '&quot;')}">
     <meta name="twitter:image" content="${avatarUrl}">
     
-    <!-- JSON-LD Structured Data -->
+   <!-- ====== JSON-LD STRUCTURED DATA ====== -->
     <script type="application/ld+json">
     {
       "@context": "https://schema.org",
@@ -9364,7 +9364,22 @@ function generateChannelHTML(channel, channelId, prompts, isOwner, isSubscribed,
         "name": "${channel.channelName.replace(/"/g, '\\"')}",
         "identifier": "${channel.channelHandle || channel.channelName}",
         "image": "${avatarUrl}",
-        "description": "${description.replace(/"/g, '\\"')}"
+        "description": "${description.replace(/"/g, '\\"')}",
+        "sameAs": [
+          "${canonicalUrl}"
+        ],
+        "interactionStatistic": [
+          {
+            "@type": "InteractionCounter",
+            "interactionType": "https://schema.org/SubscribeAction",
+            "userInteractionCount": ${subscriberCount}
+          },
+          {
+            "@type": "InteractionCounter",
+            "interactionType": "https://schema.org/LikeAction",
+            "userInteractionCount": ${totalLikes}
+          }
+        ]
       },
       "dateCreated": "${channel.createdAt || new Date().toISOString()}"
     }
