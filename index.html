@@ -2633,6 +2633,51 @@ nav {
     border-radius: 50%;
     animation: spin 0.7s linear infinite;
 }
+
+/* ===== NEW: Floating Scroll Arrow (Right Side) ===== */
+.floating-scroll-arrow {
+    position: fixed;
+    right: 20px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 50px;
+    height: 50px;
+    background: linear-gradient(135deg, #4e54c8, #8f94fb);
+    color: white;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 1.5rem;
+    box-shadow: 0 4px 15px rgba(78,84,200,0.4);
+    z-index: 9999;
+    transition: all 0.3s ease;
+    border: none;
+}
+
+.floating-scroll-arrow:hover {
+    transform: translateY(-50%) scale(1.1);
+    box-shadow: 0 8px 25px rgba(78,84,200,0.6);
+}
+
+@media (max-width: 768px) {
+    .floating-scroll-arrow {
+        width: 40px;
+        height: 40px;
+        right: 10px;
+        font-size: 1.2rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .floating-scroll-arrow {
+        width: 35px;
+        height: 35px;
+        right: 8px;
+        font-size: 1rem;
+    }
+}
     </style>
 </head>
 <body>
@@ -2972,6 +3017,11 @@ nav {
         </button>
     </div>
 
+    <!-- NEW: Floating Scroll Arrow (Right Side) -->
+    <button class="floating-scroll-arrow" id="scrollToPromptsArrow" onclick="scrollToPrompts()" aria-label="Scroll to prompts">
+        <i class="fas fa-chevron-down"></i>
+    </button>
+
     <!-- Footer -->
     <footer class="site-footer">
         <div class="footer-container">
@@ -3201,6 +3251,7 @@ nav {
             }, 2000);
         }
 
+        // ===== SCROLL TO PROMPTS =====
         function scrollToPrompts() {
             const container = document.getElementById('promptsContainer');
             if (container) {
@@ -3966,6 +4017,27 @@ nav {
         if (typeof window.allPrompts === 'undefined') {
             window.allPrompts = [];
         }
+
+        // ================================================================
+        //  Initialize Scroll Arrow Visibility (optional)
+        // ================================================================
+        // Hide arrow when at bottom, show when scrollable
+        window.addEventListener('scroll', function() {
+            const arrow = document.getElementById('scrollToPromptsArrow');
+            if (!arrow) return;
+            const container = document.getElementById('promptsContainer');
+            if (container) {
+                const rect = container.getBoundingClientRect();
+                // Hide if already near prompts
+                if (rect.top < window.innerHeight * 0.2) {
+                    arrow.style.opacity = '0';
+                    arrow.style.pointerEvents = 'none';
+                } else {
+                    arrow.style.opacity = '1';
+                    arrow.style.pointerEvents = 'auto';
+                }
+            }
+        });
     </script>
 </body>
 </html>

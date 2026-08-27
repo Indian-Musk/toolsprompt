@@ -9321,12 +9321,15 @@ app.get('/api/channel/:channelId/subscription-status', async (req, res) => {
 // ==================== CHANNEL PAGE HTML GENERATOR ====================
 
 function generateChannelHTML(channel, channelId, prompts, isOwner, isSubscribed, currentUserId, canonicalUrl) {
-  const avatarUrl = channel.avatarUrl || 'https://via.placeholder.com/100x100/4e54c8/ffffff?text=' + encodeURIComponent(channel.channelName.charAt(0));
-  const bannerUrl = channel.bannerUrl || 'https://via.placeholder.com/1200x300/2d334a/ffffff?text=' + encodeURIComponent(channel.channelName);
-  const description = channel.description || `Channel of ${channel.channelName} - AI prompts and creations.`;
-  const title = `${channel.channelName} - tools prompt Channel`;
+  // ===== 1. DEFINE ALL VARIABLES =====
+  const avatarUrl = channel.avatarUrl || 'https://via.placeholder.com/100x100/4e54c8/ffffff?text=' + encodeURIComponent(channel.channelName?.charAt(0) || 'C');
+  const bannerUrl = channel.bannerUrl || 'https://via.placeholder.com/1200x300/2d334a/ffffff?text=' + encodeURIComponent(channel.channelName || 'Channel');
+  const description = channel.description || `Channel of ${channel.channelName || 'Channel'} - AI prompts and creations.`;
+  const title = `${channel.channelName || 'Channel'} - tools prompt Channel`;
+  const subscriberCount = channel.subscribers || 0;
+  const totalLikes = prompts.reduce((sum, p) => sum + (p.likes || 0), 0);
 
-  const totalLikes = prompts.reduce((sum, p) => sum + (p.likes || 0), 0); // <-- ADD THIS LINE
+  // ===== 2. GENERATE PROMPTS HTML =====
   const promptsHTML = prompts.map(p => {
     const isVideo = p.fileType === 'video' || p.videoUrl;
     const imageUrl = p.thumbnailUrl || p.imageUrl || 'https://via.placeholder.com/300x200/4e54c8/ffffff?text=Prompt';
@@ -9350,9 +9353,41 @@ function generateChannelHTML(channel, channelId, prompts, isOwner, isSubscribed,
     `;
   }).join('');
 
-  const subscriberCount = channel.subscribers || 0;
   const formattedSubs = subscriberCount >= 1000 ? (subscriberCount / 1000).toFixed(1) + 'K' : subscriberCount;
 
+  // ===== 3. BUILD STRUCTURED DATA (FIXED - interactionStatistic as ARRAY) =====
+  const structuredData = {
+    "@context": "https://schema.org",
+    "@type": "ProfilePage",
+    "name": channel.channelName || "Channel",
+    "description": (channel.description || `Channel of ${channel.channelName || 'Channel'}`),
+    "url": canonicalUrl || `https://www.toolsprompt.com/channel/${channelId}`,
+    "mainEntity": {
+      "@type": "Person",
+      "name": channel.channelName || "Channel Owner",
+      "identifier": channel.channelHandle || channel.channelName || channelId,
+      "image": channel.avatarUrl || "https://www.toolsprompt.com/logo.png",
+      "description": (channel.description || `Channel of ${channel.channelName || 'Channel'}`),
+      "sameAs": [canonicalUrl || `https://www.toolsprompt.com/channel/${channelId}`],
+      "interactionStatistic": [
+        {
+          "@type": "InteractionCounter",
+          "interactionType": "https://schema.org/SubscribeAction",
+          "userInteractionCount": subscriberCount
+        },
+        {
+          "@type": "InteractionCounter",
+          "interactionType": "https://schema.org/LikeAction",
+          "userInteractionCount": totalLikes
+        }
+      ]
+    },
+    "dateCreated": channel.createdAt || new Date().toISOString()
+  };
+
+  const structuredDataJSON = JSON.stringify(structuredData);
+
+  // ===== 4. RETURN FULL HTML =====
   return `<!DOCTYPE html>
 <html lang="en" itemscope itemtype="https://schema.org/ProfilePage">
 <head>
@@ -9371,7 +9406,7 @@ function generateChannelHTML(channel, channelId, prompts, isOwner, isSubscribed,
     <meta property="og:url" content="${canonicalUrl}">
     <meta property="og:type" content="profile">
     <meta property="og:site_name" content="tools prompt">
-    <meta property="profile:username" content="${channel.channelHandle || channel.channelName}">
+    <meta property="profile:username" content="${channel.channelHandle || channel.channelName || 'channel'}">
     
     <!-- Twitter Card -->
     <meta name="twitter:card" content="summary_large_image">
@@ -9379,44 +9414,17 @@ function generateChannelHTML(channel, channelId, prompts, isOwner, isSubscribed,
     <meta name="twitter:description" content="${description.replace(/"/g, '&quot;')}">
     <meta name="twitter:image" content="${avatarUrl}">
     
-   <!-- ====== JSON-LD STRUCTURED DATA ====== -->
+    <!-- ====== FIXED JSON-LD (interactionStatistic as ARRAY) ====== -->
     <script type="application/ld+json">
-    {
-      "@context": "https://schema.org",
-      "@type": "ProfilePage",
-      "name": "${channel.channelName.replace(/"/g, '\\"')}",
-      "description": "${description.replace(/"/g, '\\"')}",
-      "url": "${canonicalUrl}",
-      "mainEntity": {
-        "@type": "Person",
-        "name": "${channel.channelName.replace(/"/g, '\\"')}",
-        "identifier": "${channel.channelHandle || channel.channelName}",
-        "image": "${avatarUrl}",
-        "description": "${description.replace(/"/g, '\\"')}",
-        "sameAs": [
-          "${canonicalUrl}"
-        ],
-        "interactionStatistic": [
-          {
-            "@type": "InteractionCounter",
-            "interactionType": "https://schema.org/SubscribeAction",
-            "userInteractionCount": ${subscriberCount}
-          },
-          {
-            "@type": "InteractionCounter",
-            "interactionType": "https://schema.org/LikeAction",
-            "userInteractionCount": ${totalLikes}
-          }
-        ]
-      },
-      "dateCreated": "${channel.createdAt || new Date().toISOString()}"
-    }
+${structuredDataJSON}
     </script>
     
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
+    
     <style>
+        /* ===== CHANNEL PAGE STYLES ===== */
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
         body { background: #f5f7fa; color: #2d334a; }
         
@@ -9457,10 +9465,8 @@ function generateChannelHTML(channel, channelId, prompts, isOwner, isSubscribed,
         
         .no-prompts { text-align: center; padding: 60px 20px; color: #666; background: white; border-radius: 12px; }
         .no-prompts i { font-size: 3rem; color: #ccc; margin-bottom: 15px; }
-        
         .back-link { display: inline-block; margin-top: 20px; color: #4e54c8; text-decoration: none; font-weight: 600; }
         .back-link:hover { text-decoration: underline; }
-        
         .price-badge { position: absolute; bottom: 10px; left: 10px; background: linear-gradient(135deg, #ff6b6b, #ff8787); color: white; padding: 2px 10px; border-radius: 12px; font-size: 0.75rem; font-weight: 600; }
         .price-badge.free { background: linear-gradient(135deg, #20bf6b, #4cd964); }
         
@@ -9474,7 +9480,6 @@ function generateChannelHTML(channel, channelId, prompts, isOwner, isSubscribed,
             .prompts-grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; }
             .channel-prompt-thumbnail { height: 130px; }
         }
-        
         @media (max-width: 480px) {
             .prompts-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
             .channel-prompt-thumbnail { height: 110px; }
@@ -9483,13 +9488,12 @@ function generateChannelHTML(channel, channelId, prompts, isOwner, isSubscribed,
     </style>
 </head>
 <body>
+    <!-- ===== HEADER ===== -->
     <header style="background: white; padding: 10px 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); position: sticky; top: 0; z-index: 100;">
         <div style="max-width: 1200px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center;">
             <a href="/" style="display: flex; align-items: center; gap: 10px; text-decoration: none; color: #4e54c8; font-weight: 700; font-size: 1.2rem;">
-
-  <span>🎯 tools prompt</span>
+                <span>🎯 tools prompt</span>
             </a>
-
             <div style="display: flex; gap: 15px; align-items: center;">
                 <a href="/" style="color: #333; text-decoration: none;">Home</a>
                 <a href="/dashboard.html" style="color: #333; text-decoration: none;">Dashboard</a>
@@ -9500,19 +9504,20 @@ function generateChannelHTML(channel, channelId, prompts, isOwner, isSubscribed,
         </div>
     </header>
 
+    <!-- ===== CHANNEL BANNER & INFO ===== -->
     <div class="channel-header">
-        <img src="${bannerUrl}" alt="${channel.channelName} banner" class="channel-banner">
+        <img src="${bannerUrl}" alt="${channel.channelName || 'Channel'} banner" class="channel-banner">
         
         <div class="channel-info">
-            <img src="${avatarUrl}" alt="${channel.channelName}" class="channel-avatar">
+            <img src="${avatarUrl}" alt="${channel.channelName || 'Channel'}" class="channel-avatar">
             
             <div class="channel-details">
                 <div class="channel-name-section">
                     <div class="channel-name">
-                        ${channel.channelName}
+                        ${channel.channelName || 'Channel'}
                         ${channel.isVerified ? '<span class="verify-badge"><i class="fas fa-check-circle"></i> Verified</span>' : ''}
                     </div>
-                    <div class="channel-handle">${channel.channelHandle}</div>
+                    <div class="channel-handle">${channel.channelHandle || ''}</div>
                     ${channel.description ? `<div class="channel-description">${channel.description}</div>` : ''}
                     <div class="channel-stats">
                         <span><i class="fas fa-users"></i> ${formattedSubs} subscribers</span>
@@ -9534,6 +9539,7 @@ function generateChannelHTML(channel, channelId, prompts, isOwner, isSubscribed,
         </div>
     </div>
 
+    <!-- ===== CHANNEL CONTENT ===== -->
     <div class="channel-content">
         <div class="content-tabs">
             <button class="content-tab active" data-tab="videos">Prompts</button>
@@ -9557,10 +9563,10 @@ function generateChannelHTML(channel, channelId, prompts, isOwner, isSubscribed,
         
         <div id="tab-about" class="tab-content" style="display: none;">
             <div style="background: white; padding: 30px; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.08);">
-                <h2 style="color: #4e54c8; margin-bottom: 15px;">About ${channel.channelName}</h2>
+                <h2 style="color: #4e54c8; margin-bottom: 15px;">About ${channel.channelName || 'Channel'}</h2>
                 <p style="color: #555; line-height: 1.8; font-size: 1.05rem;">${channel.description || 'No description provided yet.'}</p>
                 <div style="margin-top: 20px; display: flex; gap: 30px; flex-wrap: wrap; color: #666;">
-                    <div><strong>Channel Created:</strong> ${new Date(channel.createdAt).toLocaleDateString()}</div>
+                    <div><strong>Channel Created:</strong> ${channel.createdAt ? new Date(channel.createdAt).toLocaleDateString() : 'N/A'}</div>
                     <div><strong>Total Prompts:</strong> ${prompts.length}</div>
                     <div><strong>Subscribers:</strong> ${formattedSubs}</div>
                     ${isOwner ? `<div><strong>Channel ID:</strong> ${channelId}</div>` : ''}
@@ -9576,6 +9582,7 @@ function generateChannelHTML(channel, channelId, prompts, isOwner, isSubscribed,
         </div>
     </div>
 
+    <!-- ===== JAVASCRIPT ===== -->
     <script>
         // Firebase config
         const firebaseConfig = {
@@ -9617,7 +9624,6 @@ function generateChannelHTML(channel, channelId, prompts, isOwner, isSubscribed,
                 authReady = true;
                 updateAuthUI(user);
                 
-                // Update subscribe button if user changed
                 if (user && !isOwner) {
                     checkSubscriptionStatus();
                 }
@@ -9629,8 +9635,7 @@ function generateChannelHTML(channel, channelId, prompts, isOwner, isSubscribed,
             if (!authSection) return;
             
             if (user) {
-                const name = user.displayName || user.email.split('@')[0] || 'User';
-                const initial = name.charAt(0).toUpperCase();
+                const name = user.displayName || user.email?.split('@')[0] || 'User';
                 authSection.innerHTML = 
                     '<div style="display:flex;align-items:center;gap:10px;">' +
                         '<span style="font-weight:500;font-size:0.9rem;">' + name + '</span>' +
@@ -9649,7 +9654,6 @@ function generateChannelHTML(channel, channelId, prompts, isOwner, isSubscribed,
         
         async function checkSubscriptionStatus() {
             if (!currentUser || isOwner) return;
-            
             try {
                 const token = await currentUser.getIdToken();
                 const response = await fetch('/api/channel/' + channelId + '/subscription-status', {
@@ -9687,12 +9691,10 @@ function generateChannelHTML(channel, channelId, prompts, isOwner, isSubscribed,
                 });
                 
                 const data = await response.json();
-                
                 if (data.success) {
                     isSubscribed = data.subscribed;
-                    updateSubscribeButton(data.subscribers);
+                    updateSubscribeButton();
                     
-                    // Update subscriber count display
                     const subsDisplay = document.querySelector('.channel-stats span:first-child');
                     if (subsDisplay) {
                         const count = data.subscribers || 0;
@@ -9708,7 +9710,7 @@ function generateChannelHTML(channel, channelId, prompts, isOwner, isSubscribed,
             }
         }
         
-        function updateSubscribeButton(subscriberCount) {
+        function updateSubscribeButton() {
             const btn = document.getElementById('subscribeBtn');
             if (!btn) return;
             
