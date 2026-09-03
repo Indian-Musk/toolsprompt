@@ -529,6 +529,11 @@
             <div class="stat-number" id="totalListingsCount">0</div>
             <div class="stat-sub">Active prompts</div>
         </div>
+<div class="stat-card">
+    <div class="stat-title"><i class="fas fa-heart" style="color:#ff6b6b;"></i> Channel Support</div>
+    <div class="stat-number" id="channelSupportEarnings">₹0</div>
+    <div class="stat-sub">From tips & support</div>
+</div>
         <!-- Referral Card -->
         <div class="stat-card" id="referralCard">
             <div class="stat-title"><i class="fas fa-link"></i> Your Referral Link</div>
@@ -1218,8 +1223,11 @@ async function loadDashboardData(user) {
     if (!user) return;
     const userId = user.uid;
     try {
+        // 1. Main earnings data (prompt sales)
         const earningsData = await fetchEarnings(userId);
         updateStats(earningsData);
+
+        // 2. Fetch purchases, sales, listings in parallel
         const [purchases, sales, userPrompts] = await Promise.all([
             fetchPurchases(userId),
             fetchSales(userId),
@@ -1228,11 +1236,89 @@ async function loadDashboardData(user) {
         renderPurchases(purchases);
         renderSales(sales);
         renderListings(userPrompts);
+
+        // 3. Update payout UI (available balance, total paid out, pending)
         await updatePayoutUI(userId, earningsData.totalEarnings);
+
+        // 4. Load referral data
         await loadReferralData();
+
+        // 5. **NEW: Fetch channel support earnings**
+        try {
+            const supportRes = await fetch(`/api/user/${userId}/support-earnings`, {
+                headers: { 'Authorization': `Bearer ${await user.getIdToken()}` }
+            });
+            const supportData = await supportRes.json();
+            if (supportData.success) {
+                document.getElementById('channelSupportEarnings').innerText = '₹' + (supportData.totalSupport || 0);
+            }
+        } catch (e) {
+            console.warn('Could not fetch support earnings:', e);
+            document.getElementById('channelSupportEarnings').innerText = '₹0';
+        }
+
+        // 6. **NEW: Load channel info for the user**
+        try {
+            const channelRes = await fetch('/api/my-channel', {
+                headers: { 'Authorization': `Bearer ${await user.getIdToken()}` }
+            });
+            const channelData = await channelRes.json();
+            if (channelData.hasChannel) {
+                // Update the channel card in the dashboard
+                const channelCard = document.getElementById('channelCard');
+                if (channelCard) {
+                    const channel = channelData.channel;
+                    const subs = channel.subscribers || 0;
+                    const subsDisplay = subs >= 1000 ? (subs/1000).toFixed(1) + 'K' : subs;
+                    channelCard.innerHTML = `
+                        <div class="stat-title"><i class="fas fa-tv"></i> Your Channel</div>
+                        <div class="channel-preview">
+                            <div class="channel-avatar">${channel.channelName.charAt(0).toUpperCase()}</div>
+                            <div class="channel-info">
+                                <h3>${channel.channelName}</h3>
+                                <p>${channel.channelHandle}</p>
+                                <div class="channel-stats-mini">
+                                    <span><i class="fas fa-users"></i> ${subsDisplay} subscribers</span>
+                                    <span><i class="fas fa-video"></i> ${channel.totalPrompts || 0} prompts</span>
+                                    <span><i class="fas fa-eye"></i> ${channel.totalViews || 0} views</span>
+                                    <span><i class="fas fa-heart" style="color:#ff6b6b;"></i> ₹${channel.totalSupport || 0} raised</span>
+                                </div>
+                            </div>
+                            <div class="channel-actions">
+                                <a href="/channel/${channel.channelHandle || channelData.channelId}" class="action-btn" style="background: #4e54c8; width: auto;">
+                                    <i class="fas fa-eye"></i> View Channel
+                                </a>
+                                <button class="action-btn" id="editChannelBtn" style="background: #10b981; width: auto;">
+                                    <i class="fas fa-edit"></i> Edit
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                    // Re-bind edit button
+                    document.getElementById('editChannelBtn')?.addEventListener('click', () => {
+                        showEditChannelModal(channel, channelData.channelId);
+                    });
+                }
+            } else {
+                // User has no channel – show "Create Channel" button
+                const channelCard = document.getElementById('channelCard');
+                if (channelCard) {
+                    channelCard.innerHTML = `
+                        <div class="stat-title"><i class="fas fa-tv"></i> Your Channel</div>
+                        <p style="margin-bottom: 10px; color: #666;">Create your own channel to showcase your prompts and grow your audience.</p>
+                        <button class="action-btn" id="createChannelBtn" style="width: auto;"><i class="fas fa-plus"></i> Create Channel</button>
+                    `;
+                    document.getElementById('createChannelBtn')?.addEventListener('click', showCreateChannelModal);
+                }
+            }
+        } catch (e) {
+            console.warn('Could not load channel info:', e);
+        }
+
     } catch (err) {
         console.error('Dashboard data error', err);
-        document.getElementById('purchasesContainer').innerHTML = `<div class="empty-state"><i class="fas fa-exclamation-triangle"></i><p>Error loading data. Please refresh.</p></div>`;
+        document.getElementById('purchasesContainer').innerHTML = 
+            `<div class="empty-state"><i class="fas fa-exclamation-triangle"></i><p>Error loading data. Please refresh.</p></div>`;
     }
 }
 

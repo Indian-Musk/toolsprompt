@@ -492,7 +492,559 @@ nav {
     line-height: 1.5;
 }
 
-/* ===== NEW HERO SECTION ===== */
+/* ===== CHANNEL CLAIM BANNER - 3 STEP MONETIZATION ===== */
+.channel-claim-banner {
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+    color: white;
+    padding: 18px 22px;
+    border-radius: 16px;
+    margin: 20px 0 25px;
+    display: none;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+    border: 2px solid #ffd700;
+    box-shadow: 0 8px 30px rgba(255, 215, 0, 0.15);
+    position: relative;
+    overflow: hidden;
+    animation: claimPulse 3s ease-in-out infinite;
+}
+
+.channel-claim-banner::before {
+    content: "🎯";
+    position: absolute;
+    font-size: 7rem;
+    opacity: 0.05;
+    right: -20px;
+    top: -30px;
+    transform: rotate(15deg);
+}
+
+.channel-claim-banner .banner-content {
+    flex: 1;
+    min-width: 250px;
+    position: relative;
+    z-index: 1;
+}
+
+.channel-claim-banner .banner-content h3 {
+    font-size: 1.2rem;
+    font-weight: 800;
+    margin-bottom: 4px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.channel-claim-banner .banner-content h3 .highlight {
+    background: #ffd700;
+    color: #1a1a2e;
+    padding: 2px 10px;
+    border-radius: 20px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    animation: glowPulse 2s ease-in-out infinite;
+}
+
+.channel-claim-banner .banner-content .steps-container {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 8px;
+}
+
+.channel-claim-banner .step-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 30px;
+    padding: 5px 14px;
+    font-size: 0.8rem;
+    font-weight: 500;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.channel-claim-banner .step-item i {
+    color: #ffd700;
+    font-size: 0.9rem;
+}
+
+.channel-claim-banner .step-item strong {
+    color: #ffd700;
+    font-weight: 700;
+}
+
+.channel-claim-banner .banner-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    position: relative;
+    z-index: 1;
+}
+
+.channel-claim-banner .claim-btn {
+    background: linear-gradient(135deg, #ffd700 0%, #ffb300 100%);
+    color: #1a1a2e;
+    border: none;
+    padding: 11px 24px;
+    border-radius: 40px;
+    font-weight: 700;
+    font-size: 0.95rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    box-shadow: 0 4px 20px rgba(255, 215, 0, 0.3);
+}
+
+.channel-claim-banner .claim-btn:hover {
+    transform: scale(1.05);
+    box-shadow: 0 8px 30px rgba(255, 215, 0, 0.5);
+}
+
+.channel-claim-banner .claim-btn i {
+    font-size: 1rem;
+}
+
+.channel-claim-banner .skip-btn {
+    background: rgba(255, 255, 255, 0.1);
+    color: rgba(255, 255, 255, 0.7);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    padding: 11px 18px;
+    border-radius: 40px;
+    font-weight: 500;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.channel-claim-banner .skip-btn:hover {
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+}
+
+@keyframes claimPulse {
+    0%, 100% { border-color: #ffd700; }
+    50% { border-color: #ff6b6b; }
+}
+
+@keyframes glowPulse {
+    0%, 100% { box-shadow: 0 0 10px rgba(255, 215, 0, 0.3); }
+    50% { box-shadow: 0 0 25px rgba(255, 215, 0, 0.6); }
+}
+
+@media (max-width: 768px) {
+    .channel-claim-banner {
+        padding: 14px 16px;
+        flex-direction: column;
+        text-align: center;
+    }
+    .channel-claim-banner .banner-content h3 {
+        font-size: 1.05rem;
+        justify-content: center;
+    }
+    .channel-claim-banner .steps-container {
+        justify-content: center;
+    }
+    .channel-claim-banner .banner-actions {
+        justify-content: center;
+        width: 100%;
+    }
+    .channel-claim-banner .claim-btn {
+        flex: 1;
+        justify-content: center;
+    }
+}
+
+@media (max-width: 480px) {
+    .channel-claim-banner .banner-content h3 {
+        font-size: 0.95rem;
+    }
+    .channel-claim-banner .step-item {
+        font-size: 0.7rem;
+        padding: 4px 10px;
+    }
+    .channel-claim-banner .claim-btn {
+        padding: 10px 18px;
+        font-size: 0.85rem;
+    }
+}
+
+/* ===== FLOATING CHANNEL REMINDER ===== */
+.floating-channel-reminder {
+    position: fixed;
+    bottom: 100px;
+    right: 20px;
+    background: linear-gradient(135deg, #1a1a2e 0%, #0f3460 100%);
+    color: white;
+    padding: 14px 20px;
+    border-radius: 16px;
+    z-index: 10001;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
+    border: 2px solid #ffd700;
+    display: none;
+    align-items: center;
+    gap: 14px;
+    max-width: 340px;
+    animation: slideUpFade 0.5s ease-out, claimPulse 3s ease-in-out infinite;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.floating-channel-reminder:hover {
+    transform: scale(1.03);
+    box-shadow: 0 12px 40px rgba(255, 215, 0, 0.25);
+}
+
+.floating-channel-reminder .reminder-icon {
+    background: #ffd700;
+    color: #1a1a2e;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.4rem;
+    flex-shrink: 0;
+    animation: glowPulse 2s ease-in-out infinite;
+}
+
+.floating-channel-reminder .reminder-text {
+    flex: 1;
+}
+
+.floating-channel-reminder .reminder-text h4 {
+    font-size: 0.95rem;
+    font-weight: 700;
+    margin: 0 0 2px;
+}
+
+.floating-channel-reminder .reminder-text p {
+    font-size: 0.8rem;
+    opacity: 0.8;
+    margin: 0;
+}
+
+.floating-channel-reminder .reminder-close {
+    background: rgba(255, 255, 255, 0.1);
+    border: none;
+    color: rgba(255, 255, 255, 0.6);
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.floating-channel-reminder .reminder-close:hover {
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+}
+
+/* ===== CHANNEL CREATION MODAL ===== */
+.channel-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.8);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 100000;
+    animation: fadeIn 0.3s ease;
+    backdrop-filter: blur(8px);
+    padding: 20px;
+}
+
+.channel-modal-overlay.active {
+    display: flex;
+}
+
+.channel-modal {
+    background: white;
+    border-radius: 20px;
+    width: 100%;
+    max-width: 550px;
+    max-height: 90vh;
+    overflow-y: auto;
+    animation: slideUp 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    box-shadow: 0 25px 80px rgba(0, 0, 0, 0.5);
+}
+
+.channel-modal .modal-header {
+    padding: 24px 28px 16px;
+    border-bottom: 1px solid #e9ecef;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    position: sticky;
+    top: 0;
+    background: white;
+    z-index: 1;
+    border-radius: 20px 20px 0 0;
+}
+
+.channel-modal .modal-header h2 {
+    color: #1a1a2e;
+    font-size: 1.4rem;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.channel-modal .modal-header h2 i {
+    color: #ffd700;
+}
+
+.channel-modal .modal-header .close-modal {
+    background: none;
+    border: none;
+    font-size: 1.8rem;
+    cursor: pointer;
+    color: #666;
+    transition: color 0.3s ease;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.channel-modal .modal-header .close-modal:hover {
+    background: #f1f3f5;
+    color: #ff6b6b;
+}
+
+.channel-modal .modal-body {
+    padding: 24px 28px 28px;
+}
+
+.channel-modal .urgency-banner {
+    background: linear-gradient(135deg, #ffd700 0%, #ffb300 100%);
+    color: #1a1a2e;
+    padding: 12px 16px;
+    border-radius: 12px;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-weight: 600;
+    font-size: 0.95rem;
+}
+
+.channel-modal .urgency-banner i {
+    font-size: 1.4rem;
+}
+
+.channel-modal .form-group {
+    margin-bottom: 18px;
+}
+
+.channel-modal .form-group label {
+    display: block;
+    margin-bottom: 6px;
+    font-weight: 600;
+    color: #2d334a;
+    font-size: 0.95rem;
+}
+
+.channel-modal .form-group .input-wrapper {
+    position: relative;
+}
+
+.channel-modal .form-group .input-wrapper .at-symbol {
+    position: absolute;
+    left: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #888;
+    font-weight: 700;
+    font-size: 1.1rem;
+}
+
+.channel-modal .form-group input,
+.channel-modal .form-group textarea {
+    width: 100%;
+    padding: 12px 16px;
+    border: 2px solid #e9ecef;
+    border-radius: 12px;
+    font-size: 1rem;
+    transition: all 0.3s ease;
+    font-family: inherit;
+}
+
+.channel-modal .form-group .input-wrapper input {
+    padding-left: 36px;
+}
+
+.channel-modal .form-group input:focus,
+.channel-modal .form-group textarea:focus {
+    outline: none;
+    border-color: #4e54c8;
+    box-shadow: 0 0 0 4px rgba(78, 84, 200, 0.1);
+}
+
+.channel-modal .form-group .input-hint {
+    font-size: 0.8rem;
+    color: #888;
+    margin-top: 4px;
+}
+
+.channel-modal .form-group .input-hint .available {
+    color: #20bf6b;
+    font-weight: 600;
+}
+
+.channel-modal .form-group .input-hint .taken {
+    color: #ff6b6b;
+    font-weight: 600;
+}
+
+.channel-modal .form-group .input-hint .checking {
+    color: #4e54c8;
+}
+
+.channel-modal .form-group textarea {
+    min-height: 80px;
+    resize: vertical;
+}
+
+.channel-modal .form-group .file-upload-area {
+    border: 2px dashed #e9ecef;
+    border-radius: 12px;
+    padding: 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    position: relative;
+}
+
+.channel-modal .form-group .file-upload-area:hover {
+    border-color: #4e54c8;
+    background: rgba(78, 84, 200, 0.05);
+}
+
+.channel-modal .form-group .file-upload-area input {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    cursor: pointer;
+}
+
+.channel-modal .form-group .file-upload-area i {
+    font-size: 2rem;
+    color: #4e54c8;
+    margin-bottom: 8px;
+}
+
+.channel-modal .form-group .file-upload-area p {
+    margin: 0;
+    color: #666;
+    font-size: 0.9rem;
+}
+
+.channel-modal .form-group .image-preview {
+    margin-top: 10px;
+    display: none;
+    border-radius: 12px;
+    overflow: hidden;
+    border: 2px solid #e9ecef;
+}
+
+.channel-modal .form-group .image-preview img {
+    width: 100%;
+    max-height: 150px;
+    object-fit: cover;
+}
+
+.channel-modal .form-group .image-preview .remove-preview {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    background: rgba(0, 0, 0, 0.6);
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 28px;
+    height: 28px;
+    cursor: pointer;
+    font-size: 0.8rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.channel-modal .modal-footer {
+    padding: 16px 28px 28px;
+    border-top: 1px solid #e9ecef;
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.channel-modal .modal-footer .btn-primary {
+    flex: 1;
+    background: linear-gradient(135deg, #4e54c8 0%, #8f94fb 100%);
+    color: white;
+    border: none;
+    padding: 14px 24px;
+    border-radius: 40px;
+    font-weight: 700;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-width: 140px;
+}
+
+.channel-modal .modal-footer .btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(78, 84, 200, 0.4);
+}
+
+.channel-modal .modal-footer .btn-primary:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.channel-modal .modal-footer .btn-secondary {
+    background: #f1f3f5;
+    color: #666;
+    border: none;
+    padding: 14px 24px;
+    border-radius: 40px;
+    font-weight: 600;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.channel-modal .modal-footer .btn-secondary:hover {
+    background: #e9ecef;
+}
+
+/* ===== HERO SECTION (modified) ===== */
 .hero-section {
     background: linear-gradient(135deg, #4e54c8 0%, #8f94fb 100%);
     color: white;
@@ -674,6 +1226,54 @@ nav {
     .hero-mode-card .mode-icon { font-size: 1.8rem; }
     .hero-mode-card h4 { font-size: 0.95rem; }
     .hero-mode-btn { font-size: 0.75rem; padding: 6px 14px; }
+    
+    .channel-claim-banner {
+        padding: 14px 16px;
+        flex-direction: column;
+        text-align: center;
+    }
+    .channel-claim-banner .banner-content h3 {
+        font-size: 1.05rem;
+        justify-content: center;
+    }
+    .channel-claim-banner .steps-container {
+        justify-content: center;
+    }
+    .channel-claim-banner .banner-actions {
+        justify-content: center;
+        width: 100%;
+    }
+    .channel-claim-banner .claim-btn {
+        flex: 1;
+        justify-content: center;
+    }
+    
+    .floating-channel-reminder {
+          bottom: 150px;                 /* move above AI bar */
+        right: 10px;                   /* keep on right side */
+        left: auto;                    /* remove left:10px */
+        width: 50%;                    /* half of screen width */
+        max-width: 320px;              /* cap so it doesn't get too wide */
+        min-width: 220px;              /* ensure it's not too narrow */
+        padding: 12px 16px;
+    }
+    
+    .channel-modal {
+        max-width: 100%;
+        margin: 10px;
+    }
+    .channel-modal .modal-body {
+        padding: 18px 16px 20px;
+    }
+    .channel-modal .modal-footer {
+        flex-direction: column;
+    }
+    .channel-modal .modal-footer .btn-primary {
+        width: 100%;
+    }
+    .channel-modal .modal-footer .btn-secondary {
+        width: 100%;
+    }
 }
 @media (max-width: 480px) {
     .hero-title { font-size: 1.4rem; }
@@ -685,6 +1285,18 @@ nav {
     .hero-mode-card p { font-size: 0.7rem; }
     .hero-mode-btn { font-size: 0.65rem; padding: 4px 10px; }
     .hero-filter-chip { font-size: 0.7rem; padding: 4px 12px; }
+    
+    .channel-claim-banner .banner-content h3 {
+        font-size: 0.95rem;
+    }
+    .channel-claim-banner .step-item {
+        font-size: 0.7rem;
+        padding: 4px 10px;
+    }
+    .channel-claim-banner .claim-btn {
+        padding: 10px 18px;
+        font-size: 0.85rem;
+    }
 }
 
 /* ===== AI GENERATOR STICKY BAR ===== */
@@ -927,6 +1539,23 @@ nav {
 .generated-modal-download:hover {
     background: #3f44b8;
 }
+.generated-modal-share {
+    position: absolute;
+    bottom: -50px;
+    left: calc(50% + 90px);
+    transform: translateX(-50%);
+    background: #1DA1F2;
+    color: white;
+    border: none;
+    padding: 10px 24px;
+    border-radius: 30px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.3s ease;
+}
+.generated-modal-share:hover {
+    background: #0d8bdb;
+}
 .buy-modal-overlay {
     position: fixed;
     top: 0;
@@ -1008,7 +1637,7 @@ nav {
         flex-wrap: wrap;
         padding: 6px 8px;
         gap: 6px;
-        bottom: 60px; /* avoid overlapping with mobile nav */
+        bottom: 60px;
     }
     .ai-generator-input {
         flex: 1 1 100%;
@@ -2678,6 +3307,55 @@ nav {
         font-size: 1rem;
     }
 }
+
+/* ===== SUBSCRIBE BUTTON ON PROMPT CARDS ===== */
+.subscribe-channel-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    background: #ff0000;
+    color: white;
+    border: none;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    margin-top: 8px;
+    white-space: nowrap;
+}
+
+.subscribe-channel-btn:hover {
+    background: #cc0000;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(255, 0, 0, 0.3);
+}
+
+.subscribe-channel-btn.subscribed {
+    background: #666;
+}
+
+.subscribe-channel-btn.subscribed:hover {
+    background: #444;
+}
+
+.subscribe-channel-btn i {
+    font-size: 0.8rem;
+}
+
+.subscribe-channel-btn .subscribe-count {
+    background: rgba(255,255,255,0.2);
+    border-radius: 10px;
+    padding: 1px 6px;
+    font-size: 0.7rem;
+    min-width: 24px;
+    text-align: center;
+}
+
+.subscribe-channel-btn.subscribed .subscribe-count {
+    background: rgba(255,255,255,0.15);
+}
     </style>
 </head>
 <body>
@@ -2708,13 +3386,140 @@ nav {
 
                 <div class="nav-right">
                     <a href="/affiliate.html" class="affiliate-link" style="margin-right: 15px; color: #4e54c8; text-decoration: none; font-weight: 500; display: inline-flex; align-items: center; gap: 5px;">
-                        <i class="fas fa-link"></i> Affiliate
+                        <i class="fas fa-link"></i> Toolsprompt
                     </a>
                     <div class="auth-section" id="authSection"></div>
                 </div>
             </nav>
         </div>
     </header>
+
+    <!-- ===== CHANNEL CLAIM BANNER - 3 STEP MONETIZATION ===== -->
+    <div class="container">
+        <div class="channel-claim-banner" id="channelClaimBanner">
+            <div class="banner-content">
+                <h3>
+                    <i class="fas fa-tv" style="color: #ffd700;"></i>
+                    Claim Your Prompt Channel & Monetize!
+                    <span class="highlight">🔥 Earn Now</span>
+                </h3>
+                <div class="steps-container">
+                    <div class="step-item">
+                        <i class="fas fa-check-circle"></i>
+                        <span><strong>1.</strong> Create Channel</span>
+                    </div>
+                    <div class="step-item">
+                        <i class="fas fa-check-circle"></i>
+                        <span><strong>2.</strong> Upload Prompts</span>
+                    </div>
+                    <div class="step-item">
+                        <i class="fas fa-check-circle"></i>
+                        <span><strong>3.</strong> Add Ad Links</span>
+                    </div>
+                    <div class="step-item">
+                        <i class="fas fa-dollar-sign"></i>
+                        <span><strong>Earn</strong> on every view!</span>
+                    </div>
+                </div>
+            </div>
+            <div class="banner-actions">
+                <button class="claim-btn" id="claimChannelBtn">
+                    <i class="fas fa-bolt"></i> Start Earning
+                </button>
+                <button class="skip-btn" id="skipChannelBanner">Skip</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== FLOATING CHANNEL REMINDER ===== -->
+    <div class="floating-channel-reminder" id="floatingChannelReminder">
+        <div class="reminder-icon">
+            <i class="fas fa-tv"></i>
+        </div>
+        <div class="reminder-text">
+            <h4>Claim Your Channel!</h4>
+            <p>Get your unique @handle before it's gone</p>
+        </div>
+        <button class="reminder-close" id="closeFloatingReminder">
+            <i class="fas fa-times"></i>
+        </button>
+    </div>
+
+    <!-- ===== CHANNEL CREATION MODAL ===== -->
+    <div class="channel-modal-overlay" id="channelModal">
+        <div class="channel-modal">
+            <div class="modal-header">
+                <h2>
+                    <i class="fas fa-tv"></i>
+                    Create Your Channel
+                </h2>
+                <button class="close-modal" id="closeChannelModal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="urgency-banner">
+                    <i class="fas fa-clock"></i>
+                    <span>⚠️ <strong>@handles are first-come, first-served!</strong> Claim yours now.</span>
+                </div>
+                
+                <div class="form-group">
+                    <label>Channel Name *</label>
+                    <input type="text" id="channelNameInput" placeholder="e.g. AI Mastermind" maxlength="30" required>
+                    <div class="input-hint">Min 3 characters, max 30 characters</div>
+                </div>
+                
+                <div class="form-group">
+                    <label>Channel Handle (URL) *</label>
+                    <div class="input-wrapper">
+                        <span class="at-symbol">@</span>
+                        <input type="text" id="channelHandleInput" placeholder="aimastermind" maxlength="20" required>
+                    </div>
+                    <div class="input-hint" id="handleHint">
+                        <span>Available: <span class="available" id="handleStatusText">Checking...</span></span>
+                        <span id="handleStatusLoading" class="checking"><i class="fas fa-spinner fa-spin"></i> Checking availability...</span>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label>Description (optional)</label>
+                    <textarea id="channelDescInput" placeholder="Tell viewers what your channel is about..."></textarea>
+                </div>
+                
+                <div class="form-group">
+                    <label>Channel Avatar (optional)</label>
+                    <div class="file-upload-area" id="avatarUploadArea">
+                        <i class="fas fa-user-circle"></i>
+                        <p>Click to upload avatar</p>
+                        <p style="font-size: 0.8rem; color: #888;">JPEG, PNG, WebP (Max 2MB)</p>
+                        <input type="file" id="channelAvatarInput" accept="image/*">
+                    </div>
+                    <div class="image-preview" id="avatarPreview">
+                        <img id="avatarPreviewImg" src="" alt="Avatar preview">
+                        <button class="remove-preview" id="removeAvatarPreview">&times;</button>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label>Channel Banner (optional)</label>
+                    <div class="file-upload-area" id="bannerUploadArea">
+                        <i class="fas fa-image"></i>
+                        <p>Click to upload banner</p>
+                        <p style="font-size: 0.8rem; color: #888;">JPEG, PNG, WebP (Max 5MB) - Recommended: 1200x300</p>
+                        <input type="file" id="channelBannerInput" accept="image/*">
+                    </div>
+                    <div class="image-preview" id="bannerPreview">
+                        <img id="bannerPreviewImg" src="" alt="Banner preview">
+                        <button class="remove-preview" id="removeBannerPreview">&times;</button>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-primary" id="createChannelSubmit">
+                    <i class="fas fa-plus"></i> Create Channel
+                </button>
+                <button class="btn-secondary" id="cancelChannelModal">Cancel</button>
+            </div>
+        </div>
+    </div>
 
     <!-- ===== NEW HERO SECTION ===== -->
     <section class="hero-section">
@@ -2919,68 +3724,109 @@ nav {
         </button>
     </div>
 
-    <!-- AI Generator Sticky Bar -->
-    <div class="ai-generator-bar" id="aiGeneratorBar">
-        <textarea class="ai-generator-input" id="aiPromptInput" placeholder="Describe the image you want to generate..." rows="1"></textarea>
-        <div class="ai-generator-actions">
-            <div class="ai-image-preview" id="aiImagePreview">
-                <img id="aiPreviewImg" src="" alt="Uploaded preview">
-                <button class="remove-image" id="aiRemoveImage">&times;</button>
-            </div>
-            <button class="ai-image-upload-btn" id="aiImageUploadBtn" title="Upload an image for reference">
-                <i class="fas fa-plus"></i>
+   <!-- AI Generator Sticky Bar -->
+<div class="ai-generator-bar" id="aiGeneratorBar">
+    <textarea class="ai-generator-input" id="aiPromptInput" placeholder="Describe the image you want to generate..." rows="1"></textarea>
+    
+    <!-- NEW: Video URL input row -->
+    <div class="ai-url-row" style="display: flex; align-items: center; gap: 5px; padding: 0 10px; margin-bottom: 5px;">
+        <i class="fas fa-link" style="color: #888; font-size: 0.8rem;"></i>
+        <input type="url" id="aiUrlInput" placeholder="Paste link to remake(YouTube, TikTok, Instagram) for video" 
+               style="flex:1; background: transparent; border: none; outline: none; font-size: 0.8rem; color: #666;">
+        <button type="button" id="aiUrlClearBtn" style="background:none;border:none;color:#aaa;cursor:pointer;display:none;">
+            <i class="fas fa-times"></i>
+        </button>
+    </div>
+    
+    <div class="ai-generator-actions">
+        <div class="ai-image-preview" id="aiImagePreview">
+            <img id="aiPreviewImg" src="" alt="Uploaded preview">
+            <button class="remove-image" id="aiRemoveImage">&times;</button>
+        </div>
+        <button class="ai-image-upload-btn" id="aiImageUploadBtn" title="Upload images for reference">
+            <i class="fas fa-plus"></i>
+        </button>
+        <input type="file" class="ai-file-input" id="aiFileInput" accept="image/*" multiple>
+        
+        <!-- NEW: End image upload for keyframe mode -->
+        <button class="ai-image-upload-btn" id="aiEndImageUploadBtn" title="Upload end image (for keyframe)" style="display:none;">
+            <i class="fas fa-flag"></i>
+        </button>
+        <input type="file" class="ai-file-input" id="aiEndFileInput" accept="image/*">
+        
+        <div class="duration-option" style="display:flex; align-items:center; gap:6px; background:#f8f9fa; padding:4px 10px; border-radius:20px; flex-shrink:0;">
+            <i class="fas fa-clock" style="color:#666; font-size:0.8rem;"></i>
+            <input type="range" id="aiDurationSlider" min="3" max="40" value="5" step="1" 
+                   style="width:60px; height:4px; background:#4e54c8; border-radius:2px; outline:none; cursor:pointer;">
+            <span id="aiDurationDisplay" style="font-size:0.7rem; font-weight:600; color:#4e54c8; min-width:28px; text-align:center;">5s</span>
+        </div>
+        
+        <div class="ai-mode-toggle-group">
+            <button class="ai-mode-option active" data-mode="image" id="aiModeImage">
+                <i class="fas fa-image"></i> <span>Image</span>
             </button>
-            <input type="file" class="ai-file-input" id="aiFileInput" accept="image/*">
-            <div class="duration-option" style="display:flex; align-items:center; gap:6px; background:#f8f9fa; padding:4px 10px; border-radius:20px; flex-shrink:0;">
-                <i class="fas fa-clock" style="color:#666; font-size:0.8rem;"></i>
-                <input type="range" id="aiDurationSlider" min="3" max="40" value="5" step="1" 
-                       style="width:60px; height:4px; background:#4e54c8; border-radius:2px; outline:none; cursor:pointer;">
-                <span id="aiDurationDisplay" style="font-size:0.7rem; font-weight:600; color:#4e54c8; min-width:28px; text-align:center;">5s</span>
-            </div>
-            <div class="ai-mode-toggle-group">
-                <button class="ai-mode-option active" data-mode="image" id="aiModeImage">
-                    <i class="fas fa-image"></i> <span>Image</span>
-                </button>
-                <button class="ai-mode-option" data-mode="video" id="aiModeVideo">
-                    <i class="fas fa-video"></i> <span>Video</span>
-                </button>
-            </div>
-            <span class="ai-credit-display" id="aiCreditDisplay">
-                <i class="fas fa-coins"></i> <span class="credits-num" id="aiCreditsCount">0</span> credits
-            </span>
-            <button class="ai-generate-btn" id="aiGenerateBtn" title="Generate Image">
-                <i class="fas fa-arrow-right"></i>
+            <button class="ai-mode-option" data-mode="video" id="aiModeVideo">
+                <i class="fas fa-video"></i> <span>Video</span>
+            </button>
+            <button class="ai-mode-option" data-mode="keyframe" id="aiModeKeyframe">
+                <i class="fas fa-film"></i> <span>Keyframe</span>
             </button>
         </div>
+        
+        <span class="ai-credit-display" id="aiCreditDisplay">
+            <i class="fas fa-coins"></i> <span class="credits-num" id="aiCreditsCount">0</span> credits
+        </span>
+        <button class="ai-generate-btn" id="aiGenerateBtn" title="Generate">
+            <i class="fas fa-arrow-right"></i>
+        </button>
     </div>
+</div>
 
-    <!-- Generated Image Modal -->
-    <div class="generated-modal" id="generatedModal">
-        <div class="generated-modal-content">
-            <button class="generated-modal-close" id="generatedModalClose">&times;</button>
-            <img id="generatedImage" src="" alt="Generated Image">
-            <button class="generated-modal-download" id="generatedDownloadBtn">Download Image</button>
+<!-- Generated Image/Video Modal -->
+<div class="generated-modal" id="generatedModal">
+    <div class="generated-modal-content">
+        <button class="generated-modal-close" id="generatedModalClose">&times;</button>
+        <img id="generatedImage" src="" alt="Generated Image">
+        <button class="generated-modal-download" id="generatedDownloadBtn">Download Image</button>
+        <button class="generated-modal-share" id="generatedShareBtn">
+            <i class="fas fa-share-alt"></i> Share
+        </button>
+    </div>
+</div>
+
+<!-- Video Modal -->
+<div class="generated-modal" id="videoModal" style="display:none;">
+    <div class="generated-modal-content" style="max-width:90%;">
+        <button class="generated-modal-close" onclick="document.getElementById('videoModal').style.display='none'">&times;</button>
+        <video id="generatedVideo" src="" controls autoplay loop style="width:100%; max-height:80vh; border-radius:12px; background:#000;"></video>
+        <div style="display: flex; gap: 10px; justify-content: center; margin-top: 10px;">
+            <button class="generated-modal-download" onclick="downloadGeneratedVideo()">Download Video</button>
+            <button class="generated-modal-share" onclick="shareGeneratedContent(document.getElementById('generatedVideo').src, '', true)">Share</button>
         </div>
     </div>
+</div>
 
-    <!-- Upgrade Modal (Credits) -->
-    <div class="buy-modal-overlay" id="upgradeModal" style="display:none;">
-        <div class="buy-modal">
-            <div class="modal-header">
-                <h2><i class="fas fa-gem"></i> Upgrade Credits</h2>
-                <button class="close-modal" id="upgradeModalClose">&times;</button>
-            </div>
-            <div class="buy-modal-content">
+<!-- Upgrade Modal (Credits) -->
+<div class="buy-modal-overlay" id="upgradeModal" style="display:none;">
+    <div class="buy-modal">
+        <div class="modal-header">
+            <h2><i class="fas fa-gem"></i> Upgrade Credits</h2>
+            <button class="close-modal" id="upgradeModalClose">&times;</button>
+        </div>
+        <div class="buy-modal-content" style="grid-template-columns:1fr;padding:20px;">
+            <div style="text-align:center;">
                 <p>You have <strong id="upgradeCurrentCredits">0</strong> credits left.</p>
                 <p>Get <strong>50 credits</strong> for just <strong>₹20</strong>!</p>
-                <button class="buy-now-btn" id="upgradePayBtn">
+                <button class="buy-now-btn" id="upgradePayBtn" style="margin-top:20px;">
                     <i class="fas fa-rupee-sign"></i> Pay ₹20 for 50 credits
                 </button>
-                <p class="secure-payment"><i class="fas fa-lock"></i> Secure payment via Razorpay</p>
+                <p class="secure-payment" style="margin-top:15px;">
+                    <i class="fas fa-lock"></i> Secure payment via Razorpay
+                </p>
             </div>
         </div>
     </div>
-
+</div>
     <!-- ===== REFERRAL & EARN SECTION ===== -->
     <section class="referral-section" id="referralSection">
         <h2>🎁 Refer & Earn Free Credits</h2>
@@ -3102,6 +3948,316 @@ nav {
                 }
             }
             if (stepBtn) stepBtn.addEventListener('click', openModal);
+        });
+
+        // ===== CHANNEL CLAIM SYSTEM =====
+        document.addEventListener('DOMContentLoaded', function() {
+            const channelBanner = document.getElementById('channelClaimBanner');
+            const floatingReminder = document.getElementById('floatingChannelReminder');
+            const claimBtn = document.getElementById('claimChannelBtn');
+            const skipBtn = document.getElementById('skipChannelBanner');
+            const closeReminder = document.getElementById('closeFloatingReminder');
+            const channelModal = document.getElementById('channelModal');
+            const closeModal = document.getElementById('closeChannelModal');
+            const cancelModal = document.getElementById('cancelChannelModal');
+            const createSubmit = document.getElementById('createChannelSubmit');
+            
+            // Check if user has a channel
+            async function checkChannelStatus() {
+                try {
+                    const user = await getCurrentUser();
+                    if (!user) {
+                        // Not logged in - show banner
+                        showChannelBanner();
+                        return;
+                    }
+                    
+                    const idToken = await user.getIdToken();
+                    const response = await fetch('/api/my-channel', {
+                        headers: { 'Authorization': `Bearer ${idToken}` }
+                    });
+                    const data = await response.json();
+                    
+                    if (data.hasChannel) {
+                        // User has a channel - hide everything
+                        hideAllChannelPrompts();
+                    } else {
+                        // User is logged in but has no channel
+                        showChannelBanner();
+                        // Pre-fill handle suggestion
+                        const suggested = user.email ? user.email.split('@')[0] : 'creator';
+                        document.getElementById('suggestedHandle').textContent = '@' + suggested;
+                        document.getElementById('channelHandleInput').value = suggested;
+                        document.getElementById('channelNameInput').value = user.displayName || suggested;
+                        checkHandleAvailability(suggested);
+                    }
+                } catch (e) {
+                    console.log('Channel check error:', e);
+                    // On error, still show banner
+                    showChannelBanner();
+                }
+            }
+            
+            function showChannelBanner() {
+                channelBanner.style.display = 'flex';
+                // Show floating reminder after 10 seconds if banner isn't interacted with
+                setTimeout(() => {
+                    if (channelBanner.style.display !== 'none') {
+                        floatingReminder.style.display = 'flex';
+                    }
+                }, 10000);
+            }
+            
+            function hideAllChannelPrompts() {
+                channelBanner.style.display = 'none';
+                floatingReminder.style.display = 'none';
+                localStorage.setItem('channelClaimed', 'true');
+                localStorage.setItem('channelBannerSkipped', 'true');
+            }
+            
+            // Skip banner
+            skipBtn.addEventListener('click', function() {
+                channelBanner.style.display = 'none';
+                localStorage.setItem('channelBannerSkipped', 'true');
+                // Show floating reminder after 30 min
+                setTimeout(() => {
+                    floatingReminder.style.display = 'flex';
+                }, 1800000);
+            });
+            
+            // Close floating reminder
+            closeReminder.addEventListener('click', function(e) {
+                e.stopPropagation();
+                floatingReminder.style.display = 'none';
+                // Show again after 1 hour
+                setTimeout(() => {
+                    if (document.getElementById('channelClaimBanner').style.display !== 'none') {
+                        floatingReminder.style.display = 'flex';
+                    }
+                }, 3600000);
+            });
+            
+            // Click floating reminder - open modal
+            floatingReminder.addEventListener('click', function() {
+                openChannelModal();
+            });
+            
+            // Claim button - open modal
+            claimBtn.addEventListener('click', openChannelModal);
+            
+            function openChannelModal() {
+                // Check if user is logged in
+                getCurrentUser().then(user => {
+                    if (!user) {
+                        window.location.href = '/login.html?returnUrl=' + encodeURIComponent(window.location.href);
+                        return;
+                    }
+                    channelModal.classList.add('active');
+                    document.body.style.overflow = 'hidden';
+                    // Check handle availability again
+                    const handle = document.getElementById('channelHandleInput').value;
+                    if (handle) checkHandleAvailability(handle);
+                });
+            }
+            
+            // Close modal
+            function closeChannelModalFn() {
+                channelModal.classList.remove('active');
+                document.body.style.overflow = '';
+            }
+            
+            closeModal.addEventListener('click', closeChannelModalFn);
+            cancelModal.addEventListener('click', closeChannelModalFn);
+            channelModal.addEventListener('click', function(e) {
+                if (e.target === this) closeChannelModalFn();
+            });
+            
+            // Handle availability checker
+            const handleInput = document.getElementById('channelHandleInput');
+            let handleCheckTimeout = null;
+            
+            handleInput.addEventListener('input', function() {
+                clearTimeout(handleCheckTimeout);
+                const value = this.value.trim().toLowerCase().replace(/[^a-z0-9-]/g, '');
+                this.value = value;
+                
+                const hint = document.getElementById('handleHint');
+                const statusText = document.getElementById('handleStatusText');
+                const loading = document.getElementById('handleStatusLoading');
+                
+                if (value.length < 2) {
+                    statusText.textContent = 'Min 3 characters';
+                    statusText.className = '';
+                    loading.style.display = 'none';
+                    return;
+                }
+                
+                loading.style.display = 'inline';
+                statusText.textContent = 'Checking...';
+                statusText.className = 'checking';
+                
+                handleCheckTimeout = setTimeout(() => {
+                    checkHandleAvailability(value);
+                }, 300);
+            });
+            
+   async function checkHandleAvailability(handle) {
+    const statusText = document.getElementById('handleStatusText');
+    const loading = document.getElementById('handleStatusLoading');
+
+    if (!handle || handle.length < 2) {
+        statusText.textContent = 'Min 3 characters';
+        statusText.className = '';
+        loading.style.display = 'none';
+        return;
+    }
+
+    try {
+        // ✅ New endpoint
+        const response = await fetch(`/api/check-handle/${handle}`);
+        const data = await response.json();
+
+        loading.style.display = 'none';
+
+        if (data.exists) {
+            statusText.textContent = '❌ Taken';
+            statusText.className = 'taken';
+            document.getElementById('createChannelSubmit').disabled = true;
+        } else {
+            statusText.textContent = '✅ Available!';
+            statusText.className = 'available';
+            document.getElementById('createChannelSubmit').disabled = false;
+            document.getElementById('suggestedHandle').textContent = '@' + handle;
+        }
+    } catch (e) {
+        loading.style.display = 'none';
+        statusText.textContent = '⚠️ Error checking';
+        statusText.className = '';
+    }
+}
+            
+            // Avatar upload preview
+            const avatarInput = document.getElementById('channelAvatarInput');
+            const avatarPreview = document.getElementById('avatarPreview');
+            const avatarPreviewImg = document.getElementById('avatarPreviewImg');
+            const removeAvatar = document.getElementById('removeAvatarPreview');
+            
+            avatarInput.addEventListener('change', function() {
+                const file = this.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                        avatarPreviewImg.src = e.target.result;
+                        avatarPreview.style.display = 'block';
+                    };
+                    reader.readAsDataURL(file);
+                }
+            });
+            
+            removeAvatar.addEventListener('click', function() {
+                avatarInput.value = '';
+                avatarPreview.style.display = 'none';
+                avatarPreviewImg.src = '';
+            });
+            
+            // Banner upload preview
+            const bannerInput = document.getElementById('channelBannerInput');
+            const bannerPreview = document.getElementById('bannerPreview');
+            const bannerPreviewImg = document.getElementById('bannerPreviewImg');
+            const removeBanner = document.getElementById('removeBannerPreview');
+            
+            bannerInput.addEventListener('change', function() {
+                const file = this.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                        bannerPreviewImg.src = e.target.result;
+                        bannerPreview.style.display = 'block';
+                    };
+                    reader.readAsDataURL(file);
+                }
+            });
+            
+            removeBanner.addEventListener('click', function() {
+                bannerInput.value = '';
+                bannerPreview.style.display = 'none';
+                bannerPreviewImg.src = '';
+            });
+            
+            // Submit channel creation
+            createSubmit.addEventListener('click', async function() {
+                const user = await getCurrentUser();
+                if (!user) {
+                    window.location.href = '/login.html?returnUrl=' + encodeURIComponent(window.location.href);
+                    return;
+                }
+                
+                const channelName = document.getElementById('channelNameInput').value.trim();
+                const channelHandle = document.getElementById('channelHandleInput').value.trim().toLowerCase();
+                const description = document.getElementById('channelDescInput').value.trim();
+                const avatarFile = document.getElementById('channelAvatarInput').files[0];
+                const bannerFile = document.getElementById('channelBannerInput').files[0];
+                
+                if (channelName.length < 3) {
+                    alert('Channel name must be at least 3 characters');
+                    return;
+                }
+                
+                if (channelHandle.length < 3) {
+                    alert('Channel handle must be at least 3 characters');
+                    return;
+                }
+                
+                // Check availability again
+                const checkResponse = await fetch(`/api/channel-exists/${channelHandle}`);
+                const checkData = await checkResponse.json();
+                if (checkData.exists) {
+                    alert('This handle is already taken. Please choose another.');
+                    return;
+                }
+                
+                this.disabled = true;
+                this.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating...';
+                
+                try {
+                    const idToken = await user.getIdToken();
+                    const formData = new FormData();
+                    formData.append('channelName', channelName);
+                    formData.append('channelHandle', channelHandle);
+                    if (description) formData.append('description', description);
+                    if (avatarFile) formData.append('avatar', avatarFile);
+                    if (bannerFile) formData.append('banner', bannerFile);
+                    
+                    const response = await fetch('/api/channel', {
+                        method: 'POST',
+                        headers: { 'Authorization': `Bearer ${idToken}` },
+                        body: formData
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        alert('🎉 Channel created successfully! Your channel is now live!');
+                        closeChannelModalFn();
+                        hideAllChannelPrompts();
+                        showNotification('Channel created! 🎉', 'success');
+                        // Refresh page to show channel link
+                        setTimeout(() => window.location.reload(), 1500);
+                    } else {
+                        alert(data.error || 'Failed to create channel');
+                        this.disabled = false;
+                        this.innerHTML = '<i class="fas fa-plus"></i> Create Channel';
+                    }
+                } catch (e) {
+                    console.error('Channel creation error:', e);
+                    alert('Error creating channel. Please try again.');
+                    this.disabled = false;
+                    this.innerHTML = '<i class="fas fa-plus"></i> Create Channel';
+                }
+            });
+            
+            // Check channel status on load
+            checkChannelStatus();
         });
 
         // ===== PROMOTIONAL POPUP (unchanged) =====
@@ -3441,493 +4597,709 @@ nav {
 
         setTimeout(updateLoadMoreButton, 3000);
 
-        // =================================================================
-        //  AI GENERATOR STICKY BAR (unchanged)
-        // =================================================================
-        (function() {
-            const bar = document.getElementById('aiGeneratorBar');
-            const promptInput = document.getElementById('aiPromptInput');
-            const generateBtn = document.getElementById('aiGenerateBtn');
-            const uploadBtn = document.getElementById('aiImageUploadBtn');
-            const fileInput = document.getElementById('aiFileInput');
-            const previewContainer = document.getElementById('aiImagePreview');
-            const previewImg = document.getElementById('aiPreviewImg');
-            const removeImageBtn = document.getElementById('aiRemoveImage');
-            const creditDisplay = document.getElementById('aiCreditsCount');
-            const modal = document.getElementById('generatedModal');
-            const modalImg = document.getElementById('generatedImage');
-            const modalClose = document.getElementById('generatedModalClose');
-            const downloadBtn = document.getElementById('generatedDownloadBtn');
-            const upgradeModal = document.getElementById('upgradeModal');
-            const upgradeClose = document.getElementById('upgradeModalClose');
-            const upgradePayBtn = document.getElementById('upgradePayBtn');
-            const upgradeCurrent = document.getElementById('upgradeCurrentCredits');
+       // =================================================================
+//  AI GENERATOR STICKY BAR (with Multimodal + Keyframe support)
+// =================================================================
+(function() {
+    const bar = document.getElementById('aiGeneratorBar');
+    const promptInput = document.getElementById('aiPromptInput');
+    const generateBtn = document.getElementById('aiGenerateBtn');
+    const uploadBtn = document.getElementById('aiImageUploadBtn');
+    const fileInput = document.getElementById('aiFileInput');
+    const previewContainer = document.getElementById('aiImagePreview');
+    const previewImg = document.getElementById('aiPreviewImg');
+    const removeImageBtn = document.getElementById('aiRemoveImage');
+    const creditDisplay = document.getElementById('aiCreditsCount');
+    const modal = document.getElementById('generatedModal');
+    const modalImg = document.getElementById('generatedImage');
+    const modalClose = document.getElementById('generatedModalClose');
+    const downloadBtn = document.getElementById('generatedDownloadBtn');
+    const shareBtn = document.getElementById('generatedShareBtn');
+    const upgradeModal = document.getElementById('upgradeModal');
+    const upgradeClose = document.getElementById('upgradeModalClose');
+    const upgradePayBtn = document.getElementById('upgradePayBtn');
+    const upgradeCurrent = document.getElementById('upgradeCurrentCredits');
 
-            const modeImageBtn = document.getElementById('aiModeImage');
-            const modeVideoBtn = document.getElementById('aiModeVideo');
-            let currentMode = 'image';
-            let currentUserId = null;
-            let uploadedImage = null;
-            let isGenerating = false;
+    // NEW: Mode toggle buttons
+    const modeImageBtn = document.getElementById('aiModeImage');
+    const modeVideoBtn = document.getElementById('aiModeVideo');
+    const modeKeyframeBtn = document.getElementById('aiModeKeyframe');
+    
+    // NEW: URL input
+    const aiUrlInput = document.getElementById('aiUrlInput');
+    const aiUrlClearBtn = document.getElementById('aiUrlClearBtn');
 
-            bar.classList.add('active');
+    // NEW: End image upload (keyframe mode)
+    const endFileInput = document.getElementById('aiEndFileInput');
+    const endImageUploadBtn = document.getElementById('aiEndImageUploadBtn');
 
-            promptInput.addEventListener('input', function() {
-                this.style.height = 'auto';
-                this.style.height = Math.min(this.scrollHeight, 120) + 'px';
-            });
+    let currentMode = 'image'; // 'image', 'video', or 'keyframe'
+    let currentUserId = null;
+    let uploadedImages = [];   // array of File objects
+    let endImage = null;       // File for keyframe end image
+    let isGenerating = false;
+    let lastGeneratedPrompt = '';
 
-            const durSlider = document.getElementById('aiDurationSlider');
-            const durDisplay = document.getElementById('aiDurationDisplay');
-            if (durSlider && durDisplay) {
-                durSlider.addEventListener('input', function() {
-                    durDisplay.textContent = this.value + 's';
-                });
+    bar.classList.add('active');
+
+    // Auto-resize textarea
+    promptInput.addEventListener('input', function() {
+        this.style.height = 'auto';
+        this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+    });
+
+    // URL input handlers
+    aiUrlInput.addEventListener('input', function() {
+        aiUrlClearBtn.style.display = this.value ? 'block' : 'none';
+    });
+    aiUrlClearBtn.addEventListener('click', function() {
+        aiUrlInput.value = '';
+        aiUrlClearBtn.style.display = 'none';
+    });
+
+    // Sync duration slider display
+    const durSlider = document.getElementById('aiDurationSlider');
+    const durDisplay = document.getElementById('aiDurationDisplay');
+    if (durSlider && durDisplay) {
+        durSlider.addEventListener('input', function() {
+            durDisplay.textContent = this.value + 's';
+        });
+    }
+
+    // Image upload (multiple files)
+    uploadBtn.addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', function(e) {
+        const files = Array.from(e.target.files);
+        if (files.length > 0) {
+            uploadedImages = files; // store all
+            const reader = new FileReader();
+            reader.onload = function(ev) {
+                previewImg.src = ev.target.result;
+                previewContainer.style.display = 'block';
+            };
+            reader.readAsDataURL(files[0]); // show first image preview
+        } else {
+            uploadedImages = [];
+            previewContainer.style.display = 'none';
+            previewImg.src = '';
+        }
+    });
+
+    // End image upload (keyframe)
+    endImageUploadBtn.addEventListener('click', () => endFileInput.click());
+    endFileInput.addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (file) {
+            endImage = file;
+            endImageUploadBtn.style.background = '#20bf6b';
+        } else {
+            endImage = null;
+            endImageUploadBtn.style.background = '';
+        }
+    });
+
+    removeImageBtn.addEventListener('click', function() {
+        previewContainer.style.display = 'none';
+        previewImg.src = '';
+        fileInput.value = '';
+        uploadedImages = [];
+        endFileInput.value = '';
+        endImage = null;
+        endImageUploadBtn.style.background = '';
+    });
+
+    // Fetch credits on load
+    async function fetchCredits() {
+        const user = await getCurrentUser();
+        if (!user) {
+            const stored = localStorage.getItem('guestUsage');
+            let usage = stored ? JSON.parse(stored) : null;
+            const today = new Date().toISOString().split('T')[0];
+            if (!usage || usage.date !== today) {
+                usage = { date: today, count: 0 };
+                localStorage.setItem('guestUsage', JSON.stringify(usage));
+            }
+            creditDisplay.innerHTML = `<i class="fas fa-bolt"></i> ${Math.max(0, 3 - usage.count)} free without login`;
+            return;
+        }
+        currentUserId = user.uid;
+        try {
+            const res = await fetch(`/api/credits/${user.uid}`);
+            const data = await res.json();
+            if (data.success) {
+                creditDisplay.textContent = data.credits;
+            }
+        } catch(e) {
+            console.error('Credit fetch error', e);
+        }
+    }
+    fetchCredits();
+
+    // ===== MODE TOGGLE LOGIC =====
+    function setMode(mode) {
+        currentMode = mode;
+        modeImageBtn.classList.toggle('active', mode === 'image');
+        modeVideoBtn.classList.toggle('active', mode === 'video');
+        modeKeyframeBtn.classList.toggle('active', mode === 'keyframe');
+
+        // Show/hide end image upload button
+        if (mode === 'keyframe') {
+            endImageUploadBtn.style.display = 'block';
+            endFileInput.style.display = 'block';
+        } else {
+            endImageUploadBtn.style.display = 'none';
+            endFileInput.style.display = 'none';
+            endImage = null;
+            endImageUploadBtn.style.background = '';
+        }
+
+        // Update placeholder and generate button icon
+        promptInput.placeholder = mode === 'image' 
+            ? 'Describe the image you want to generate...' 
+            : mode === 'video'
+                ? 'Describe the video you want to create...'
+                : 'Describe the transformation between the two keyframes...';
+        generateBtn.innerHTML = mode === 'image' 
+            ? '<i class="fas fa-arrow-right"></i>' 
+            : mode === 'video'
+                ? '<i class="fas fa-video"></i>'
+                : '<i class="fas fa-film"></i>';
+    }
+
+    modeImageBtn.addEventListener('click', function() {
+        if (currentMode === 'image') return;
+        setMode('image');
+    });
+    modeVideoBtn.addEventListener('click', function() {
+        if (currentMode === 'video') return;
+        setMode('video');
+    });
+    modeKeyframeBtn.addEventListener('click', function() {
+        if (currentMode === 'keyframe') return;
+        setMode('keyframe');
+    });
+
+    // ===== GENERATE =====
+    generateBtn.addEventListener('click', async function() {
+        if (isGenerating) return;
+        const prompt = promptInput.value.trim();
+        if (!prompt) {
+            showNotification('Please enter a prompt.', 'error');
+            return;
+        }
+        lastGeneratedPrompt = prompt;
+
+        // Check login and get user
+        let user = await getCurrentUser();
+        if (user) {
+            currentUserId = user.uid;
+        } else {
+            currentUserId = null;
+        }
+
+        // Check credits for logged-in users
+        if (user) {
+            const creditInfo = await fetch(`/api/credits/${user.uid}`).then(r => r.json());
+            if (!creditInfo.success || creditInfo.credits <= 0) {
+                upgradeCurrent.textContent = creditInfo.credits || 0;
+                upgradeModal.style.display = 'flex';
+                return;
+            }
+        } else {
+            // For guests, we proceed to the API which will handle the limit.
+            const stored = localStorage.getItem('guestUsage');
+            let usage = stored ? JSON.parse(stored) : null;
+            const today = new Date().toISOString().split('T')[0];
+            if (!usage || usage.date !== today) {
+                usage = { date: today, count: 0 };
+                localStorage.setItem('guestUsage', JSON.stringify(usage));
+            }
+            if (usage.count >= 3) {
+                showGuestLimitModal();
+                return;
+            }
+        }
+
+        // Proceed with generation
+        isGenerating = true;
+        generateBtn.disabled = true;
+        generateBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+
+        // Create or get status element
+        let statusEl = document.getElementById('generationStatus');
+        if (!statusEl) {
+            statusEl = document.createElement('div');
+            statusEl.id = 'generationStatus';
+            statusEl.style.cssText = 'font-size:0.9rem; color:#666; margin-top:5px; text-align:center;';
+            bar.parentNode.insertBefore(statusEl, bar.nextSibling);
+        }
+        statusEl.textContent = '⏳ Starting...';
+
+        try {
+            const formData = new FormData();
+            formData.append('prompt', prompt);
+
+            // Reference URL
+            const referenceUrl = aiUrlInput.value.trim();
+            if (referenceUrl) formData.append('referenceUrl', referenceUrl);
+
+            // Uploaded images (multimodal)
+            if (uploadedImages.length > 0) {
+                uploadedImages.forEach((img) => formData.append('image', img));
             }
 
-            uploadBtn.addEventListener('click', () => fileInput.click());
-            fileInput.addEventListener('change', function(e) {
-                const file = this.files[0];
-                if (file) {
-                    const reader = new FileReader();
-                    reader.onload = function(ev) {
-                        previewImg.src = ev.target.result;
-                        previewContainer.style.display = 'block';
-                        uploadedImage = file;
-                    };
-                    reader.readAsDataURL(file);
-                }
-            });
-            removeImageBtn.addEventListener('click', function() {
-                previewContainer.style.display = 'none';
-                previewImg.src = '';
-                fileInput.value = '';
-                uploadedImage = null;
-            });
-
-            async function fetchCredits() {
-                const user = await getCurrentUser();
-                if (!user) {
-                    const stored = localStorage.getItem('guestUsage');
-                    let usage = stored ? JSON.parse(stored) : null;
-                    const today = new Date().toISOString().split('T')[0];
-                    if (!usage || usage.date !== today) {
-                        usage = { date: today, count: 0 };
-                        localStorage.setItem('guestUsage', JSON.stringify(usage));
-                    }
-                    creditDisplay.innerHTML = `<i class="fas fa-bolt"></i> ${Math.max(0, 3 - usage.count)} Generation Without Login`;
-                    return;
-                }
-                currentUserId = user.uid;
-                try {
-                    const res = await fetch(`/api/credits/${user.uid}`);
-                    const data = await res.json();
-                    if (data.success) {
-                        creditDisplay.textContent = data.credits;
-                    }
-                } catch(e) {
-                    console.error('Credit fetch error', e);
-                }
+            // End image for keyframe
+            if (currentMode === 'keyframe' && endImage) {
+                formData.append('endImage', endImage);
             }
-            fetchCredits();
 
-            function setMode(mode) {
-                currentMode = mode;
-                modeImageBtn.classList.toggle('active', mode === 'image');
-                modeVideoBtn.classList.toggle('active', mode === 'video');
-                promptInput.placeholder = mode === 'image' 
-                    ? 'Describe the image you want to generate...' 
-                    : 'Describe the video you want to create...';
-                generateBtn.innerHTML = mode === 'image' 
-                    ? '<i class="fas fa-arrow-right"></i>' 
-                    : '<i class="fas fa-video"></i>';
-                fileInput.accept = 'image/*';
+            // Add mode
+            formData.append('mode', currentMode);
+
+            // If video or keyframe mode, include duration
+            if (currentMode === 'video' || currentMode === 'keyframe') {
+                const durationVal = durSlider?.value || 5;
+                formData.append('duration', durationVal);
             }
-            modeImageBtn.addEventListener('click', function() {
-                if (currentMode === 'image') return;
-                setMode('image');
+
+            // Build headers conditionally
+            const headers = {};
+            if (user) {
+                const idToken = await user.getIdToken();
+                headers['Authorization'] = `Bearer ${idToken}`;
+            }
+
+            const endpoint = (currentMode === 'image') ? '/api/generate-image' : '/api/generate-agnes-video';
+            
+            // Update status message
+            if (referenceUrl) {
+                statusEl.textContent = '⏳ Processing video link...';
+            } else if (currentMode === 'keyframe') {
+                statusEl.textContent = '⏳ Creating keyframe animation...';
+            } else if (uploadedImages.length > 0) {
+                statusEl.textContent = '⏳ Analyzing reference images...';
+            }
+
+            const response = await fetch(endpoint, {
+                method: 'POST',
+                headers: headers,
+                body: formData
             });
-            modeVideoBtn.addEventListener('click', function() {
-                if (currentMode === 'video') return;
-                setMode('video');
-            });
 
-            generateBtn.addEventListener('click', async function() {
-                if (isGenerating) return;
-                const prompt = promptInput.value.trim();
-                if (!prompt) {
-                    showNotification('Please enter a prompt.', 'error');
-                    return;
-                }
-
-                let user = await getCurrentUser();
-                if (user) {
-                    currentUserId = user.uid;
-                } else {
-                    currentUserId = null;
-                }
-
-                if (user) {
-                    const creditInfo = await fetch(`/api/credits/${user.uid}`).then(r => r.json());
-                    if (!creditInfo.success || creditInfo.credits <= 0) {
-                        upgradeCurrent.textContent = creditInfo.credits || 0;
-                        upgradeModal.style.display = 'flex';
-                        return;
-                    }
-                } else {
-                    const stored = localStorage.getItem('guestUsage');
-                    let usage = stored ? JSON.parse(stored) : null;
-                    const today = new Date().toISOString().split('T')[0];
-                    if (!usage || usage.date !== today) {
-                        usage = { date: today, count: 0 };
-                        localStorage.setItem('guestUsage', JSON.stringify(usage));
-                    }
-                    if (usage.count >= 3) {
-                        showGuestLimitModal();
-                        return;
-                    }
-                }
-
-                isGenerating = true;
-                generateBtn.disabled = true;
-                generateBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
-
-                let statusEl = document.getElementById('generationStatus');
-                if (!statusEl) {
-                    statusEl = document.createElement('div');
-                    statusEl.id = 'generationStatus';
-                    statusEl.style.cssText = 'font-size:0.9rem; color:#666; margin-top:5px; text-align:center;';
-                    bar.parentNode.insertBefore(statusEl, bar.nextSibling);
-                }
-                statusEl.textContent = '⏳ Starting...';
-
-                try {
-                    const formData = new FormData();
-                    formData.append('prompt', prompt);
-                    if (uploadedImage) {
-                        formData.append('image', uploadedImage);
-                    }
-                    if (currentMode === 'video') {
-                        const durationVal = document.getElementById('aiDurationSlider')?.value || 5;
-                        formData.append('duration', durationVal);
-                    }
-
-                    const headers = {};
-                    if (user) {
-                        const idToken = await user.getIdToken();
-                        headers['Authorization'] = `Bearer ${idToken}`;
-                    }
-
-                    const endpoint = currentMode === 'video' ? '/api/generate-agnes-video' : '/api/generate-image';
-                    const response = await fetch(endpoint, {
-                        method: 'POST',
-                        headers: headers,
-                        body: formData
-                    });
-
-                    const result = await response.json();
-                    if (!response.ok) {
-                        if (response.status === 403 && result.error === 'guest_limit_reached') {
-                            showGuestLimitModal();
-                            generateBtn.disabled = false;
-                            generateBtn.innerHTML = currentMode === 'video' ? '<i class="fas fa-video"></i>' : '<i class="fas fa-arrow-right"></i>';
-                            isGenerating = false;
-                            if (statusEl) statusEl.textContent = '';
-                            return;
-                        }
-                        if (response.status === 429) {
-                            const waitSec = result.retryAfter || 60;
-                            statusEl.textContent = `⏳ Rate limited. Please wait ${waitSec} seconds and try again.`;
-                            showNotification(`Generation rate limited. Try again in ${waitSec}s.`, 'error');
-                            generateBtn.disabled = false;
-                            generateBtn.innerHTML = currentMode === 'video' ? '<i class="fas fa-video"></i>' : '<i class="fas fa-arrow-right"></i>';
-                            isGenerating = false;
-                            return;
-                        }
-                        throw new Error(result.error || 'Generation failed');
-                    }
-
-                    if (currentMode === 'video') {
-                        const videoId = result.video_id;
-                        if (!videoId) throw new Error('No video_id returned from Agnes.');
-
-                        statusEl.textContent = '⏳ Video generation started (may take several minutes)...';
-
-                        const maxAttempts = 300;
-                        let attempt = 0;
-                        let videoUrl = null;
-                        const completionStatuses = ['completed', 'succeeded', 'done', 'finished', 'success'];
-
-                        while (attempt < maxAttempts) {
-                            attempt++;
-                            try {
-                                const pollRes = await fetch(`/api/poll-agnes-video?video_id=${videoId}`);
-                                if (pollRes.status === 429) {
-                                    const data = await pollRes.json();
-                                    const waitSeconds = data.retryAfter || 30;
-                                    statusEl.textContent = `⏳ Rate limited. Retrying in ${waitSeconds}s... (attempt ${attempt})`;
-                                    await new Promise(r => setTimeout(r, waitSeconds * 1000));
-                                    continue;
-                                }
-                                if (!pollRes.ok) throw new Error(`Poll failed: ${pollRes.status}`);
-                                const pollData = await pollRes.json();
-                                const status = pollData.status || pollData.state || '';
-                                if (completionStatuses.includes(status.toLowerCase())) {
-                                    videoUrl = pollData.video_url || pollData.output?.video_url || pollData.url;
-                                    break;
-                                } else if (status === 'failed' || status === 'error') {
-                                    throw new Error('Video generation failed.');
-                                }
-                                const progress = Math.min(attempt / maxAttempts * 100, 99);
-                                statusEl.textContent = `⏳ Generating video… ${Math.round(progress)}% (attempt ${attempt}/${maxAttempts})`;
-                                const delay = Math.min(2000 * Math.pow(1.2, attempt), 15000);
-                                await new Promise(r => setTimeout(r, delay));
-                            } catch (pollError) {
-                                console.error('Poll error:', pollError);
-                                if (!pollError.message.includes('failed')) {
-                                    await new Promise(r => setTimeout(r, 5000));
-                                } else {
-                                    throw pollError;
-                                }
-                            }
-                        }
-
-                        if (!videoUrl) {
-                            statusEl.textContent = '⏳ Video is taking longer than expected. Please check your dashboard later.';
-                            showNotification('Video generation is still processing. You can check your dashboard for updates.', 'info');
-                            generateBtn.disabled = false;
-                            generateBtn.innerHTML = '<i class="fas fa-video"></i>';
-                            isGenerating = false;
-                            return;
-                        }
-
-                        statusEl.textContent = '✅ Video generated!';
-                        showVideoModal(videoUrl);
-                        showNotification('Video generated successfully!', 'success');
-                    } else {
-                        modalImg.src = result.imageUrl;
-                        modal.classList.add('active');
-                        statusEl.textContent = '✅ Image generated!';
-                        showNotification('Image generated successfully!', 'success');
-                    }
-
-                    if (user) {
-                        creditDisplay.textContent = result.remainingCredits;
-                    } else {
-                        const today = new Date().toISOString().split('T')[0];
-                        let stored = localStorage.getItem('guestUsage');
-                        let usage = stored ? JSON.parse(stored) : null;
-                        if (!usage || usage.date !== today) {
-                            usage = { date: today, count: 0 };
-                        }
-                        usage.count += 1;
-                        localStorage.setItem('guestUsage', JSON.stringify(usage));
-                        const remaining = Math.max(0, 3 - usage.count);
-                        creditDisplay.innerHTML = `<i class="fas fa-bolt"></i> ${remaining} free generations left`;
-                    }
-
-                    promptInput.value = '';
-                    promptInput.style.height = 'auto';
-                    previewContainer.style.display = 'none';
-                    previewImg.src = '';
-                    fileInput.value = '';
-                    uploadedImage = null;
-
-                } catch (error) {
-                    console.error('Generation error:', error);
-                    statusEl.textContent = '❌ ' + error.message;
-                    showNotification(error.message, 'error');
-                } finally {
-                    isGenerating = false;
+            const result = await response.json();
+            if (!response.ok) {
+                // Check for guest limit
+                if (response.status === 403 && result.error === 'guest_limit_reached') {
+                    showGuestLimitModal();
                     generateBtn.disabled = false;
-                    generateBtn.innerHTML = currentMode === 'video' ? '<i class="fas fa-video"></i>' : '<i class="fas fa-arrow-right"></i>';
-                    setTimeout(() => {
-                        if (statusEl) statusEl.textContent = '';
-                    }, 10000);
-                }
-            });
-
-            modalClose.addEventListener('click', () => modal.classList.remove('active'));
-            modal.addEventListener('click', (e) => {
-                if (e.target === modal) modal.classList.remove('active');
-            });
-            downloadBtn.addEventListener('click', function() {
-                const link = document.createElement('a');
-                link.href = modalImg.src;
-                link.download = 'generated-image.png';
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-            });
-
-            window.showVideoModal = function(videoUrl) {
-                const existing = document.getElementById('videoModal');
-                if (existing) existing.remove();
-
-                const modalHTML = `
-                    <div class="generated-modal active" id="videoModal">
-                        <div class="generated-modal-content" style="max-width:90%;">
-                            <button class="generated-modal-close" onclick="document.getElementById('videoModal').classList.remove('active')">&times;</button>
-                            <video src="${videoUrl}" controls autoplay loop style="width:100%; max-height:80vh; border-radius:12px; background:#000;"></video>
-                            <button class="generated-modal-download" onclick="downloadVideo('${videoUrl}')">Download Video</button>
-                        </div>
-                    </div>
-                `;
-                document.body.insertAdjacentHTML('beforeend', modalHTML);
-            };
-
-            window.downloadVideo = function(url) {
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = 'generated-video.mp4';
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-            };
-
-            upgradeClose.addEventListener('click', () => upgradeModal.style.display = 'none');
-            upgradeModal.addEventListener('click', (e) => {
-                if (e.target === upgradeModal) upgradeModal.style.display = 'none';
-            });
-
-            upgradePayBtn.addEventListener('click', async function() {
-                const user = await getCurrentUser();
-                if (!user) {
-                    showNotification('Please login first.', 'error');
+                    generateBtn.innerHTML = getGenerateIcon();
+                    isGenerating = false;
+                    if (statusEl) statusEl.textContent = '';
                     return;
                 }
-                this.disabled = true;
-                this.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating order...';
+                // Check for rate limit
+                if (response.status === 429) {
+                    const waitSec = result.retryAfter || 60;
+                    statusEl.textContent = `⏳ Rate limited. Please wait ${waitSec} seconds and try again.`;
+                    showNotification(`Generation rate limited. Try again in ${waitSec}s.`, 'error');
+                    generateBtn.disabled = false;
+                    generateBtn.innerHTML = getGenerateIcon();
+                    isGenerating = false;
+                    return;
+                }
+                throw new Error(result.error || 'Generation failed');
+            }
 
-                try {
-                    const idToken = await user.getIdToken();
-                    const res = await fetch('/api/top-up-credits', {
-                        method: 'POST',
-                        headers: { 'Authorization': `Bearer ${idToken}` }
-                    });
-                    const data = await res.json();
-                    if (!data.success) throw new Error('Failed to create order');
+            if (currentMode === 'image') {
+                // Image generation
+                modalImg.src = result.imageUrl;
+                modal.classList.add('active');
+                statusEl.textContent = '✅ Image generated!';
+                showNotification('Image generated successfully!', 'success');
+            } else {
+                // Video or keyframe - Agnes video (async)
+                const videoId = result.video_id;
+                if (!videoId) throw new Error('No video_id returned from Agnes.');
 
-                    if (data.isDemo) {
-                        const verifyRes = await fetch('/api/verify-topup', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                orderId: data.orderId,
-                                paymentId: 'demo_pay_' + Date.now(),
-                                signature: 'demo_signature',
-                                userId: user.uid
-                            })
-                        });
-                        const verifyData = await verifyRes.json();
-                        if (verifyData.success) {
-                            showNotification('Added 50 credits (demo)!', 'success');
-                            upgradeModal.style.display = 'none';
-                            fetchCredits();
+                statusEl.textContent = '⏳ Video generation started (may take several minutes)...';
+
+                const maxAttempts = 300;       // 15 minutes max
+                let attempt = 0;
+                let videoUrl = null;
+                const completionStatuses = ['completed', 'succeeded', 'done', 'finished', 'success'];
+
+                while (attempt < maxAttempts) {
+                    attempt++;
+                    try {
+                        const pollRes = await fetch(`/api/poll-agnes-video?video_id=${videoId}`);
+                        
+                        if (pollRes.status === 429) {
+                            const data = await pollRes.json();
+                            const waitSeconds = data.retryAfter || 30;
+                            statusEl.textContent = `⏳ Rate limited. Retrying in ${waitSeconds}s... (attempt ${attempt})`;
+                            await new Promise(r => setTimeout(r, waitSeconds * 1000));
+                            continue;
+                        }
+
+                        if (!pollRes.ok) {
+                            throw new Error(`Poll failed: ${pollRes.status}`);
+                        }
+
+                        const pollData = await pollRes.json();
+                        console.log(`Poll ${attempt}:`, pollData);
+
+                        const status = pollData.status || pollData.state || '';
+                        if (completionStatuses.includes(status.toLowerCase())) {
+                            videoUrl = pollData.video_url || pollData.output?.video_url || pollData.url;
+                            break;
+                        } else if (status === 'failed' || status === 'error') {
+                            throw new Error('Video generation failed.');
+                        }
+
+                        const progress = Math.min(attempt / maxAttempts * 100, 99);
+                        statusEl.textContent = `⏳ Generating video… ${Math.round(progress)}% (attempt ${attempt}/${maxAttempts})`;
+                        const delay = Math.min(2000 * Math.pow(1.2, attempt), 15000);
+                        await new Promise(r => setTimeout(r, delay));
+
+                    } catch (pollError) {
+                        console.error('Poll error:', pollError);
+                        if (!pollError.message.includes('failed')) {
+                            await new Promise(r => setTimeout(r, 5000));
                         } else {
-                            throw new Error('Demo verification failed');
+                            throw pollError;
                         }
-                    } else {
-                        if (typeof Razorpay === 'undefined') {
-                            await new Promise((resolve, reject) => {
-                                const script = document.createElement('script');
-                                script.src = 'https://checkout.razorpay.com/v1/checkout.js';
-                                script.onload = resolve;
-                                script.onerror = reject;
-                                document.head.appendChild(script);
-                            });
-                        }
-                        const options = {
-                            key: data.keyId,
-                            amount: data.amount,
-                            currency: data.currency,
-                            name: 'Tools Prompt',
-                            description: 'Top-up 50 credits',
-                            order_id: data.orderId,
-                            handler: async function(response) {
-                                try {
-                                    const verifyRes = await fetch('/api/verify-topup', {
-                                        method: 'POST',
-                                        headers: { 'Content-Type': 'application/json' },
-                                        body: JSON.stringify({
-                                            orderId: response.razorpay_order_id,
-                                            paymentId: response.razorpay_payment_id,
-                                            signature: response.razorpay_signature,
-                                            userId: user.uid
-                                        })
-                                    });
-                                    const verifyData = await verifyRes.json();
-                                    if (verifyData.success) {
-                                        showNotification('Credits added!', 'success');
-                                        upgradeModal.style.display = 'none';
-                                        fetchCredits();
-                                    } else {
-                                        throw new Error('Verification failed');
-                                    }
-                                } catch (e) {
-                                    showNotification('Top-up failed: ' + e.message, 'error');
-                                }
-                            },
-                            modal: {
-                                ondismiss: function() {
-                                    showNotification('Payment cancelled', 'info');
-                                }
-                            },
-                            theme: { color: '#4e54c8' },
-                            prefill: {
-                                email: user.email,
-                                name: user.displayName || user.email
-                            }
-                        };
-                        const rzp = new Razorpay(options);
-                        rzp.open();
                     }
-                } catch (error) {
-                    showNotification('Upgrade error: ' + error.message, 'error');
-                } finally {
-                    this.disabled = false;
-                    this.innerHTML = '<i class="fas fa-rupee-sign"></i> Pay ₹20 for 50 credits';
                 }
-            });
 
-            promptInput.addEventListener('keydown', function(e) {
-                if (e.ctrlKey && e.key === 'Enter') {
-                    e.preventDefault();
-                    generateBtn.click();
+                if (!videoUrl) {
+                    statusEl.textContent = '⏳ Video is taking longer than expected. Please check your dashboard later.';
+                    showNotification('Video generation is still processing. You can check your dashboard for updates.', 'info');
+                    generateBtn.disabled = false;
+                    generateBtn.innerHTML = getGenerateIcon();
+                    isGenerating = false;
+                    return;
                 }
+
+                statusEl.textContent = '✅ Video generated!';
+                showVideoModal(videoUrl);
+                showNotification('Video generated successfully!', 'success');
+            }
+
+            // Update remaining credits or guest usage
+            if (user) {
+                creditDisplay.textContent = result.remainingCredits;
+            } else {
+                const today = new Date().toISOString().split('T')[0];
+                let stored = localStorage.getItem('guestUsage');
+                let usage = stored ? JSON.parse(stored) : null;
+                if (!usage || usage.date !== today) {
+                    usage = { date: today, count: 0 };
+                }
+                usage.count += 1;
+                localStorage.setItem('guestUsage', JSON.stringify(usage));
+                const remaining = Math.max(0, 3 - usage.count);
+                creditDisplay.innerHTML = `<i class="fas fa-bolt"></i> ${remaining} free generations left`;
+            }
+
+            // Clear input and images
+            promptInput.value = '';
+            promptInput.style.height = 'auto';
+            previewContainer.style.display = 'none';
+            previewImg.src = '';
+            fileInput.value = '';
+            uploadedImages = [];
+            endFileInput.value = '';
+            endImage = null;
+            endImageUploadBtn.style.background = '';
+            aiUrlInput.value = '';
+            aiUrlClearBtn.style.display = 'none';
+
+        } catch (error) {
+            console.error('Generation error:', error);
+            statusEl.textContent = '❌ ' + error.message;
+            showNotification(error.message, 'error');
+        } finally {
+            isGenerating = false;
+            generateBtn.disabled = false;
+            generateBtn.innerHTML = getGenerateIcon();
+            setTimeout(() => {
+                if (statusEl) statusEl.textContent = '';
+            }, 10000);
+        }
+    });
+
+    function getGenerateIcon() {
+        if (currentMode === 'image') return '<i class="fas fa-arrow-right"></i>';
+        if (currentMode === 'video') return '<i class="fas fa-video"></i>';
+        return '<i class="fas fa-film"></i>';
+    }
+
+    // Modal controls
+    modalClose.addEventListener('click', () => modal.classList.remove('active'));
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) modal.classList.remove('active');
+    });
+    downloadBtn.addEventListener('click', function() {
+        const link = document.createElement('a');
+        link.href = modalImg.src;
+        link.download = 'generated-image.png';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    });
+
+    shareBtn.addEventListener('click', function() {
+        const imageUrl = modalImg.src;
+        const prompt = lastGeneratedPrompt || 'AI generated image';
+        shareGeneratedContent(imageUrl, prompt, false);
+    });
+
+    // Video modal helper
+    window.showVideoModal = function(videoUrl) {
+        const videoModal = document.getElementById('videoModal');
+        const videoEl = document.getElementById('generatedVideo');
+        if (videoModal && videoEl) {
+            videoEl.src = videoUrl;
+            videoModal.style.display = 'flex';
+            videoModal.classList.add('active');
+        }
+    };
+
+    window.downloadGeneratedVideo = function() {
+        const videoUrl = document.getElementById('generatedVideo').src;
+        if (videoUrl) {
+            const a = document.createElement('a');
+            a.href = videoUrl;
+            a.download = 'generated-video.mp4';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        }
+    };
+
+    // Close video modal
+    const videoModalClose = document.querySelector('#videoModal .generated-modal-close');
+    if (videoModalClose) {
+        videoModalClose.addEventListener('click', function() {
+            const videoModal = document.getElementById('videoModal');
+            videoModal.style.display = 'none';
+            videoModal.classList.remove('active');
+            document.getElementById('generatedVideo').src = '';
+        });
+    }
+
+    // Upgrade modal
+    upgradeClose.addEventListener('click', () => upgradeModal.style.display = 'none');
+    upgradeModal.addEventListener('click', (e) => {
+        if (e.target === upgradeModal) upgradeModal.style.display = 'none';
+    });
+
+    upgradePayBtn.addEventListener('click', async function() {
+        const user = await getCurrentUser();
+        if (!user) {
+            showNotification('Please login first.', 'error');
+            return;
+        }
+        this.disabled = true;
+        this.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating order...';
+
+        try {
+            const idToken = await user.getIdToken();
+            const res = await fetch('/api/top-up-credits', {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${idToken}` }
             });
+            const data = await res.json();
+            if (!data.success) throw new Error('Failed to create order');
 
-            window.refreshCredits = fetchCredits;
+            if (data.isDemo) {
+                const verifyRes = await fetch('/api/verify-topup', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        orderId: data.orderId,
+                        paymentId: 'demo_pay_' + Date.now(),
+                        signature: 'demo_signature',
+                        userId: user.uid
+                    })
+                });
+                const verifyData = await verifyRes.json();
+                if (verifyData.success) {
+                    showNotification('Added 50 credits (demo)!', 'success');
+                    upgradeModal.style.display = 'none';
+                    fetchCredits();
+                } else {
+                    throw new Error('Demo verification failed');
+                }
+            } else {
+                if (typeof Razorpay === 'undefined') {
+                    await new Promise((resolve, reject) => {
+                        const script = document.createElement('script');
+                        script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+                        script.onload = resolve;
+                        script.onerror = reject;
+                        document.head.appendChild(script);
+                    });
+                }
+                const options = {
+                    key: data.keyId,
+                    amount: data.amount,
+                    currency: data.currency,
+                    name: 'Tools Prompt',
+                    description: 'Top-up 50 credits',
+                    order_id: data.orderId,
+                    handler: async function(response) {
+                        try {
+                            const verifyRes = await fetch('/api/verify-topup', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    orderId: response.razorpay_order_id,
+                                    paymentId: response.razorpay_payment_id,
+                                    signature: response.razorpay_signature,
+                                    userId: user.uid
+                                })
+                            });
+                            const verifyData = await verifyRes.json();
+                            if (verifyData.success) {
+                                showNotification('Credits added!', 'success');
+                                upgradeModal.style.display = 'none';
+                                fetchCredits();
+                            } else {
+                                throw new Error('Verification failed');
+                            }
+                        } catch (e) {
+                            showNotification('Top-up failed: ' + e.message, 'error');
+                        }
+                    },
+                    modal: {
+                        ondismiss: function() {
+                            showNotification('Payment cancelled', 'info');
+                        }
+                    },
+                    theme: { color: '#4e54c8' },
+                    prefill: {
+                        email: user.email,
+                        name: user.displayName || user.email
+                    }
+                };
+                const rzp = new Razorpay(options);
+                rzp.open();
+            }
+        } catch (error) {
+            showNotification('Upgrade error: ' + error.message, 'error');
+        } finally {
+            this.disabled = false;
+            this.innerHTML = '<i class="fas fa-rupee-sign"></i> Pay ₹20 for 50 credits';
+        }
+    });
 
-            window.showGuestLimitModal = function() {
-                const existing = document.getElementById('guestLimitModal');
-                if (existing) existing.remove();
+    // Keyboard shortcut: Ctrl+Enter to generate
+    promptInput.addEventListener('keydown', function(e) {
+        if (e.ctrlKey && e.key === 'Enter') {
+            e.preventDefault();
+            generateBtn.click();
+        }
+    });
 
-                const overlay = document.createElement('div');
-                overlay.className = 'buy-modal-overlay';
-                overlay.id = 'guestLimitModal';
-                overlay.innerHTML = `
-                    <div class="buy-modal" style="max-width: 450px;">
-                        <div class="modal-header">
-                            <h2><i class="fas fa-exclamation-circle"></i> Free Generations Used</h2>
-                            <button class="close-modal" onclick="document.getElementById('guestLimitModal').remove()">&times;</button>
-                        </div>
-                        <div class="buy-modal-content" style="padding: 20px; text-align: center;">
-                            <p>You’ve used all your free guest generations today.</p>
-                            <p><strong>Login</strong> to receive <strong>5 free credits every day</strong> and continue creating!</p>
-                            <button class="buy-now-btn" onclick="window.location.href='/login.html?returnUrl='+encodeURIComponent(window.location.href)">
-                                <i class="fas fa-sign-in-alt"></i> Login Now
-                            </button>
-                            <p style="margin-top: 15px; font-size: 0.8rem; color: #666;">
-                                Or <a href="/" style="color: #4e54c8;">continue browsing</a>.
-                            </p>
-                        </div>
-                    </div>
-                `;
-                document.body.appendChild(overlay);
-                document.body.style.overflow = 'hidden';
+    // Expose fetchCredits for after top-up
+    window.refreshCredits = fetchCredits;
+
+    // ===== GUEST LIMIT MODAL =====
+    window.showGuestLimitModal = function() {
+        const existing = document.getElementById('guestLimitModal');
+        if (existing) existing.remove();
+
+        const overlay = document.createElement('div');
+        overlay.className = 'buy-modal-overlay';
+        overlay.id = 'guestLimitModal';
+        overlay.innerHTML = `
+            <div class="buy-modal" style="max-width: 450px;">
+                <div class="modal-header">
+                    <h2><i class="fas fa-exclamation-circle"></i> Free Generations Used</h2>
+                    <button class="close-modal" onclick="document.getElementById('guestLimitModal').remove()">&times;</button>
+                </div>
+                <div class="buy-modal-content" style="padding: 20px; text-align: center;">
+                    <p>You’ve used all your free guest generations today.</p>
+                    <p><strong>Login</strong> to receive <strong>5 free credits every day</strong> and continue creating!</p>
+                    <button class="buy-now-btn" onclick="window.location.href='/login.html?returnUrl='+encodeURIComponent(window.location.href)">
+                        <i class="fas fa-sign-in-alt"></i> Login Now
+                    </button>
+                    <p style="margin-top: 15px; font-size: 0.8rem; color: #666;">
+                        Or <a href="/" style="color: #4e54c8;">continue browsing</a>.
+                    </p>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(overlay);
+        document.body.style.overflow = 'hidden';
+    };
+})();
+
+        // ===== SHARE FUNCTION (global) =====
+        async function shareGeneratedContent(imageUrl, promptText, isVideo = false) {
+            const shareData = {
+                title: 'AI Generated Content',
+                text: `Check out this AI-generated ${isVideo ? 'video' : 'image'}!\n\nPrompt: ${promptText}`,
+                url: window.location.href
             };
-        })();
+
+            if (navigator.share) {
+                try {
+                    if (isVideo) {
+                        shareData.url = imageUrl;
+                        await navigator.share(shareData);
+                    } else {
+                        const response = await fetch(imageUrl);
+                        const blob = await response.blob();
+                        const file = new File([blob], 'generated-image.png', { type: blob.type });
+                        await navigator.share({
+                            ...shareData,
+                            files: [file]
+                        });
+                    }
+                    return;
+                } catch (err) {
+                    if (err.name !== 'AbortError') {
+                        console.warn('Web Share failed:', err);
+                    } else {
+                        return;
+                    }
+                }
+            }
+
+            const encodedText = encodeURIComponent(shareData.text);
+            const encodedUrl = encodeURIComponent(shareData.url || window.location.href);
+            const twitterUrl = `https://twitter.com/intent/tweet?text=${encodedText}&url=${encodedUrl}`;
+            const facebookUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}&quote=${encodedText}`;
+            const whatsappUrl = `https://api.whatsapp.com/send?text=${encodedText}%20${encodedUrl}`;
+
+            const popup = window.open('', '_blank', 'width=500,height=400');
+            if (popup) {
+                popup.document.write(`
+                    <html>
+                    <head><title>Share</title></head>
+                    <body style="font-family: sans-serif; text-align: center; padding: 40px;">
+                        <h3>Share this ${isVideo ? 'video' : 'image'}</h3>
+                        <p style="margin: 20px 0;">Choose a platform:</p>
+                        <div style="display: flex; gap: 20px; justify-content: center; flex-wrap: wrap;">
+                            <a href="${twitterUrl}" target="_blank" style="display: inline-block; padding: 12px 24px; background: #1DA1F2; color: white; text-decoration: none; border-radius: 30px;">Twitter</a>
+                            <a href="${facebookUrl}" target="_blank" style="display: inline-block; padding: 12px 24px; background: #1877F2; color: white; text-decoration: none; border-radius: 30px;">Facebook</a>
+                            <a href="${whatsappUrl}" target="_blank" style="display: inline-block; padding: 12px 24px; background: #25D366; color: white; text-decoration: none; border-radius: 30px;">WhatsApp</a>
+                        </div>
+                        <p style="margin-top: 30px; font-size: 0.9rem; color: #666;">Click the link to share, or copy the URL below:</p>
+                        <input type="text" value="${shareData.url || window.location.href}" style="width: 90%; padding: 10px; margin-top: 10px; border: 1px solid #ccc; border-radius: 8px;" readonly onclick="this.select();document.execCommand('copy');alert('Copied!')">
+                        <button onclick="window.close()" style="margin-top: 20px; padding: 10px 30px; border: none; background: #4e54c8; color: white; border-radius: 30px; cursor: pointer;">Close</button>
+                    </body>
+                    </html>
+                `);
+                popup.document.close();
+            } else {
+                alert(`Share via:\nTwitter: ${twitterUrl}\nFacebook: ${facebookUrl}\nWhatsApp: ${whatsappUrl}`);
+            }
+        }
+
+        window.shareGeneratedContent = shareGeneratedContent;
 
         // ===== REFERRAL SYSTEM =====
         (async function loadReferralHomepage() {
@@ -3984,7 +5356,6 @@ nav {
             }
         }
 
-        // Helper to show notification (fallback)
         function showNotification(msg, type) {
             type = type || 'info';
             const existing = document.querySelector('.toast-notification');
@@ -4018,17 +5389,12 @@ nav {
             window.allPrompts = [];
         }
 
-        // ================================================================
-        //  Initialize Scroll Arrow Visibility (optional)
-        // ================================================================
-        // Hide arrow when at bottom, show when scrollable
         window.addEventListener('scroll', function() {
             const arrow = document.getElementById('scrollToPromptsArrow');
             if (!arrow) return;
             const container = document.getElementById('promptsContainer');
             if (container) {
                 const rect = container.getBoundingClientRect();
-                // Hide if already near prompts
                 if (rect.top < window.innerHeight * 0.2) {
                     arrow.style.opacity = '0';
                     arrow.style.pointerEvents = 'none';
@@ -4036,6 +5402,133 @@ nav {
                     arrow.style.opacity = '1';
                     arrow.style.pointerEvents = 'auto';
                 }
+            }
+        });
+
+        // ===== SUBSCRIBE FROM PROMPT CARD =====
+        async function handleSubscribeFromCard(event, btn) {
+            event.preventDefault();
+            event.stopPropagation();
+            
+            const channelUserId = btn.getAttribute('data-channel-user-id');
+            const channelName = btn.getAttribute('data-channel-name');
+            
+            if (!channelUserId) {
+                showNotification('Creator has no channel yet', 'info');
+                return;
+            }
+            
+            try {
+                // Get current user
+                const user = await getCurrentUser();
+                
+                if (!user) {
+                    showNotification('Please login to subscribe', 'error');
+                    window.location.href = '/login.html?returnUrl=' + encodeURIComponent(window.location.href);
+                    return;
+                }
+                
+                // Check if user is trying to subscribe to their own channel
+                if (user.uid === channelUserId) {
+                    showNotification('You cannot subscribe to your own channel', 'info');
+                    return;
+                }
+                
+                // Get channel ID from user ID
+                const channelResponse = await fetch(`/api/channel-exists/${channelUserId}`);
+                const channelData = await channelResponse.json();
+                
+                if (!channelData.hasChannel) {
+                    showNotification('This creator has no channel', 'info');
+                    return;
+                }
+                
+                const channelId = channelData.channelId;
+                const isSubscribed = btn.classList.contains('subscribed');
+                const action = isSubscribed ? 'unsubscribe' : 'subscribe';
+                
+                // Show loading state
+                btn.disabled = true;
+                const originalHTML = btn.innerHTML;
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> ' + (action === 'subscribe' ? 'Subscribing...' : 'Unsubscribing...');
+                
+                // Make API call
+                const idToken = await user.getIdToken();
+                const response = await fetch(`/api/channel/${channelId}/subscribe`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${idToken}`
+                    },
+                    body: JSON.stringify({ action })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    // Update button state
+                    if (action === 'subscribe') {
+                        btn.classList.add('subscribed');
+                        btn.innerHTML = '<i class="fas fa-check"></i> <span class="subscribe-text">Subscribed</span> <span class="subscribe-count">' + result.subscribers + '</span>';
+                        showNotification('Subscribed to ' + channelName + '!', 'success');
+                    } else {
+                        btn.classList.remove('subscribed');
+                        btn.innerHTML = '<i class="fas fa-bell"></i> <span class="subscribe-text">Subscribe</span> <span class="subscribe-count">' + result.subscribers + '</span>';
+                        showNotification('Unsubscribed from ' + channelName, 'info');
+                    }
+                    
+                    // Update all buttons for this channel
+                    document.querySelectorAll(`.subscribe-channel-btn[data-channel-user-id="${channelUserId}"]`).forEach(otherBtn => {
+                        if (action === 'subscribe') {
+                            otherBtn.classList.add('subscribed');
+                            otherBtn.innerHTML = '<i class="fas fa-check"></i> <span class="subscribe-text">Subscribed</span> <span class="subscribe-count">' + result.subscribers + '</span>';
+                        } else {
+                            otherBtn.classList.remove('subscribed');
+                            otherBtn.innerHTML = '<i class="fas fa-bell"></i> <span class="subscribe-text">Subscribe</span> <span class="subscribe-count">' + result.subscribers + '</span>';
+                        }
+                    });
+                } else {
+                    showNotification(result.error || 'Subscription failed', 'error');
+                }
+            } catch (e) {
+                console.error('Subscribe error:', e);
+                showNotification('Error subscribing. Please try again.', 'error');
+            } finally {
+                btn.disabled = false;
+            }
+        }
+
+        window.handleSubscribeFromCard = handleSubscribeFromCard;
+
+        // Check subscription status for all prompt cards on load
+        document.addEventListener('DOMContentLoaded', async function() {
+            try {
+                const user = await getCurrentUser();
+                if (!user) return;
+                
+                // Get user's subscriptions
+                const idToken = await user.getIdToken();
+                const response = await fetch('/api/my-subscriptions', {
+                    headers: { 'Authorization': `Bearer ${idToken}` }
+                });
+                const data = await response.json();
+                
+                if (data.success && data.subscriptions && data.subscriptions.length > 0) {
+                    // Build a set of subscribed channel IDs
+                    const subscribedChannelIds = new Set(data.subscriptions.map(sub => sub.userId));
+                    
+                    // Update all subscribe buttons
+                    document.querySelectorAll('.subscribe-channel-btn').forEach(btn => {
+                        const channelUserId = btn.getAttribute('data-channel-user-id');
+                        if (subscribedChannelIds.has(channelUserId)) {
+                            btn.classList.add('subscribed');
+                            const subscribers = data.subscriptions.find(sub => sub.userId === channelUserId)?.subscribers || 0;
+                            btn.innerHTML = `<i class="fas fa-check"></i> <span class="subscribe-text">Subscribed</span> <span class="subscribe-count">${subscribers}</span>`;
+                        }
+                    });
+                }
+            } catch (e) {
+                console.error('Error checking subscriptions:', e);
             }
         });
     </script>

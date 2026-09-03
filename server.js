@@ -12,6 +12,7 @@ const { v4: uuidv4 } = require('uuid');
 const mime = require('mime-types');
 const Razorpay = require('razorpay');
 require('dotenv').config();
+axios.defaults.timeout = 15000;
 
 // ========== NEW: OpenAI for AI Image Generation ==========
 const OpenAI = require('openai');
@@ -38,6 +39,15 @@ const R2_PUBLIC_URL = process.env.R2_PUBLIC_URL; // e.g., https://pub-xxxx.r2.de
 const GUEST_LIMIT = 3;
 const guestUsage = new Map(); // key: "ip-YYYY-MM-DD", value: count
 
+// Add near the top with other upload helpers
+async function uploadGeneratedImageToR2(imageBuffer, mimeType) {
+  const timestamp = Date.now();
+  const uniqueId = uuidv4();
+  const ext = mimeType.split('/')[1] || 'png';
+  const key = `generated_images/${timestamp}-${uniqueId}.${ext}`;
+  const url = await uploadToR2(imageBuffer, key, mimeType);
+  return url;
+}
 // ========== Helper: upload file to R2 ==========
 async function uploadToR2(buffer, key, contentType) {
   const command = new PutObjectCommand({
@@ -50,6 +60,156 @@ async function uploadToR2(buffer, key, contentType) {
   return `${R2_PUBLIC_URL}/${key}`;
 }
 
+// ==================== THUMBNAIL EXTRACTION FROM URL ====================
+async function getThumbnailFromUrl(url) {
+    // 1. Try YouTube URL (multiple quality fallbacks)
+    try {
+        const ytMatch = url.match(/(?:youtube\.com\/(?:watch\?v=|shorts\/|embed\/)|youtu\.be\/)([\w-]{11})/);
+        if (ytMatch) {
+            const videoId = ytMatch[1];
+            const qualities = ['maxresdefault', 'sddefault', 'hqdefault', 'mqdefault', 'default'];
+            for (const quality of qualities) {
+                try {
+                    const thumbUrl = `https://img.youtube.com/vi/${videoId}/${quality}.jpg`;
+                    const response = await axios.get(thumbUrl, {
+                        responseType: 'arraybuffer',
+                        timeout: 15000,
+                        maxRedirects: 0
+                    });
+                    if (response.status === 200 && response.data && response.data.length > 0) {
+                        const contentType = response.headers['content-type'] || 'image/jpeg';
+                        if (contentType.includes('image')) {
+                            console.log(`✅ YouTube thumbnail fetched: ${thumbUrl}`);
+                            return { buffer: Buffer.from(response.data), mimeType: contentType };
+                        }
+                    }
+                } catch (e) {
+                    console.warn(`YouTube thumbnail ${quality} failed:`, e.message);
+                }
+            }
+        }
+    } catch (e) {
+        console.warn('YouTube thumbnail extraction error:', e.message);
+    }
+
+    // 2. Try Instagram media endpoint (works for many posts without login)
+    try {
+        const igMatch = url.match(/(?:\/reel\/|\/p\/|\/tv\/)([a-zA-Z0-9_-]+)/);
+        if (igMatch) {
+            const shortcode = igMatch[1];
+            const thumbUrl = `https://www.instagram.com/p/${shortcode}/media/?size=l`;
+            const response = await axios.get(thumbUrl, {
+                responseType: 'arraybuffer',
+                timeout: 15000,
+                maxRedirects: 5,
+                headers: { 'User-Agent': 'Mozilla/5.0' }
+            });
+            if (response.status === 200 && response.data && response.data.length > 0) {
+                const contentType = response.headers['content-type'] || 'image/jpeg';
+                if (contentType.includes('image')) {
+                    console.log(`✅ Instagram thumbnail fetched via /media endpoint: ${thumbUrl}`);
+                    return { buffer: Buffer.from(response.data), mimeType: contentType };
+                }
+            }
+        }
+    } catch (e) {
+        console.warn('Instagram /media endpoint failed:', e.message);
+    }
+
+    // 3. Try Instagram embed/captioned page (often has og:image)
+    try {
+        const igMatch = url.match(/(?:\/reel\/|\/p\/|\/tv\/)([a-zA-Z0-9_-]+)/);
+        if (igMatch) {
+            const shortcode = igMatch[1];
+            const embedUrl = `https://www.instagram.com/reel/${shortcode}/embed/captioned/`;
+            const embedResponse = await axios.get(embedUrl, {
+                timeout: 15000,
+                headers: { 'User-Agent': 'Mozilla/5.0' }
+            });
+            const html = embedResponse.data;
+            const ogImageMatch = html.match(/<meta[^>]*property=["']og:image["'][^>]*content=["']([^"']+)["']/i);
+            const twitterImageMatch = html.match(/<meta[^>]*name=["']twitter:image["'][^>]*content=["']([^"']+)["']/i);
+            const imgUrl = ogImageMatch?.[1] || twitterImageMatch?.[1];
+            if (imgUrl) {
+                const imgResponse = await axios.get(imgUrl, {
+                    responseType: 'arraybuffer',
+                    timeout: 15000,
+                    headers: { 'User-Agent': 'Mozilla/5.0' }
+                });
+                if (imgResponse.status === 200) {
+                    return { buffer: Buffer.from(imgResponse.data), mimeType: imgResponse.headers['content-type'] || 'image/jpeg' };
+                }
+            }
+        }
+    } catch (e) {
+        console.warn('Instagram embed page failed:', e.message);
+    }
+
+    // 4. Try direct page fetch (may work for some sites)
+    try {
+        const response = await axios.get(url, {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+                'Accept-Language': 'en-US,en;q=0.9',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8'
+            },
+            timeout: 15000,
+            maxRedirects: 5
+        });
+        const html = response.data;
+        const ogImageMatch = html.match(/<meta[^>]*property=["']og:image["'][^>]*content=["']([^"']+)["']/i);
+        const twitterImageMatch = html.match(/<meta[^>]*name=["']twitter:image["'][^>]*content=["']([^"']+)["']/i);
+        const imgUrl = ogImageMatch?.[1] || twitterImageMatch?.[1];
+        if (imgUrl) {
+            const imgResponse = await axios.get(imgUrl, {
+                responseType: 'arraybuffer',
+                timeout: 15000,
+                headers: { 'User-Agent': 'Mozilla/5.0' }
+            });
+            if (imgResponse.status === 200) {
+                return { buffer: Buffer.from(imgResponse.data), mimeType: imgResponse.headers['content-type'] || 'image/jpeg' };
+            }
+        }
+    } catch (e) {
+        console.warn('Direct page fetch failed:', e.message);
+    }
+
+    // 5. Try multiple proxy services
+    const proxyServices = [
+        `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+        `https://corsproxy.io/?${encodeURIComponent(url)}`,
+        `https://thingproxy.freeboard.io/fetch/${url}`
+    ];
+
+    for (const proxyUrl of proxyServices) {
+        try {
+            const proxyResponse = await axios.get(proxyUrl, { timeout: 15000 });
+            if (proxyResponse.status === 200 && proxyResponse.data) {
+                const html = proxyResponse.data.contents || proxyResponse.data;
+                const ogImageMatch = html.match(/<meta[^>]*property=["']og:image["'][^>]*content=["']([^"']+)["']/i);
+                const twitterImageMatch = html.match(/<meta[^>]*name=["']twitter:image["'][^>]*content=["']([^"']+)["']/i);
+                const imgUrl = ogImageMatch?.[1] || twitterImageMatch?.[1];
+                if (imgUrl) {
+                    const imgResponse = await axios.get(imgUrl, {
+                        responseType: 'arraybuffer',
+                        timeout: 15000,
+                        headers: { 'User-Agent': 'Mozilla/5.0' }
+                    });
+                    if (imgResponse.status === 200) {
+                        console.log(`✅ Thumbnail extracted via proxy: ${proxyUrl}`);
+                        return { buffer: Buffer.from(imgResponse.data), mimeType: imgResponse.headers['content-type'] || 'image/jpeg' };
+                    }
+                }
+            }
+        } catch (e) {
+            console.warn(`Proxy ${proxyUrl} failed:`, e.message);
+        }
+    }
+
+    // 6. Final fallback – return null
+    console.warn('Could not extract thumbnail from URL:', url);
+    return null;
+}
 // Add this helper function at the top of server.js
 function sanitizeFirestoreData(data) {
     const sanitized = {};
@@ -5950,6 +6110,28 @@ app.get('/api/uploads', async (req, res) => {
   }
 });
 
+// Check if a channel handle is taken
+app.get('/api/check-handle/:handle', async (req, res) => {
+  try {
+    const handle = req.params.handle;
+    let exists = false;
+
+    if (db && db.collection) {
+      // Try matching with '@' prefix (our stored format)
+      const snapshot = await db.collection('channels')
+        .where('channelHandle', '==', `@${handle}`)
+        .limit(1)
+        .get();
+      if (!snapshot.empty) exists = true;
+    }
+
+    res.json({ exists });
+  } catch (error) {
+    console.error('Handle check error:', error);
+    res.status(500).json({ error: 'Failed to check handle' });
+  }
+});
+
 // API endpoint to get list of blog posts
 app.get('/api/blog-posts', (req, res) => {
     const blogDir = path.join(__dirname, 'blog');
@@ -6302,31 +6484,46 @@ app.post('/api/generate-image', async (req, res) => {
         const mime = imgRes.headers.get('content-type') || 'image/png';
         imageUrlFinal = `data:${mime};base64,${Buffer.from(buffer).toString('base64')}`;
       }
+// Convert data URL to buffer and upload to R2
+let publicImageUrl = imageUrlFinal;
+if (imageUrlFinal && imageUrlFinal.startsWith('data:')) {
+  try {
+    const matches = imageUrlFinal.match(/^data:([A-Za-z-+/]+);base64,(.+)$/);
+    if (matches && matches.length === 3) {
+      const mimeType = matches[1];
+      const base64Data = matches[2];
+      const buffer = Buffer.from(base64Data, 'base64');
+      publicImageUrl = await uploadGeneratedImageToR2(buffer, mimeType);
+      console.log('✅ Generated image uploaded to R2:', publicImageUrl);
+    }
+  } catch (uploadErr) {
+    console.warn('⚠️ R2 upload failed, using data URL:', uploadErr.message);
+    // keep original data URL
+  }
+}
 
-      // --- Deduct credit or increment guest ---
-      if (userId) {
-        await deductCredit(userId);
-        const remainingCredits = (await getUserCredits(userId)).credits;
-        res.json({
-          success: true,
-          imageUrl: imageUrlFinal,
-          remainingCredits,
-          prompt: finalPrompt,
-          modelUsed: 'Agnes Image 2.1 Flash',
-        });
-      } else {
-        checkAndIncrementGuest(req, true);
-        const guestCheck = checkAndIncrementGuest(req, false);
-        res.json({
-          success: true,
-          imageUrl: imageUrlFinal,
-          remainingCredits: guestCheck.remaining,
-          prompt: finalPrompt,
-          modelUsed: 'Agnes Image 2.1 Flash',
-          isGuest: true
-        });
-      }
-
+if (userId) {
+  await deductCredit(userId);
+  const remainingCredits = (await getUserCredits(userId)).credits;
+  res.json({
+    success: true,
+    imageUrl: publicImageUrl,   // now public URL
+    remainingCredits,
+    prompt: finalPrompt,
+    modelUsed: 'Agnes Image 2.1 Flash',
+  });
+} else {
+  checkAndIncrementGuest(req, true);
+  const guestCheck = checkAndIncrementGuest(req, false);
+  res.json({
+    success: true,
+    imageUrl: publicImageUrl,
+    remainingCredits: guestCheck.remaining,
+    prompt: finalPrompt,
+    modelUsed: 'Agnes Image 2.1 Flash',
+    isGuest: true
+  });
+}
     } catch (error) {
       console.error('Agnes image error:', error.response?.data || error.message);
 
@@ -6369,9 +6566,7 @@ app.post('/api/generate-image', async (req, res) => {
 });
 
 // ==================== AGNES AI VIDEO GENERATION (FREE API) ====================
-
-// ===== NEW: Auto-resolution based on duration =====
-// ---- UPDATED: /api/generate-agnes-video ----
+// ==================== AGNES AI VIDEO GENERATION (FREE API) ====================
 app.post('/api/generate-agnes-video', async (req, res) => {
     if (!AGNES_API_KEY) {
         console.error('Agnes API Key is not configured.');
@@ -6394,13 +6589,11 @@ app.post('/api/generate-agnes-video', async (req, res) => {
     }
 
     if (userId) {
-        // Check credits
         const creditInfo = await getUserCredits(userId);
         if (creditInfo.credits <= 0) {
             return res.status(403).json({ error: 'Insufficient credits. Please upgrade.' });
         }
     } else {
-        // Guest check
         const guestCheck = checkAndIncrementGuest(req, false);
         if (!guestCheck.allowed) {
             return res.status(403).json({ error: 'guest_limit_reached', remaining: 0 });
@@ -6410,13 +6603,12 @@ app.post('/api/generate-agnes-video', async (req, res) => {
     // ---------- Busboy parsing ----------
     const busboy = Busboy({
         headers: req.headers,
-        limits: { fileSize: 10 * 1024 * 1024 }
+        limits: { fileSize: 50 * 1024 * 1024 } // allow multiple images up to 50MB total
     });
 
     let fields = {};
-    let imageBuffer = null;
-    let imageMimeType = null;
-    let imageFileName = null;
+    let imageBuffers = [];       // array of {buffer, mimeType, filename}
+    let endImageBuffer = null;   // for keyframe mode
     let uploadError = null;
 
     busboy.on('field', (fieldname, val) => {
@@ -6424,10 +6616,9 @@ app.post('/api/generate-agnes-video', async (req, res) => {
     });
 
     busboy.on('file', (fieldname, file, info) => {
+        const { filename, mimeType } = info;
+
         if (fieldname === 'image') {
-            const { filename, mimeType } = info;
-            imageFileName = filename;
-            imageMimeType = mimeType;
             const allowedImageTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
             if (!allowedImageTypes.includes(mimeType)) {
                 uploadError = new Error('Invalid image type. Allowed: JPEG, PNG, WebP');
@@ -6436,10 +6627,26 @@ app.post('/api/generate-agnes-video', async (req, res) => {
             const chunks = [];
             file.on('data', (data) => chunks.push(data));
             file.on('end', () => {
-                imageBuffer = Buffer.concat(chunks);
-                if (imageBuffer.length > 10 * 1024 * 1024) {
-                    uploadError = new Error('Image size exceeds 10MB limit');
-                }
+                imageBuffers.push({
+                    buffer: Buffer.concat(chunks),
+                    mimeType: mimeType,
+                    filename: filename
+                });
+            });
+        } else if (fieldname === 'endImage') {
+            const allowedImageTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+            if (!allowedImageTypes.includes(mimeType)) {
+                uploadError = new Error('Invalid end image type. Allowed: JPEG, PNG, WebP');
+                return;
+            }
+            const chunks = [];
+            file.on('data', (data) => chunks.push(data));
+            file.on('end', () => {
+                endImageBuffer = {
+                    buffer: Buffer.concat(chunks),
+                    mimeType: mimeType,
+                    filename: filename
+                };
             });
         } else {
             file.resume();
@@ -6453,77 +6660,134 @@ app.post('/api/generate-agnes-video', async (req, res) => {
             }
 
             const prompt = fields.prompt ? fields.prompt.trim() : '';
-            // Get duration from frontend (default 5s)
             let duration = parseFloat(fields.duration) || 5;
+            const mode = fields.mode || 'video'; // 'video', 'image', 'keyframe'
+            const ratio = fields.ratio || '9:16'; // default vertical for shorts
 
-            // ---------- Auto-select resolution based on duration ----------
-            let width, height;
+            // Validate ratio
+            const validRatios = ['16:9', '4:3', '1:1', '3:4', '9:16'];
+            if (!validRatios.includes(ratio)) {
+                return res.status(400).json({ error: `Invalid ratio. Must be one of: ${validRatios.join(', ')}` });
+            }
+
+            // ---------- Determine resolution based on duration ----------
+            let agnesResolution;
             let maxFrames;
 
             if (duration <= 7) {
-                // 1080p – up to ~7s
-                width = 1080;
-                height = 1920; // portrait
-                maxFrames = 169;
+                agnesResolution = '1080p';
+                maxFrames = 169; // ~7s at 24fps
             } else if (duration <= 17) {
-                // 720p – up to ~17s
-                width = 768;
-                height = 1152; // portrait
-                maxFrames = 409;
+                agnesResolution = '720p';
+                maxFrames = 409; // ~17s at 24fps
             } else {
-                // 480p – up to ~40s (cap duration to 40s)
                 duration = Math.min(duration, 40);
-                width = 480;
-                height = 640; // portrait
-                maxFrames = 961;
+                agnesResolution = '480p';
+                maxFrames = 961; // ~40s at 24fps
             }
 
-            // 🔧 FIX: Round to nearest frame, not floor, to match requested duration
+            // ---------- Calculate num_frames ----------
             const targetFrames = Math.round(duration * 24);
             let num_frames = Math.round((targetFrames - 1) / 8) * 8 + 1;
-            // Ensure at least 9 frames (minimum)
             num_frames = Math.max(9, num_frames);
-            // Cap to the max allowed by the resolution
             num_frames = Math.min(num_frames, maxFrames);
-
-            // Recalculate actual duration based on capped frames
             const actualDuration = (num_frames / 24).toFixed(1);
 
-            console.log(`Requested ${duration}s, using ${num_frames} frames (${actualDuration}s) at ${width}x${height}`);
+            console.log(`Requested ${duration}s, using ${num_frames} frames (${actualDuration}s) at ${agnesResolution} ratio=${ratio} mode=${mode}`);
 
-            // Upload image to R2 if provided
-            let imageUrl = null;
-            if (imageBuffer) {
-                const timestamp = Date.now();
-                const uniqueId = uuidv4();
-                const extension = imageFileName ? imageFileName.split('.').pop() : 'jpg';
-                const key = `agnese_images/${timestamp}-${uniqueId}.${extension}`;
-                imageUrl = await uploadToR2(imageBuffer, key, imageMimeType);
-                console.log(`✅ Uploaded image for Agnes: ${imageUrl}`);
+            // ---------- Upload all image references to R2 ----------
+            let imageUrls = [];
+            if (imageBuffers.length > 0) {
+                for (const img of imageBuffers) {
+                    const timestamp = Date.now();
+                    const uniqueId = uuidv4();
+                    const ext = img.filename.split('.').pop();
+                    const key = `agnese_video_refs/${timestamp}-${uniqueId}.${ext}`;
+                    const url = await uploadToR2(img.buffer, key, img.mimeType);
+                    imageUrls.push(url);
+                }
             }
 
-            // Build request data
+            // If no images uploaded but a reference URL is given, extract thumbnail
+            if (imageUrls.length === 0 && fields.referenceUrl) {
+                const thumbInfo = await getThumbnailFromUrl(fields.referenceUrl);
+                if (thumbInfo) {
+                    const timestamp = Date.now();
+                    const uniqueId = uuidv4();
+                    const key = `agnese_video_refs/${timestamp}-${uniqueId}.jpg`;
+                    const url = await uploadToR2(thumbInfo.buffer, key, thumbInfo.mimeType);
+                    imageUrls.push(url);
+                    console.log('✅ Extracted thumbnail from reference URL:', fields.referenceUrl);
+                } else {
+                    console.warn('⚠️ Could not extract thumbnail; continuing without image.');
+                }
+            }
+
+            // Upload end image for keyframe mode
+            let endImageUrl = null;
+            if (endImageBuffer) {
+                const timestamp = Date.now();
+                const uniqueId = uuidv4();
+                const ext = endImageBuffer.filename.split('.').pop();
+                const key = `agnese_video_refs/${timestamp}-${uniqueId}.${ext}`;
+                endImageUrl = await uploadToR2(endImageBuffer.buffer, key, endImageBuffer.mimeType);
+                console.log('✅ End image uploaded for keyframe:', endImageUrl);
+            }
+
+            // ---------- Build request data ----------
+            // Determine Agnes API mode based on internal mode & image count
+            let agnesMode;
+            if (mode === 'keyframe') {
+                agnesMode = 'keyframes';
+            } else if (imageUrls.length > 1) {
+                agnesMode = 'multi_reference';
+            } else {
+                agnesMode = 'ti2vid';
+            }
+
             const requestData = {
                 model: 'agnes-video-v2.0',
                 prompt: prompt,
-                width: width,
-                height: height,
-                num_frames: num_frames
+                num_frames: num_frames,
+                mode: agnesMode,
+                fps: 24,
+                resolution: agnesResolution,
+                ratio: ratio,
+                duration: duration
             };
 
-            if (imageUrl) {
-                requestData.image = imageUrl;
+            if (agnesMode === 'ti2vid') {
+                if (imageUrls.length === 1) {
+                    requestData.image = imageUrls[0];
+                } else if (imageUrls.length > 1) {
+                    // For safety, if multiple images but mode still ti2vid, use first
+                    requestData.image = imageUrls[0];
+                }
+            } else if (agnesMode === 'multi_reference') {
+                requestData.images = imageUrls;
+            } else if (agnesMode === 'keyframes') {
+                // Agnes expects 'image' as a list of at least 2 items
+                if (imageUrls.length >= 2) {
+                    requestData.image = [imageUrls[0], imageUrls[1]]; // first two images
+                } else if (imageUrls.length === 1 && endImageUrl) {
+                    requestData.image = [imageUrls[0], endImageUrl];
+                } else if (imageUrls.length === 0 && endImageUrl) {
+                    // Only end image? Not enough for keyframes. We'll send the same twice.
+                    requestData.image = [endImageUrl, endImageUrl];
+                } else {
+                    return res.status(400).json({ error: 'Keyframe mode requires at least 2 images.' });
+                }
+                // No separate start_image/end_image fields needed
             }
 
-            // ---------- Use IP directly with Host header ----------
-            const https = require('https');
-            const agent = new https.Agent({
-                servername: AGNES_API_HOST  // SNI for SSL certificate
-            });
+            // Log the exact payload
+            console.log('Agnes request payload:', JSON.stringify(requestData, null, 2));
 
+            // ---------- Call Agnes API with retry ----------
+            const https = require('https');
+            const agent = new https.Agent({ servername: AGNES_API_HOST });
             const url = `https://${AGNES_API_IP}/v1/videos`;
 
-            // Retry loop
             const maxRetries = 3;
             let lastError = null;
             let response = null;
@@ -6535,7 +6799,7 @@ app.post('/api/generate-agnes-video', async (req, res) => {
                         headers: {
                             'Authorization': `Bearer ${AGNES_API_KEY}`,
                             'Content-Type': 'application/json',
-                            'Host': AGNES_API_HOST      // Required for virtual host routing
+                            'Host': AGNES_API_HOST
                         },
                         httpsAgent: agent,
                         timeout: 60000
@@ -6561,12 +6825,21 @@ app.post('/api/generate-agnes-video', async (req, res) => {
                 let details = lastError?.message || 'Unknown error';
 
                 if (lastError && lastError.response) {
-                    if (lastError.response.status === 429) {
+                    const status = lastError.response.status;
+                    const data = lastError.response.data;
+
+                    if (status === 429) {
                         statusCode = 429;
-                        errorMessage = 'You have reached the Agnes video generation limit (1 per minute). Please wait and try again.';
+                        errorMessage = 'You have reached the Agnes video generation limit. Please wait and try again.';
                         retryAfter = lastError.response.headers['retry-after'] || 60;
-                    } else if (lastError.response.data && lastError.response.data.error) {
-                        details = JSON.stringify(lastError.response.data.error);
+                    } else if (status === 400) {
+                        statusCode = 400;
+                        errorMessage = 'Bad request to Agnes API. Check reference image and prompt.';
+                        // Capture FULL response data – this is crucial!
+                        details = JSON.stringify(data) || 'No response data';
+                        console.error('❌ Agnes API 400 response:', JSON.stringify(data, null, 2));
+                    } else if (data && data.error) {
+                        details = JSON.stringify(data.error);
                     }
                 }
 
@@ -6623,7 +6896,6 @@ app.post('/api/generate-agnes-video', async (req, res) => {
 
     req.pipe(busboy);
 });
-
 app.get('/api/poll-agnes-video', async (req, res) => {
     const { video_id } = req.query;
 
@@ -9068,6 +9340,209 @@ app.get('/api/channel/:identifier', async (req, res) => {
   }
 });
 
+
+// ==================== CHANNEL SUPPORT / MONETIZATION ====================
+
+// ==================== CHANNEL SUPPORT / MONETIZATION ====================
+
+app.get('/api/channel/:channelId/supporters', async (req, res) => {
+    try {
+        const channelId = req.params.channelId;
+        const limit = parseInt(req.query.limit) || 10;
+        let supporters = [];
+
+        if (db && db.collection) {
+            // Fetch without orderBy to avoid index requirement
+            const snapshot = await db.collection('channel_support')
+                .where('channelId', '==', channelId)
+                .limit(50) // fetch a reasonable number
+                .get();
+            
+            // Sort in memory by amount descending
+            supporters = snapshot.docs
+                .map(doc => ({ id: doc.id, ...doc.data(), createdAt: safeDateToString(doc.data().createdAt) }))
+                .sort((a, b) => (b.amount || 0) - (a.amount || 0))
+                .slice(0, limit);
+        } else {
+            // Demo data
+            supporters = [
+                { supporterName: 'Demo User', amount: 50, message: 'Great content!', createdAt: new Date().toISOString() }
+            ];
+        }
+        res.json({ success: true, supporters });
+    } catch (error) {
+        console.error('Error fetching supporters:', error);
+        res.status(500).json({ error: 'Failed to fetch supporters' });
+    }
+});
+
+// Create a support (tip) order
+app.post('/api/channel/:channelId/support', async (req, res) => {
+    try {
+        const channelId = req.params.channelId;
+        const { amount, message, anonymous } = req.body;
+        if (!amount || amount < 10) {
+            return res.status(400).json({ error: 'Minimum support amount is ₹10' });
+        }
+
+        // Get channel info
+        let channelData;
+        if (db && db.collection) {
+            const doc = await db.collection('channels').doc(channelId).get();
+            if (!doc.exists) return res.status(404).json({ error: 'Channel not found' });
+            channelData = doc.data();
+        } else {
+            channelData = { userId: 'mock-user', channelName: 'Demo Channel' };
+        }
+
+        // Get current user (for tracking who supported)
+        const authHeader = req.headers.authorization;
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            return res.status(401).json({ error: 'Authentication required' });
+        }
+        const idToken = authHeader.split('Bearer ')[1];
+        let userId;
+        try {
+            const decodedToken = await admin.auth().verifyIdToken(idToken);
+            userId = decodedToken.uid;
+        } catch (e) {
+            console.error('Token verification failed:', e);
+            return res.status(401).json({ error: 'Invalid token' });
+        }
+
+        // Create order with Razorpay (or demo)
+        let order;
+        if (razorpay) {
+            order = await razorpay.orders.create({
+                amount: Math.round(amount * 100),
+                currency: 'INR',
+                notes: {
+                    channelId,
+                    userId,
+                    type: 'channel_support'
+                }
+            });
+        } else {
+            // Demo mode
+            order = { id: 'order_demo_' + Date.now(), amount: amount * 100, currency: 'INR' };
+        }
+
+        res.json({
+            success: true,
+            orderId: order.id,
+            amount: order.amount,
+            currency: order.currency,
+            isDemo: !razorpay,
+            keyId: razorpayKeyId
+        });
+
+    } catch (error) {
+        console.error('Support order error:', error);
+        res.status(500).json({ error: 'Failed to create support order' });
+    }
+});
+
+app.post('/api/channel/:channelId/support/verify', async (req, res) => {
+    try {
+        const channelId = req.params.channelId;
+        const { orderId, paymentId, signature, amount, message, anonymous } = req.body;
+
+        // Verify signature (if real Razorpay)
+        if (razorpay) {
+            const crypto = require('crypto');
+            const generatedSignature = crypto
+                .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
+                .update(orderId + '|' + paymentId)
+                .digest('hex');
+            if (generatedSignature !== signature) {
+                return res.status(400).json({ error: 'Invalid payment signature' });
+            }
+        }
+
+        // Get channel info
+        let channelData;
+        if (db && db.collection) {
+            const doc = await db.collection('channels').doc(channelId).get();
+            if (!doc.exists) return res.status(404).json({ error: 'Channel not found' });
+            channelData = doc.data();
+        } else {
+            channelData = { userId: 'mock-user', channelName: 'Demo Channel' };
+        }
+
+        // Get supporter info from auth
+        const authHeader = req.headers.authorization;
+        let supporterId = 'anonymous';
+        let supporterName = 'Anonymous Supporter';
+        let supporterEmail = null;
+        let decoded = null;
+
+        if (authHeader && authHeader.startsWith('Bearer ')) {
+            const idToken = authHeader.split('Bearer ')[1];
+            try {
+                decoded = await admin.auth().verifyIdToken(idToken);
+                supporterId = decoded.uid;
+                supporterName = decoded.displayName || decoded.email || 'User';
+                supporterEmail = decoded.email || null;
+            } catch (err) {
+                console.warn('Could not verify token, using anonymous:', err.message);
+                // Fallback to anonymous
+            }
+        }
+
+        // Record support transaction
+        const supportData = sanitizeFirestoreData({
+            channelId,
+            channelName: channelData.channelName || 'Channel',
+            userId: channelData.userId,  // channel owner
+            supporterId,
+            supporterName: anonymous ? 'Anonymous' : supporterName,
+            supporterEmail: anonymous ? null : supporterEmail,
+            amount,
+            message: message || '',
+            anonymous: anonymous || false,
+            platformFee: Math.round(amount * 0.15), // 15% platform fee
+            netAmount: Math.round(amount * 0.85),
+            razorpayOrderId: orderId,
+            razorpayPaymentId: paymentId,
+            createdAt: new Date().toISOString()
+        });
+
+        if (db && db.collection) {
+            // Save support record
+            await db.collection('channel_support').add(supportData);
+            // Update channel total support
+            await db.collection('channels').doc(channelId).update({
+                totalSupport: admin.firestore.FieldValue.increment(amount),
+                totalSupportCount: admin.firestore.FieldValue.increment(1),
+                updatedAt: new Date().toISOString()
+            });
+            // Also credit the seller balance (reuse sales collection)
+            await db.collection('sales').add({
+                promptId: null,
+                promptTitle: `Channel Support: ${channelData.channelName}`,
+                buyerId: supporterId,
+                buyerName: anonymous ? 'Anonymous' : supporterName,
+                buyerEmail: supporterEmail || null,
+                sellerId: channelData.userId,
+                sellerName: channelData.channelName || 'Channel Owner',
+                amount: amount,
+                sellerEarnings: Math.round(amount * 0.85),
+                platformFee: Math.round(amount * 0.15),
+                createdAt: new Date().toISOString(),
+                paymentStatus: 'completed',
+                type: 'channel_support'
+            });
+        } else {
+            console.log('Support recorded (demo):', supportData);
+        }
+
+        res.json({ success: true, message: 'Support successful!' });
+
+    } catch (error) {
+        console.error('Support verification error:', error);
+        res.status(500).json({ error: 'Failed to verify support', details: error.message });
+    }
+});
 // Get user's own channel
 app.get('/api/my-channel', async (req, res) => {
   try {
@@ -9321,74 +9796,85 @@ app.get('/api/channel/:channelId/subscription-status', async (req, res) => {
 // ==================== CHANNEL PAGE HTML GENERATOR ====================
 
 function generateChannelHTML(channel, channelId, prompts, isOwner, isSubscribed, currentUserId, canonicalUrl) {
-  // ===== 1. DEFINE ALL VARIABLES =====
-  const avatarUrl = channel.avatarUrl || 'https://via.placeholder.com/100x100/4e54c8/ffffff?text=' + encodeURIComponent(channel.channelName?.charAt(0) || 'C');
-  const bannerUrl = channel.bannerUrl || 'https://via.placeholder.com/1200x300/2d334a/ffffff?text=' + encodeURIComponent(channel.channelName || 'Channel');
-  const description = channel.description || `Channel of ${channel.channelName || 'Channel'} - AI prompts and creations.`;
-  const title = `${channel.channelName || 'Channel'} - tools prompt Channel`;
-  const subscriberCount = channel.subscribers || 0;
-  const totalLikes = prompts.reduce((sum, p) => sum + (p.likes || 0), 0);
+    // ===== 1. DEFINE VARIABLES =====
+    const avatarUrl = channel.avatarUrl || 'https://via.placeholder.com/100x100/4e54c8/ffffff?text=' + encodeURIComponent(channel.channelName?.charAt(0) || 'C');
+    const bannerUrl = channel.bannerUrl || 'https://via.placeholder.com/1200x300/2d334a/ffffff?text=' + encodeURIComponent(channel.channelName || 'Channel');
+    const description = channel.description || `Channel of ${channel.channelName || 'Channel'} - AI prompts and creations.`;
+    const title = `${channel.channelName || 'Channel'} - tools prompt Channel`;
+    const subscriberCount = channel.subscribers || 0;
+    const totalSupport = channel.totalSupport || 0;
+    const totalSupportCount = channel.totalSupportCount || 0;
+    const totalLikes = prompts.reduce((sum, p) => sum + (p.likes || 0), 0);
+    const formattedSubs = subscriberCount >= 1000 ? (subscriberCount / 1000).toFixed(1) + 'K' : subscriberCount;
+    const formattedSupport = totalSupport >= 1000 ? '₹' + (totalSupport / 1000).toFixed(1) + 'K' : '₹' + totalSupport;
 
-  // ===== 2. GENERATE PROMPTS HTML =====
-  const promptsHTML = prompts.map(p => {
-    const isVideo = p.fileType === 'video' || p.videoUrl;
-    const imageUrl = p.thumbnailUrl || p.imageUrl || 'https://via.placeholder.com/300x200/4e54c8/ffffff?text=Prompt';
-    const price = p.price || 0;
-    const isPaid = price > 0;
-    return `
-      <div class="channel-prompt-card" onclick="window.location.href='/prompt/${p.id}'">
-        <div class="channel-prompt-thumbnail">
-          <img src="${imageUrl}" alt="${p.title || 'Prompt'}">
-          ${isVideo ? '<span class="video-badge"><i class="fas fa-play"></i></span>' : ''}
-          <span class="price-badge ${!isPaid ? 'free' : ''}">${isPaid ? '₹' + price : 'Free'}</span>
+    // ===== 2. GENERATE PROMPTS HTML =====
+    const promptsHTML = prompts.map(p => {
+        const isVideo = p.fileType === 'video' || p.videoUrl;
+        const imageUrl = p.thumbnailUrl || p.imageUrl || 'https://via.placeholder.com/300x200/4e54c8/ffffff?text=Prompt';
+        const price = p.price || 0;
+        const isPaid = price > 0;
+        return `
+            <div class="channel-prompt-card" onclick="window.location.href='/prompt/${p.id}'">
+                <div class="channel-prompt-thumbnail">
+                    <img src="${imageUrl}" alt="${p.title || 'Prompt'}">
+                    ${isVideo ? '<span class="video-badge"><i class="fas fa-play"></i></span>' : ''}
+                    <span class="price-badge ${!isPaid ? 'free' : ''}">${isPaid ? '₹' + price : 'Free'}</span>
+                </div>
+                <div class="channel-prompt-info">
+                    <h4>${p.title || 'Untitled Prompt'}</h4>
+                    <div class="channel-prompt-meta">
+                        <span><i class="fas fa-eye"></i> ${p.views || 0}</span>
+                        <span><i class="fas fa-heart"></i> ${p.likes || 0}</span>
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    // ===== 3. SUPPORTERS SECTION =====
+    const supportersHTML = `
+        <div id="supportersSection" style="margin-top: 20px; ${totalSupportCount === 0 ? 'display:none;' : ''}">
+            <h4 style="color: #4e54c8; margin-bottom: 10px;">Top Supporters</h4>
+            <div id="supportersList" style="display: flex; flex-wrap: wrap; gap: 10px;">
+                <!-- Loaded dynamically -->
+            </div>
         </div>
-        <div class="channel-prompt-info">
-          <h4>${p.title || 'Untitled Prompt'}</h4>
-          <div class="channel-prompt-meta">
-            <span><i class="fas fa-eye"></i> ${p.views || 0}</span>
-            <span><i class="fas fa-heart"></i> ${p.likes || 0}</span>
-          </div>
-        </div>
-      </div>
     `;
-  }).join('');
 
-  const formattedSubs = subscriberCount >= 1000 ? (subscriberCount / 1000).toFixed(1) + 'K' : subscriberCount;
-
-  // ===== 3. BUILD STRUCTURED DATA (FIXED - interactionStatistic as ARRAY) =====
-  const structuredData = {
-    "@context": "https://schema.org",
-    "@type": "ProfilePage",
-    "name": channel.channelName || "Channel",
-    "description": (channel.description || `Channel of ${channel.channelName || 'Channel'}`),
-    "url": canonicalUrl || `https://www.toolsprompt.com/channel/${channelId}`,
-    "mainEntity": {
-      "@type": "Person",
-      "name": channel.channelName || "Channel Owner",
-      "identifier": channel.channelHandle || channel.channelName || channelId,
-      "image": channel.avatarUrl || "https://www.toolsprompt.com/logo.png",
-      "description": (channel.description || `Channel of ${channel.channelName || 'Channel'}`),
-      "sameAs": [canonicalUrl || `https://www.toolsprompt.com/channel/${channelId}`],
-      "interactionStatistic": [
-        {
-          "@type": "InteractionCounter",
-          "interactionType": "https://schema.org/SubscribeAction",
-          "userInteractionCount": subscriberCount
+    // ===== 4. STRUCTURED DATA =====
+    const structuredData = {
+        "@context": "https://schema.org",
+        "@type": "ProfilePage",
+        "name": channel.channelName || "Channel",
+        "description": (channel.description || `Channel of ${channel.channelName || 'Channel'}`),
+        "url": canonicalUrl || `https://www.toolsprompt.com/channel/${channelId}`,
+        "mainEntity": {
+            "@type": "Person",
+            "name": channel.channelName || "Channel Owner",
+            "identifier": channel.channelHandle || channel.channelName || channelId,
+            "image": channel.avatarUrl || "https://www.toolsprompt.com/logo.png",
+            "description": (channel.description || `Channel of ${channel.channelName || 'Channel'}`),
+            "sameAs": [canonicalUrl || `https://www.toolsprompt.com/channel/${channelId}`],
+            "interactionStatistic": [
+                {
+                    "@type": "InteractionCounter",
+                    "interactionType": "https://schema.org/SubscribeAction",
+                    "userInteractionCount": subscriberCount
+                },
+                {
+                    "@type": "InteractionCounter",
+                    "interactionType": "https://schema.org/LikeAction",
+                    "userInteractionCount": totalLikes
+                }
+            ]
         },
-        {
-          "@type": "InteractionCounter",
-          "interactionType": "https://schema.org/LikeAction",
-          "userInteractionCount": totalLikes
-        }
-      ]
-    },
-    "dateCreated": channel.createdAt || new Date().toISOString()
-  };
+        "dateCreated": channel.createdAt || new Date().toISOString()
+    };
+    const structuredDataJSON = JSON.stringify(structuredData);
 
-  const structuredDataJSON = JSON.stringify(structuredData);
-
-  // ===== 4. RETURN FULL HTML =====
-  return `<!DOCTYPE html>
+    // ===== 5. BUILD FULL HTML =====
+    return `<!DOCTYPE html>
 <html lang="en" itemscope itemtype="https://schema.org/ProfilePage">
 <head>
     <meta charset="UTF-8">
@@ -9414,7 +9900,7 @@ function generateChannelHTML(channel, channelId, prompts, isOwner, isSubscribed,
     <meta name="twitter:description" content="${description.replace(/"/g, '&quot;')}">
     <meta name="twitter:image" content="${avatarUrl}">
     
-    <!-- ====== FIXED JSON-LD (interactionStatistic as ARRAY) ====== -->
+    <!-- Structured Data -->
     <script type="application/ld+json">
 ${structuredDataJSON}
     </script>
@@ -9422,6 +9908,8 @@ ${structuredDataJSON}
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
+    <!-- Razorpay for support payments -->
+    <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
     
     <style>
         /* ===== CHANNEL PAGE STYLES ===== */
@@ -9437,7 +9925,7 @@ ${structuredDataJSON}
         .channel-name { font-size: 1.8rem; font-weight: 700; display: flex; align-items: center; gap: 10px; }
         .channel-handle { color: #666; font-size: 1rem; }
         .channel-description { color: #555; margin-top: 5px; }
-        .channel-stats { display: flex; gap: 20px; margin-top: 8px; color: #666; font-size: 0.9rem; }
+        .channel-stats { display: flex; gap: 20px; margin-top: 8px; color: #666; font-size: 0.9rem; flex-wrap: wrap; }
         .channel-actions { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
         .subscribe-btn { background: #ff0000; color: white; border: none; padding: 10px 24px; border-radius: 25px; font-weight: 600; cursor: pointer; transition: all 0.3s ease; font-size: 0.95rem; }
         .subscribe-btn:hover { transform: scale(1.05); box-shadow: 0 4px 15px rgba(255,0,0,0.3); }
@@ -9446,6 +9934,134 @@ ${structuredDataJSON}
         .channel-btn { background: #f0f0f0; border: none; padding: 10px 20px; border-radius: 25px; font-weight: 500; cursor: pointer; transition: all 0.3s ease; color: #333; }
         .channel-btn:hover { background: #e0e0e0; }
         .verify-badge { background: #4e54c8; color: white; padding: 2px 10px; border-radius: 12px; font-size: 0.7rem; font-weight: 600; }
+        
+        /* Support button */
+        .support-btn {
+            background: linear-gradient(135deg, #ff6b6b, #ff8787);
+            color: white;
+            border: none;
+            padding: 10px 24px;
+            border-radius: 25px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 0.95rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .support-btn:hover { transform: scale(1.05); box-shadow: 0 4px 15px rgba(255,107,107,0.4); }
+        .support-stats { display: flex; gap: 20px; margin-top: 8px; color: #666; font-size: 0.9rem; }
+        .support-stats span i { color: #ff6b6b; margin-right: 4px; }
+        
+        /* Support Modal */
+        .support-modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.7);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 10001;
+            animation: fadeIn 0.3s ease;
+        }
+        .support-modal-overlay.active { display: flex; }
+        .support-modal {
+            background: white;
+            border-radius: 20px;
+            width: 90%;
+            max-width: 450px;
+            max-height: 90vh;
+            overflow-y: auto;
+            padding: 30px;
+            animation: slideUp 0.3s ease;
+        }
+        .support-modal h2 { color: #4e54c8; margin-bottom: 5px; }
+        .support-modal .subtitle { color: #666; margin-bottom: 20px; }
+        .amount-options {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        .amount-options button {
+            padding: 12px;
+            border: 2px solid #e9ecef;
+            border-radius: 12px;
+            background: white;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .amount-options button:hover,
+        .amount-options button.selected {
+            border-color: #4e54c8;
+            background: #f0f4ff;
+        }
+        .custom-amount-input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e9ecef;
+            border-radius: 12px;
+            font-size: 1rem;
+            margin-bottom: 15px;
+        }
+        .support-message-input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e9ecef;
+            border-radius: 12px;
+            font-size: 1rem;
+            resize: vertical;
+            min-height: 60px;
+            font-family: inherit;
+        }
+        .anonymous-check {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin: 10px 0;
+            color: #666;
+        }
+        .support-submit-btn {
+            width: 100%;
+            background: linear-gradient(135deg, #ff6b6b, #ff8787);
+            color: white;
+            border: none;
+            padding: 14px;
+            border-radius: 40px;
+            font-weight: 700;
+            font-size: 1.1rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .support-submit-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(255,107,107,0.4);
+        }
+        .support-close-btn {
+            background: none;
+            border: none;
+            font-size: 1.8rem;
+            cursor: pointer;
+            color: #666;
+            float: right;
+        }
+        .supporter-item {
+            background: #f8f9fa;
+            padding: 8px 14px;
+            border-radius: 30px;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.85rem;
+        }
+        .supporter-item .amount { font-weight: 700; color: #ff6b6b; }
+        .support-close-btn:hover { color: #ff6b6b; }
+        @media (max-width: 768px) { .amount-options { grid-template-columns: repeat(2, 1fr); } }
         
         .channel-content { max-width: 1200px; margin: 30px auto; padding: 0 20px; }
         .content-tabs { display: flex; gap: 0; border-bottom: 2px solid #e9ecef; margin-bottom: 25px; }
@@ -9462,13 +10078,15 @@ ${structuredDataJSON}
         .channel-prompt-info { padding: 15px; }
         .channel-prompt-info h4 { font-size: 1rem; margin-bottom: 8px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
         .channel-prompt-meta { display: flex; gap: 15px; font-size: 0.85rem; color: #666; }
-        
+        .price-badge { position: absolute; bottom: 10px; left: 10px; background: linear-gradient(135deg, #ff6b6b, #ff8787); color: white; padding: 2px 10px; border-radius: 12px; font-size: 0.75rem; font-weight: 600; }
+        .price-badge.free { background: linear-gradient(135deg, #20bf6b, #4cd964); }
         .no-prompts { text-align: center; padding: 60px 20px; color: #666; background: white; border-radius: 12px; }
         .no-prompts i { font-size: 3rem; color: #ccc; margin-bottom: 15px; }
         .back-link { display: inline-block; margin-top: 20px; color: #4e54c8; text-decoration: none; font-weight: 600; }
         .back-link:hover { text-decoration: underline; }
-        .price-badge { position: absolute; bottom: 10px; left: 10px; background: linear-gradient(135deg, #ff6b6b, #ff8787); color: white; padding: 2px 10px; border-radius: 12px; font-size: 0.75rem; font-weight: 600; }
-        .price-badge.free { background: linear-gradient(135deg, #20bf6b, #4cd964); }
+        
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes slideUp { from { transform: translateY(50px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
         
         @media (max-width: 768px) {
             .channel-banner { height: 150px; }
@@ -9479,11 +10097,13 @@ ${structuredDataJSON}
             .channel-actions { justify-content: center; width: 100%; }
             .prompts-grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; }
             .channel-prompt-thumbnail { height: 130px; }
+            .amount-options { grid-template-columns: repeat(2, 1fr); }
         }
         @media (max-width: 480px) {
             .prompts-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
             .channel-prompt-thumbnail { height: 110px; }
             .channel-prompt-info h4 { font-size: 0.85rem; }
+            .support-modal { padding: 20px; }
         }
     </style>
 </head>
@@ -9523,6 +10143,10 @@ ${structuredDataJSON}
                         <span><i class="fas fa-users"></i> ${formattedSubs} subscribers</span>
                         <span><i class="fas fa-video"></i> ${prompts.length} prompts</span>
                         <span><i class="fas fa-eye"></i> ${channel.totalViews || 0} total views</span>
+                        ${totalSupportCount > 0 ? `<span><i class="fas fa-heart" style="color:#ff6b6b;"></i> ${formattedSupport} raised</span>` : ''}
+                    </div>
+                    <div class="support-stats">
+                        ${totalSupportCount > 0 ? `<span><i class="fas fa-heart"></i> ${totalSupportCount} supporters</span>` : ''}
                     </div>
                 </div>
                 <div class="channel-actions">
@@ -9530,6 +10154,7 @@ ${structuredDataJSON}
                         <button class="subscribe-btn ${isSubscribed ? 'subscribed' : ''}" id="subscribeBtn" onclick="toggleSubscribe()">
                             ${isSubscribed ? '<i class="fas fa-check"></i> Subscribed' : '<i class="fas fa-plus"></i> Subscribe'}
                         </button>
+                        <button class="support-btn" id="supportChannelBtn"><i class="fas fa-heart"></i> Support</button>
                     ` : `
                         <button class="channel-btn" onclick="window.location.href='/dashboard.html'"><i class="fas fa-edit"></i> Manage Channel</button>
                     `}
@@ -9569,8 +10194,10 @@ ${structuredDataJSON}
                     <div><strong>Channel Created:</strong> ${channel.createdAt ? new Date(channel.createdAt).toLocaleDateString() : 'N/A'}</div>
                     <div><strong>Total Prompts:</strong> ${prompts.length}</div>
                     <div><strong>Subscribers:</strong> ${formattedSubs}</div>
+                    ${totalSupportCount > 0 ? `<div><strong>Total Support:</strong> ${formattedSupport} from ${totalSupportCount} supporters</div>` : ''}
                     ${isOwner ? `<div><strong>Channel ID:</strong> ${channelId}</div>` : ''}
                 </div>
+                ${supportersHTML}
                 ${isOwner ? `
                     <div style="margin-top: 25px; padding-top: 25px; border-top: 1px solid #e9ecef;">
                         <h3 style="color: #2d334a; margin-bottom: 10px;">Channel Settings</h3>
@@ -9579,6 +10206,30 @@ ${structuredDataJSON}
                     </div>
                 ` : ''}
             </div>
+        </div>
+    </div>
+
+    <!-- ===== SUPPORT MODAL ===== -->
+    <div class="support-modal-overlay" id="supportModal">
+        <div class="support-modal">
+            <button class="support-close-btn" id="closeSupportModal">&times;</button>
+            <h2><i class="fas fa-heart" style="color:#ff6b6b;"></i> Support ${channel.channelName}</h2>
+            <p class="subtitle">Your support helps the creator continue making amazing content.</p>
+            <div class="amount-options" id="amountOptions">
+                <button data-amount="10">₹10</button>
+                <button data-amount="50">₹50</button>
+                <button data-amount="100">₹100</button>
+                <button data-amount="200">₹200</button>
+                <button data-amount="500">₹500</button>
+                <button data-amount="custom">Custom</button>
+            </div>
+            <input type="number" class="custom-amount-input" id="customAmount" placeholder="Enter amount (₹)" style="display:none;" min="10">
+            <textarea class="support-message-input" id="supportMessage" placeholder="Optional: leave a message for the creator..."></textarea>
+            <div class="anonymous-check">
+                <input type="checkbox" id="anonymousSupport">
+                <label for="anonymousSupport">Support anonymously</label>
+            </div>
+            <button class="support-submit-btn" id="supportSubmitBtn">Support with ₹10</button>
         </div>
     </div>
 
@@ -9604,13 +10255,13 @@ ${structuredDataJSON}
         let isSubscribed = ${isSubscribed};
         let currentUser = null;
         let authReady = false;
+        let selectedAmount = 10;
         
         // Tab switching
         document.querySelectorAll('.content-tab').forEach(tab => {
             tab.addEventListener('click', function() {
                 document.querySelectorAll('.content-tab').forEach(t => t.classList.remove('active'));
                 this.classList.add('active');
-                
                 const tabName = this.dataset.tab;
                 document.querySelectorAll('.tab-content').forEach(t => t.style.display = 'none');
                 document.getElementById('tab-' + tabName).style.display = 'block';
@@ -9623,7 +10274,6 @@ ${structuredDataJSON}
                 currentUser = user;
                 authReady = true;
                 updateAuthUI(user);
-                
                 if (user && !isOwner) {
                     checkSubscriptionStatus();
                 }
@@ -9633,7 +10283,6 @@ ${structuredDataJSON}
         function updateAuthUI(user) {
             const authSection = document.getElementById('authSection');
             if (!authSection) return;
-            
             if (user) {
                 const name = user.displayName || user.email?.split('@')[0] || 'User';
                 authSection.innerHTML = 
@@ -9652,6 +10301,7 @@ ${structuredDataJSON}
             }
         }
         
+        // ===== SUBSCRIPTION =====
         async function checkSubscriptionStatus() {
             if (!currentUser || isOwner) return;
             try {
@@ -9672,13 +10322,10 @@ ${structuredDataJSON}
                 window.location.href = '/login.html?returnUrl=' + encodeURIComponent(window.location.href);
                 return;
             }
-            
             const btn = document.getElementById('subscribeBtn');
             const action = isSubscribed ? 'unsubscribe' : 'subscribe';
-            
             btn.disabled = true;
             btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Loading...';
-            
             try {
                 const token = await currentUser.getIdToken();
                 const response = await fetch('/api/channel/' + channelId + '/subscribe', {
@@ -9687,14 +10334,12 @@ ${structuredDataJSON}
                         'Content-Type': 'application/json',
                         'Authorization': 'Bearer ' + token
                     },
-                    body: JSON.stringify({ action: action })
+                    body: JSON.stringify({ action })
                 });
-                
                 const data = await response.json();
                 if (data.success) {
                     isSubscribed = data.subscribed;
                     updateSubscribeButton();
-                    
                     const subsDisplay = document.querySelector('.channel-stats span:first-child');
                     if (subsDisplay) {
                         const count = data.subscribers || 0;
@@ -9713,7 +10358,6 @@ ${structuredDataJSON}
         function updateSubscribeButton() {
             const btn = document.getElementById('subscribeBtn');
             if (!btn) return;
-            
             if (isSubscribed) {
                 btn.className = 'subscribe-btn subscribed';
                 btn.innerHTML = '<i class="fas fa-check"></i> Subscribed';
@@ -9722,11 +10366,242 @@ ${structuredDataJSON}
                 btn.innerHTML = '<i class="fas fa-plus"></i> Subscribe';
             }
         }
+        
+        // ===== SUPPORT / MONETIZATION =====
+        // Load supporters
+        async function loadSupporters() {
+            try {
+                const response = await fetch('/api/channel/' + channelId + '/supporters?limit=6');
+                const data = await response.json();
+                if (data.success && data.supporters.length > 0) {
+                    const container = document.getElementById('supportersList');
+                    container.innerHTML = data.supporters.map(s => \`
+                        <div class="supporter-item">
+                            <span>\${s.anonymous ? 'Anonymous' : s.supporterName}</span>
+                            <span class="amount">₹\${s.amount}</span>
+                            \${s.message ? \`<span style="color:#888;font-size:0.8rem;">"\${s.message.substring(0,30)}"</span>\` : ''}
+                        </div>
+                    \`).join('');
+                    document.getElementById('supportersSection').style.display = 'block';
+                }
+            } catch (e) {
+                console.error('Load supporters error:', e);
+            }
+        }
+        loadSupporters();
+
+        // Support modal
+        const supportModal = document.getElementById('supportModal');
+        const supportBtn = document.getElementById('supportChannelBtn');
+        const closeSupport = document.getElementById('closeSupportModal');
+        const amountOptions = document.getElementById('amountOptions');
+        const customAmount = document.getElementById('customAmount');
+        const supportMessage = document.getElementById('supportMessage');
+        const anonymousCheck = document.getElementById('anonymousSupport');
+        const submitBtn = document.getElementById('supportSubmitBtn');
+
+        if (supportBtn) {
+            supportBtn.addEventListener('click', function() {
+                if (!currentUser) {
+                    window.location.href = '/login.html?returnUrl=' + encodeURIComponent(window.location.href);
+                    return;
+                }
+                supportModal.classList.add('active');
+                document.body.style.overflow = 'hidden';
+            });
+        }
+
+        closeSupport.addEventListener('click', function() {
+            supportModal.classList.remove('active');
+            document.body.style.overflow = '';
+        });
+        supportModal.addEventListener('click', function(e) {
+            if (e.target === this) {
+                supportModal.classList.remove('active');
+                document.body.style.overflow = '';
+            }
+        });
+
+        // Amount selection
+        amountOptions.addEventListener('click', function(e) {
+            const btn = e.target.closest('button');
+            if (!btn) return;
+            const amount = btn.dataset.amount;
+            document.querySelectorAll('#amountOptions button').forEach(b => b.classList.remove('selected'));
+            btn.classList.add('selected');
+            if (amount === 'custom') {
+                customAmount.style.display = 'block';
+                customAmount.focus();
+                selectedAmount = 0;
+                submitBtn.textContent = 'Support with custom amount';
+            } else {
+                customAmount.style.display = 'none';
+                selectedAmount = parseInt(amount);
+                submitBtn.textContent = 'Support with ₹' + amount;
+            }
+        });
+
+        customAmount.addEventListener('input', function() {
+            const val = parseInt(this.value);
+            if (val >= 10) {
+                selectedAmount = val;
+                submitBtn.textContent = 'Support with ₹' + val;
+            } else {
+                submitBtn.textContent = 'Enter valid amount (min ₹10)';
+            }
+        });
+
+        // Submit support
+        submitBtn.addEventListener('click', async function() {
+            if (!currentUser) {
+                alert('Please login to support this channel.');
+                return;
+            }
+            let amount = selectedAmount;
+            if (amount < 10) {
+                alert('Minimum support amount is ₹10');
+                return;
+            }
+
+            const message = supportMessage.value.trim();
+            const anonymous = anonymousCheck.checked;
+
+            this.disabled = true;
+            this.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating order...';
+
+            try {
+                const idToken = await currentUser.getIdToken();
+                const response = await fetch('/api/channel/' + channelId + '/support', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + idToken
+                    },
+                    body: JSON.stringify({ amount, message, anonymous })
+                });
+                const data = await response.json();
+                if (!data.success) throw new Error(data.error || 'Order creation failed');
+
+                if (data.isDemo) {
+                    // Demo mode: verify directly
+                    const verifyRes = await fetch('/api/channel/' + channelId + '/support/verify', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': 'Bearer ' + idToken
+                        },
+                        body: JSON.stringify({
+                            orderId: data.orderId,
+                            paymentId: 'demo_pay_' + Date.now(),
+                            signature: 'demo_signature',
+                            amount,
+                            message,
+                            anonymous
+                        })
+                    });
+                    const verifyData = await verifyRes.json();
+                    if (verifyData.success) {
+                        alert('🎉 Support successful! Thank you for supporting this channel.');
+                        supportModal.classList.remove('active');
+                        document.body.style.overflow = '';
+                        // Reload supporters
+                        loadSupporters();
+                        // Update stats on page (simple increment)
+                        const stats = document.querySelector('.support-stats');
+                        if (stats) {
+                            const currentCount = parseInt(stats.textContent.match(/\\d+/)?.[0] || 0);
+                            stats.innerHTML = \`<span><i class="fas fa-heart"></i> \${currentCount + 1} supporters</span>\`;
+                        }
+                    } else {
+                        alert('Support failed. Please try again.');
+                    }
+                } else {
+                    // Real Razorpay
+                    if (typeof Razorpay === 'undefined') {
+                        await new Promise((resolve, reject) => {
+                            const script = document.createElement('script');
+                            script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+                            script.onload = resolve;
+                            script.onerror = reject;
+                            document.head.appendChild(script);
+                        });
+                    }
+                    const options = {
+                        key: data.keyId,
+                        amount: data.amount,
+                        currency: data.currency,
+                        name: 'Support ${channel.channelName}',
+                        description: 'Tip for the creator',
+                        order_id: data.orderId,
+                        handler: async function(response) {
+                            try {
+                                const verifyRes = await fetch('/api/channel/' + channelId + '/support/verify', {
+                                    method: 'POST',
+                                    headers: {
+                                        'Content-Type': 'application/json',
+                                        'Authorization': 'Bearer ' + idToken
+                                    },
+                                    body: JSON.stringify({
+                                        orderId: response.razorpay_order_id,
+                                        paymentId: response.razorpay_payment_id,
+                                        signature: response.razorpay_signature,
+                                        amount,
+                                        message,
+                                        anonymous
+                                    })
+                                });
+                                const verifyData = await verifyRes.json();
+                                if (verifyData.success) {
+                                    alert('🎉 Support successful! Thank you for supporting this channel.');
+                                    supportModal.classList.remove('active');
+                                    document.body.style.overflow = '';
+                                    loadSupporters();
+                                    // Update stats
+                                    const stats = document.querySelector('.support-stats');
+                                    if (stats) {
+                                        const currentCount = parseInt(stats.textContent.match(/\\d+/)?.[0] || 0);
+                                        stats.innerHTML = \`<span><i class="fas fa-heart"></i> \${currentCount + 1} supporters</span>\`;
+                                    }
+                                } else {
+                                    alert('Support verification failed. Please contact support.');
+                                }
+                            } catch (e) {
+                                alert('Error verifying support. Please try again.');
+                            }
+                        },
+                        modal: {
+                            ondismiss: function() {
+                                submitBtn.disabled = false;
+                                submitBtn.innerHTML = 'Support with ₹' + amount;
+                            }
+                        },
+                        theme: { color: '#ff6b6b' },
+                        prefill: {
+                            email: currentUser.email,
+                            name: currentUser.displayName || currentUser.email
+                        },
+                        notes: {
+                            channelId: channelId,
+                            type: 'channel_support'
+                        }
+                    };
+                    const rzp = new Razorpay(options);
+                    rzp.open();
+                }
+            } catch (error) {
+                console.error('Support error:', error);
+                alert('Failed to process support. Please try again.');
+            } finally {
+                this.disabled = false;
+                this.innerHTML = 'Support with ₹' + amount;
+            }
+        });
+
+        console.log('Channel page loaded with monetization support.');
     </script>
 </body>
 </html>`;
 }
-
 // ==================== CHANNEL PAGE ROUTE ====================
 
 // ==================== CHANNEL PAGE ROUTE ====================

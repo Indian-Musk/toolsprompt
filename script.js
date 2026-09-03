@@ -1,5 +1,5 @@
 ﻿// ============================================================
-//  script.js – Complete file with channel system
+//  script.js – Complete file with channel system + share function
 // ============================================================
 
 // Firebase config
@@ -1910,6 +1910,21 @@ class YouTubeStylePrompts {
         infoDiv.appendChild(creatorDiv);
         infoDiv.appendChild(button);
 
+        // ===== ADD SUBSCRIBE BUTTON =====
+        const subscribeBtn = document.createElement('button');
+        subscribeBtn.className = 'subscribe-channel-btn';
+        subscribeBtn.setAttribute('data-channel-user-id', userId || '');
+        subscribeBtn.setAttribute('data-channel-name', userName);
+        subscribeBtn.innerHTML = '<i class="fas fa-bell"></i> <span class="subscribe-text">Subscribe</span> <span class="subscribe-count">0</span>';
+        subscribeBtn.onclick = async function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            if (typeof window.handleSubscribeFromCard === 'function') {
+                await handleSubscribeFromCard(e, this);
+            }
+        };
+        infoDiv.appendChild(subscribeBtn);
+
         item.appendChild(imageDiv);
         item.appendChild(infoDiv);
 
@@ -1988,7 +2003,7 @@ class YouTubeStylePrompts {
             window.horizontalFeedManager.addFeed(track, controls, feedId);
         }
     }
-    // ===== MODIFIED: createShortsPrompt with channel =====
+    // ===== MODIFIED: createShortsPrompt with channel and subscribe button =====
     createShortsPrompt(prompt, index) {
         const safePrompt = prompt || {};
         const promptId = safePrompt.id || `unknown-${index}`;
@@ -2076,6 +2091,14 @@ class YouTubeStylePrompts {
                 <div class="shorts-meta">
                     <span class="channel-name-placeholder">${displayNameHTML}</span>
                     <span>${this.formatCount(views)} views</span>
+                </div>
+                <!-- ===== SUBSCRIBE BUTTON ===== -->
+                <div class="channel-subscribe-row" style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                    <button class="subscribe-channel-btn" data-channel-user-id="${userId || ''}" data-channel-name="${safePrompt.userName || 'Anonymous'}" onclick="handleSubscribeFromCard(event, this)">
+                        <i class="fas fa-bell"></i> 
+                        <span class="subscribe-text">Subscribe</span>
+                        <span class="subscribe-count">0</span>
+                    </button>
                 </div>
                 <div class="prompt-actions">
                     <button class="copy-prompt-btn" data-prompt-id="${promptId}" data-prompt-text="${promptText.replace(/"/g, '&quot;')}" data-price="${price}" data-is-paid="${isPaid}" data-title="${title}" data-image="${imageUrl}" data-user="${userName}">
