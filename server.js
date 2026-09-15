@@ -1,4 +1,4 @@
-﻿// ========== AGNES AI CONFIGURATION ==========
+﻿﻿// ========== AGNES AI CONFIGURATION ==========
 const AGNES_API_IP = '104.18.18.62';               // Hardcoded IP from nslookup
 const AGNES_API_HOST = 'apihub.agnes-ai.com';       // Host header for SSL
 const express = require('express');
@@ -1934,19 +1934,15 @@ function serveHTMLWithCanonical(filePath, requestedPath, req, res) {
   });
 }
 
-// Serve main page with canonical support
 app.get('/', (req, res) => {
-  serveHTMLWithCanonical(path.join(__dirname, 'index.html'), '/', req, res);
+  // Serve index.html directly (the file itself already has canonical)
+  res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-// Serve index.html as separate page with proper canonical
 app.get('/index.html', (req, res) => {
-    if (req.get('host').includes('toolsprompt.com') || process.env.NODE_ENV === 'production') {
-        const baseUrl = process.env.BASE_URL || `https://${req.get('host').replace('index.html', '')}`;
-        return res.redirect(301, baseUrl.replace('/index.html', '/'));
-    }
-    
-    serveHTMLWithCanonical(path.join(__dirname, 'index.html'), '/index.html', req, res);
+    // Always redirect to the canonical homepage
+    const baseUrl = process.env.BASE_URL || `https://${req.get('host')}`;
+    res.redirect(301, baseUrl + '/');
 });
 
 // ENHANCED AdSense Helper Functions
@@ -5198,18 +5194,15 @@ app.get('/sitemap.xml', async (req, res) => {
   }
 });
 
-// Pages Sitemap
 app.get('/sitemap-pages.xml', async (req, res) => {
   try {
     const baseUrl = process.env.BASE_URL || `https://${req.get('host')}`;
     
     const pages = [
       { loc: baseUrl + '/', lastmod: new Date().toISOString(), changefreq: 'daily', priority: '1.0' },
-      { loc: baseUrl + '/index.html', lastmod: new Date().toISOString(), changefreq: 'daily', priority: '0.9' },
-      { loc: baseUrl + '/promptconverter.html', lastmod: new Date().toISOString(), changefreq: 'daily', priority: '0.8' },
-      { loc: baseUrl + '/howitworks.html', lastmod: new Date().toISOString(), changefreq: 'daily', priority: '0.8' },
-      { loc: baseUrl + '/login.html', lastmod: new Date().toISOString(), changefreq: 'daily', priority: '0.5' },
-      { loc: baseUrl + '/dashboard.html', lastmod: new Date().toISOString(), changefreq: 'daily', priority: '0.7' }
+      { loc: baseUrl + '/login.html', lastmod: new Date().toISOString(), changefreq: 'monthly', priority: '0.5' },
+      { loc: baseUrl + '/dashboard.html', lastmod: new Date().toISOString(), changefreq: 'monthly', priority: '0.7' },
+      // Add other static pages if needed
     ];
 
     const sitemap = SitemapGenerator.generateSitemap(pages);

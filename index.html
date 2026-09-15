@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+﻿﻿<!DOCTYPE html>
 <html lang="en" itemscope itemtype="https://schema.org/WebSite">
 <head>
 <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5992381116749724"
@@ -39,52 +39,7 @@
     <meta name="twitter:image" content="https://www.toolsprompt.com/logo.png">
     <meta name="twitter:site" content="@toolsprompt">
     
-    <!-- Enhanced Canonical and Redirect Script -->
-    <script>
-        (function() {
-            const currentUrl = window.location.href;
-            const currentHost = window.location.hostname;
-            const currentPath = window.location.pathname;
-            const currentProtocol = window.location.protocol;
-            
-            if (currentHost === 'toolsprompt.com' || currentHost === 'www.toolsprompt.com') {
-                const targetHost = 'www.toolsprompt.com';
-                
-                if (currentPath === '/index.html') {
-                    const targetUrl = `${currentProtocol}//${targetHost}/`;
-                    if (currentUrl !== targetUrl) {
-                        window.location.replace(targetUrl);
-                        return;
-                    }
-                }
-                else if (currentHost !== targetHost) {
-                    let targetUrl = `${currentProtocol}//${targetHost}${currentPath}`;
-                    if (window.location.search) targetUrl += window.location.search;
-                    if (window.location.hash) targetUrl += window.location.hash;
-                    if (currentUrl !== targetUrl) {
-                        window.location.replace(targetUrl);
-                        return;
-                    }
-                }
-                
-                const canonicalUrl = `https://${targetHost}${currentPath === '/index.html' ? '/' : currentPath}`;
-                const canonicalTag = document.querySelector('link[rel="canonical"]');
-                if (canonicalTag) {
-                    canonicalTag.href = canonicalUrl;
-                } else {
-                    const link = document.createElement('link');
-                    link.rel = 'canonical';
-                    link.href = canonicalUrl;
-                    document.head.appendChild(link);
-                }
-            } else {
-                if (currentPath === '/index.html') {
-                    const cleanUrl = currentUrl.replace('/index.html', '/');
-                    window.history.replaceState({}, document.title, cleanUrl);
-                }
-            }
-        })();
-    </script>
+ 
     <link rel="canonical" href="https://www.toolsprompt.com/" />
     <link rel="icon" type="image/png" href="/favicon.png">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
