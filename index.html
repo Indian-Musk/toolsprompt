@@ -1,4 +1,4 @@
-﻿﻿<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en" itemscope itemtype="https://schema.org/WebSite">
 <head>
 <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5992381116749724"
@@ -1204,12 +1204,12 @@ nav {
     }
     
     .floating-channel-reminder {
-          bottom: 150px;                 /* move above AI bar */
-        right: 10px;                   /* keep on right side */
-        left: auto;                    /* remove left:10px */
-        width: 50%;                    /* half of screen width */
-        max-width: 320px;              /* cap so it doesn't get too wide */
-        min-width: 220px;              /* ensure it's not too narrow */
+          bottom: 150px;
+        right: 10px;
+        left: auto;
+        width: 50%;
+        max-width: 320px;
+        min-width: 220px;
         padding: 12px 16px;
     }
     
@@ -1584,6 +1584,80 @@ nav {
 .secure-payment i {
     color: #20bf6b;
     margin-right: 5px;
+}
+
+/* ===== CUSTOMIZE PROMPT PAGE TOGGLE ===== */
+.customize-toggle {
+    width: 100%;
+    background: linear-gradient(135deg, #f0f4ff 0%, #e8eeff 100%);
+    border: 2px dashed #4e54c8;
+    color: #4e54c8;
+    padding: 14px 18px;
+    border-radius: 12px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    text-align: left;
+    transition: all 0.3s ease;
+    font-family: inherit;
+}
+.customize-toggle:hover {
+    background: linear-gradient(135deg, #e8eeff 0%, #dde6ff 100%);
+    border-style: solid;
+}
+.customize-toggle i.fa-chevron-down {
+    transition: transform 0.3s ease;
+    flex-shrink: 0;
+}
+.customize-toggle.expanded i.fa-chevron-down {
+    transform: rotate(180deg);
+}
+.customize-toggle > span:nth-child(2) {
+    flex: 1;
+}
+.customize-badge {
+    background: #ffd700;
+    color: #1a1a2e;
+    padding: 3px 12px;
+    border-radius: 20px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    flex-shrink: 0;
+}
+.customize-hint {
+    background: #f8f9fa;
+    padding: 10px 14px;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    color: #666;
+    margin: 12px 0 15px;
+    border-left: 3px solid #4e54c8;
+    line-height: 1.5;
+}
+#customizeSection {
+    margin-top: 15px;
+    padding: 18px;
+    background: #f8f9fa;
+    border-radius: 12px;
+    border-left: 4px solid #4e54c8;
+    animation: slideDown 0.3s ease;
+}
+#customizeSection code {
+    background: #e9ecef;
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    color: #4e54c8;
+    font-family: 'Courier New', monospace;
+}
+@keyframes slideDown {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
 }
 
 /* ===== RESPONSIVE ===== */
@@ -3556,6 +3630,85 @@ nav {
                     <textarea id="aboutDescription" rows="3" placeholder="Describe what this prompt does, its use cases, and any special instructions..."></textarea>
                     <small>This will appear in the "About this AI prompt" section. If left blank, an AI-generated description will be used.</small>
                 </div>
+
+                <!-- ========== OPTIONAL: CUSTOMIZE PROMPT PAGE ========== -->
+                <div class="form-group">
+                    <button type="button" id="customizeToggle" class="customize-toggle">
+                        <i class="fas fa-chevron-down"></i>
+                        <span>Customize Prompt Page (Optional) — Comparison, Tools, Tips &amp; How-To</span>
+                        <span class="customize-badge">Optional</span>
+                    </button>
+
+                    <div id="customizeSection" style="display:none;">
+                        <p class="customize-hint">
+                            <i class="fas fa-info-circle"></i>
+                            Fill any field below to add extra sections to your prompt page.
+                            Leave them empty and we'll skip those sections (your page will show only: title, image, prompt, about description, footer).
+                        </p>
+
+                        <div class="form-group">
+                            <label for="customPlatformComparison">AI Platform Comparison (HTML) — Optional</label>
+                            <textarea id="customPlatformComparison" rows="4"
+                                placeholder="Advanced: Paste custom HTML for the comparison table. Leave empty to auto-generate."></textarea>
+                            <small>Advanced users only. Leave empty to auto-generate the comparison table.</small>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="customTopTools">Top AI Image/Video Generation Tools — Optional</label>
+                            <textarea id="customTopTools" rows="4" placeholder="One tool per line. Format: Name | Description | Best For | Price
+Example:
+Midjourney | Artistic images with style control | Digital art, fantasy | $10/mo
+DALL-E 3 | Best prompt comprehension | Marketing visuals | Credits"></textarea>
+                            <small>One tool per line. Format: <code>Name | Description | Best For | Price</code></small>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="customModelTips">Model-Specific Optimization Tips (HTML) — Optional</label>
+                            <textarea id="customModelTips" rows="4"
+                                placeholder="Advanced: Custom HTML for the model-specific tips section. Leave empty to auto-generate."></textarea>
+                            <small>Advanced users only. Leave empty to auto-generate.</small>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="customHowTo">How To Use This Prompt — Optional</label>
+                            <textarea id="customHowTo" rows="5" placeholder="One step per line:
+Copy the prompt text
+Paste into Midjourney
+Add --ar 16:9 for widescreen
+Generate 4 variations
+Pick the best result"></textarea>
+                            <small>One step per line. Each line becomes a numbered step.</small>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="customExpertTips">Expert Tips for Best Results — Optional</label>
+                            <textarea id="customExpertTips" rows="4" placeholder="One tip per line:
+Use weighted prompts for emphasis
+Try multiple variations
+Use negative prompts to exclude unwanted elements"></textarea>
+                            <small>One tip per line.</small>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="customUsageTips">Usage Tips — Optional</label>
+                            <textarea id="customUsageTips" rows="4" placeholder="One tip per line:
+Adjust aspect ratio for your target platform
+Use style references for consistency"></textarea>
+                            <small>One tip per line.</small>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="customOptimizationTips">Optimization Tips — Optional</label>
+                            <textarea id="customOptimizationTips" rows="4" placeholder="One tip per line:
+Use specific, descriptive language
+Include relevant keywords
+Save successful seeds for consistency"></textarea>
+                            <small>One tip per line.</small>
+                        </div>
+                    </div>
+                </div>
+                <!-- ========== /OPTIONAL CUSTOMIZE ========== -->
+
                 <div class="form-group">
                     <label for="imageUpload">Upload Demo Image or Video Reel *</label>
                     <div class="file-upload">
@@ -3646,7 +3799,7 @@ nav {
     <section class="showcase" id="showcase">
         <div class="container">
             <button class="upload-btn" id="openUploadModal">
-                <i class="fas fa-cloud-upload-alt"></i> Sell Your Prompts
+                <i class="fas fa-cloud-upload-alt"></i> Post Your Prompts
             </button>
             <marquee width="100%" direction="left" height="100px">
                 <p style="color: blue;">🎉 Welcome to Toolsprompt Marketplace! 🎉 Buy premium AI prompts or sell your own and earn 80% commission! Create Free Ai videos and Images! 🚀</p>
@@ -3878,7 +4031,7 @@ nav {
         window.addEventListener('load', checkMobileLayout);
         window.addEventListener('resize', checkMobileLayout);
         
-        // ===== PRICING TOGGLE IN UPLOAD FORM =====
+        // ===== PRICING TOGGLE + CUSTOMIZE TOGGLE =====
         document.addEventListener('DOMContentLoaded', function() {
             const freeRadio = document.querySelector('input[name="pricingType"][value="free"]');
             const paidRadio = document.querySelector('input[name="pricingType"][value="paid"]');
@@ -3903,6 +4056,25 @@ nav {
                 }
             }
             if (stepBtn) stepBtn.addEventListener('click', openModal);
+
+            // ===== CUSTOMIZE PROMPT PAGE TOGGLE =====
+            const customizeToggle = document.getElementById('customizeToggle');
+            const customizeSection = document.getElementById('customizeSection');
+            console.log('🔧 Customize toggle elements:', { customizeToggle, customizeSection });
+            
+            if (customizeToggle && customizeSection) {
+                customizeToggle.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const isOpen = customizeSection.style.display !== 'none';
+                    customizeSection.style.display = isOpen ? 'none' : 'block';
+                    customizeToggle.classList.toggle('expanded', !isOpen);
+                    console.log('🎨 Customize section', isOpen ? 'closed' : 'opened');
+                });
+                console.log('✅ Customize toggle wired up');
+            } else {
+                console.warn('⚠️ Customize toggle or section not found in DOM');
+            }
         });
 
         // ===== CHANNEL CLAIM SYSTEM =====
@@ -3922,7 +4094,6 @@ nav {
                 try {
                     const user = await getCurrentUser();
                     if (!user) {
-                        // Not logged in - show banner
                         showChannelBanner();
                         return;
                     }
@@ -3934,12 +4105,9 @@ nav {
                     const data = await response.json();
                     
                     if (data.hasChannel) {
-                        // User has a channel - hide everything
                         hideAllChannelPrompts();
                     } else {
-                        // User is logged in but has no channel
                         showChannelBanner();
-                        // Pre-fill handle suggestion
                         const suggested = user.email ? user.email.split('@')[0] : 'creator';
                         document.getElementById('suggestedHandle').textContent = '@' + suggested;
                         document.getElementById('channelHandleInput').value = suggested;
@@ -3948,14 +4116,12 @@ nav {
                     }
                 } catch (e) {
                     console.log('Channel check error:', e);
-                    // On error, still show banner
                     showChannelBanner();
                 }
             }
             
             function showChannelBanner() {
                 channelBanner.style.display = 'flex';
-                // Show floating reminder after 10 seconds if banner isn't interacted with
                 setTimeout(() => {
                     if (channelBanner.style.display !== 'none') {
                         floatingReminder.style.display = 'flex';
@@ -3970,21 +4136,17 @@ nav {
                 localStorage.setItem('channelBannerSkipped', 'true');
             }
             
-            // Skip banner
             skipBtn.addEventListener('click', function() {
                 channelBanner.style.display = 'none';
                 localStorage.setItem('channelBannerSkipped', 'true');
-                // Show floating reminder after 30 min
                 setTimeout(() => {
                     floatingReminder.style.display = 'flex';
                 }, 1800000);
             });
             
-            // Close floating reminder
             closeReminder.addEventListener('click', function(e) {
                 e.stopPropagation();
                 floatingReminder.style.display = 'none';
-                // Show again after 1 hour
                 setTimeout(() => {
                     if (document.getElementById('channelClaimBanner').style.display !== 'none') {
                         floatingReminder.style.display = 'flex';
@@ -3992,16 +4154,13 @@ nav {
                 }, 3600000);
             });
             
-            // Click floating reminder - open modal
             floatingReminder.addEventListener('click', function() {
                 openChannelModal();
             });
             
-            // Claim button - open modal
             claimBtn.addEventListener('click', openChannelModal);
             
             function openChannelModal() {
-                // Check if user is logged in
                 getCurrentUser().then(user => {
                     if (!user) {
                         window.location.href = '/login.html?returnUrl=' + encodeURIComponent(window.location.href);
@@ -4009,13 +4168,11 @@ nav {
                     }
                     channelModal.classList.add('active');
                     document.body.style.overflow = 'hidden';
-                    // Check handle availability again
                     const handle = document.getElementById('channelHandleInput').value;
                     if (handle) checkHandleAvailability(handle);
                 });
             }
             
-            // Close modal
             function closeChannelModalFn() {
                 channelModal.classList.remove('active');
                 document.body.style.overflow = '';
@@ -4027,7 +4184,6 @@ nav {
                 if (e.target === this) closeChannelModalFn();
             });
             
-            // Handle availability checker
             const handleInput = document.getElementById('channelHandleInput');
             let handleCheckTimeout = null;
             
@@ -4068,7 +4224,6 @@ nav {
     }
 
     try {
-        // ✅ New endpoint
         const response = await fetch(`/api/check-handle/${handle}`);
         const data = await response.json();
 
@@ -4091,7 +4246,6 @@ nav {
     }
 }
             
-            // Avatar upload preview
             const avatarInput = document.getElementById('channelAvatarInput');
             const avatarPreview = document.getElementById('avatarPreview');
             const avatarPreviewImg = document.getElementById('avatarPreviewImg');
@@ -4115,7 +4269,6 @@ nav {
                 avatarPreviewImg.src = '';
             });
             
-            // Banner upload preview
             const bannerInput = document.getElementById('channelBannerInput');
             const bannerPreview = document.getElementById('bannerPreview');
             const bannerPreviewImg = document.getElementById('bannerPreviewImg');
@@ -4139,7 +4292,6 @@ nav {
                 bannerPreviewImg.src = '';
             });
             
-            // Submit channel creation
             createSubmit.addEventListener('click', async function() {
                 const user = await getCurrentUser();
                 if (!user) {
@@ -4163,7 +4315,6 @@ nav {
                     return;
                 }
                 
-                // Check availability again
                 const checkResponse = await fetch(`/api/channel-exists/${channelHandle}`);
                 const checkData = await checkResponse.json();
                 if (checkData.exists) {
@@ -4196,7 +4347,6 @@ nav {
                         closeChannelModalFn();
                         hideAllChannelPrompts();
                         showNotification('Channel created! 🎉', 'success');
-                        // Refresh page to show channel link
                         setTimeout(() => window.location.reload(), 1500);
                     } else {
                         alert(data.error || 'Failed to create channel');
@@ -4211,11 +4361,10 @@ nav {
                 }
             });
             
-            // Check channel status on load
             checkChannelStatus();
         });
 
-        // ===== PROMOTIONAL POPUP (unchanged) =====
+        // ===== PROMOTIONAL POPUP =====
         (function() {
             const promoPopup = document.getElementById('promoPopup');
             const closeBtn = document.getElementById('closePromoPopup');
@@ -4575,35 +4724,30 @@ nav {
     const upgradePayBtn = document.getElementById('upgradePayBtn');
     const upgradeCurrent = document.getElementById('upgradeCurrentCredits');
 
-    // NEW: Mode toggle buttons
     const modeImageBtn = document.getElementById('aiModeImage');
     const modeVideoBtn = document.getElementById('aiModeVideo');
     const modeKeyframeBtn = document.getElementById('aiModeKeyframe');
     
-    // NEW: URL input
     const aiUrlInput = document.getElementById('aiUrlInput');
     const aiUrlClearBtn = document.getElementById('aiUrlClearBtn');
 
-    // NEW: End image upload (keyframe mode)
     const endFileInput = document.getElementById('aiEndFileInput');
     const endImageUploadBtn = document.getElementById('aiEndImageUploadBtn');
 
-    let currentMode = 'image'; // 'image', 'video', or 'keyframe'
+    let currentMode = 'image';
     let currentUserId = null;
-    let uploadedImages = [];   // array of File objects
-    let endImage = null;       // File for keyframe end image
+    let uploadedImages = [];
+    let endImage = null;
     let isGenerating = false;
     let lastGeneratedPrompt = '';
 
     bar.classList.add('active');
 
-    // Auto-resize textarea
     promptInput.addEventListener('input', function() {
         this.style.height = 'auto';
         this.style.height = Math.min(this.scrollHeight, 120) + 'px';
     });
 
-    // URL input handlers
     aiUrlInput.addEventListener('input', function() {
         aiUrlClearBtn.style.display = this.value ? 'block' : 'none';
     });
@@ -4612,7 +4756,6 @@ nav {
         aiUrlClearBtn.style.display = 'none';
     });
 
-    // Sync duration slider display
     const durSlider = document.getElementById('aiDurationSlider');
     const durDisplay = document.getElementById('aiDurationDisplay');
     if (durSlider && durDisplay) {
@@ -4621,18 +4764,17 @@ nav {
         });
     }
 
-    // Image upload (multiple files)
     uploadBtn.addEventListener('click', () => fileInput.click());
     fileInput.addEventListener('change', function(e) {
         const files = Array.from(e.target.files);
         if (files.length > 0) {
-            uploadedImages = files; // store all
+            uploadedImages = files;
             const reader = new FileReader();
             reader.onload = function(ev) {
                 previewImg.src = ev.target.result;
                 previewContainer.style.display = 'block';
             };
-            reader.readAsDataURL(files[0]); // show first image preview
+            reader.readAsDataURL(files[0]);
         } else {
             uploadedImages = [];
             previewContainer.style.display = 'none';
@@ -4640,7 +4782,6 @@ nav {
         }
     });
 
-    // End image upload (keyframe)
     endImageUploadBtn.addEventListener('click', () => endFileInput.click());
     endFileInput.addEventListener('change', function(e) {
         const file = e.target.files[0];
@@ -4663,7 +4804,6 @@ nav {
         endImageUploadBtn.style.background = '';
     });
 
-    // Fetch credits on load
     async function fetchCredits() {
         const user = await getCurrentUser();
         if (!user) {
@@ -4690,14 +4830,12 @@ nav {
     }
     fetchCredits();
 
-    // ===== MODE TOGGLE LOGIC =====
     function setMode(mode) {
         currentMode = mode;
         modeImageBtn.classList.toggle('active', mode === 'image');
         modeVideoBtn.classList.toggle('active', mode === 'video');
         modeKeyframeBtn.classList.toggle('active', mode === 'keyframe');
 
-        // Show/hide end image upload button
         if (mode === 'keyframe') {
             endImageUploadBtn.style.display = 'block';
             endFileInput.style.display = 'block';
@@ -4708,7 +4846,6 @@ nav {
             endImageUploadBtn.style.background = '';
         }
 
-        // Update placeholder and generate button icon
         promptInput.placeholder = mode === 'image' 
             ? 'Describe the image you want to generate...' 
             : mode === 'video'
@@ -4734,7 +4871,6 @@ nav {
         setMode('keyframe');
     });
 
-    // ===== GENERATE =====
     generateBtn.addEventListener('click', async function() {
         if (isGenerating) return;
         const prompt = promptInput.value.trim();
@@ -4744,7 +4880,6 @@ nav {
         }
         lastGeneratedPrompt = prompt;
 
-        // Check login and get user
         let user = await getCurrentUser();
         if (user) {
             currentUserId = user.uid;
@@ -4752,7 +4887,6 @@ nav {
             currentUserId = null;
         }
 
-        // Check credits for logged-in users
         if (user) {
             const creditInfo = await fetch(`/api/credits/${user.uid}`).then(r => r.json());
             if (!creditInfo.success || creditInfo.credits <= 0) {
@@ -4761,7 +4895,6 @@ nav {
                 return;
             }
         } else {
-            // For guests, we proceed to the API which will handle the limit.
             const stored = localStorage.getItem('guestUsage');
             let usage = stored ? JSON.parse(stored) : null;
             const today = new Date().toISOString().split('T')[0];
@@ -4775,12 +4908,10 @@ nav {
             }
         }
 
-        // Proceed with generation
         isGenerating = true;
         generateBtn.disabled = true;
         generateBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
 
-        // Create or get status element
         let statusEl = document.getElementById('generationStatus');
         if (!statusEl) {
             statusEl = document.createElement('div');
@@ -4794,30 +4925,24 @@ nav {
             const formData = new FormData();
             formData.append('prompt', prompt);
 
-            // Reference URL
             const referenceUrl = aiUrlInput.value.trim();
             if (referenceUrl) formData.append('referenceUrl', referenceUrl);
 
-            // Uploaded images (multimodal)
             if (uploadedImages.length > 0) {
                 uploadedImages.forEach((img) => formData.append('image', img));
             }
 
-            // End image for keyframe
             if (currentMode === 'keyframe' && endImage) {
                 formData.append('endImage', endImage);
             }
 
-            // Add mode
             formData.append('mode', currentMode);
 
-            // If video or keyframe mode, include duration
             if (currentMode === 'video' || currentMode === 'keyframe') {
                 const durationVal = durSlider?.value || 5;
                 formData.append('duration', durationVal);
             }
 
-            // Build headers conditionally
             const headers = {};
             if (user) {
                 const idToken = await user.getIdToken();
@@ -4826,7 +4951,6 @@ nav {
 
             const endpoint = (currentMode === 'image') ? '/api/generate-image' : '/api/generate-agnes-video';
             
-            // Update status message
             if (referenceUrl) {
                 statusEl.textContent = '⏳ Processing video link...';
             } else if (currentMode === 'keyframe') {
@@ -4843,7 +4967,6 @@ nav {
 
             const result = await response.json();
             if (!response.ok) {
-                // Check for guest limit
                 if (response.status === 403 && result.error === 'guest_limit_reached') {
                     showGuestLimitModal();
                     generateBtn.disabled = false;
@@ -4852,7 +4975,6 @@ nav {
                     if (statusEl) statusEl.textContent = '';
                     return;
                 }
-                // Check for rate limit
                 if (response.status === 429) {
                     const waitSec = result.retryAfter || 60;
                     statusEl.textContent = `⏳ Rate limited. Please wait ${waitSec} seconds and try again.`;
@@ -4866,19 +4988,17 @@ nav {
             }
 
             if (currentMode === 'image') {
-                // Image generation
                 modalImg.src = result.imageUrl;
                 modal.classList.add('active');
                 statusEl.textContent = '✅ Image generated!';
                 showNotification('Image generated successfully!', 'success');
             } else {
-                // Video or keyframe - Agnes video (async)
                 const videoId = result.video_id;
                 if (!videoId) throw new Error('No video_id returned from Agnes.');
 
                 statusEl.textContent = '⏳ Video generation started (may take several minutes)...';
 
-                const maxAttempts = 300;       // 15 minutes max
+                const maxAttempts = 300;
                 let attempt = 0;
                 let videoUrl = null;
                 const completionStatuses = ['completed', 'succeeded', 'done', 'finished', 'success'];
@@ -4940,7 +5060,6 @@ nav {
                 showNotification('Video generated successfully!', 'success');
             }
 
-            // Update remaining credits or guest usage
             if (user) {
                 creditDisplay.textContent = result.remainingCredits;
             } else {
@@ -4956,7 +5075,6 @@ nav {
                 creditDisplay.innerHTML = `<i class="fas fa-bolt"></i> ${remaining} free generations left`;
             }
 
-            // Clear input and images
             promptInput.value = '';
             promptInput.style.height = 'auto';
             previewContainer.style.display = 'none';
@@ -4989,7 +5107,6 @@ nav {
         return '<i class="fas fa-film"></i>';
     }
 
-    // Modal controls
     modalClose.addEventListener('click', () => modal.classList.remove('active'));
     modal.addEventListener('click', (e) => {
         if (e.target === modal) modal.classList.remove('active');
@@ -5009,7 +5126,6 @@ nav {
         shareGeneratedContent(imageUrl, prompt, false);
     });
 
-    // Video modal helper
     window.showVideoModal = function(videoUrl) {
         const videoModal = document.getElementById('videoModal');
         const videoEl = document.getElementById('generatedVideo');
@@ -5032,7 +5148,6 @@ nav {
         }
     };
 
-    // Close video modal
     const videoModalClose = document.querySelector('#videoModal .generated-modal-close');
     if (videoModalClose) {
         videoModalClose.addEventListener('click', function() {
@@ -5043,7 +5158,6 @@ nav {
         });
     }
 
-    // Upgrade modal
     upgradeClose.addEventListener('click', () => upgradeModal.style.display = 'none');
     upgradeModal.addEventListener('click', (e) => {
         if (e.target === upgradeModal) upgradeModal.style.display = 'none';
@@ -5149,7 +5263,6 @@ nav {
         }
     });
 
-    // Keyboard shortcut: Ctrl+Enter to generate
     promptInput.addEventListener('keydown', function(e) {
         if (e.ctrlKey && e.key === 'Enter') {
             e.preventDefault();
@@ -5157,10 +5270,8 @@ nav {
         }
     });
 
-    // Expose fetchCredits for after top-up
     window.refreshCredits = fetchCredits;
 
-    // ===== GUEST LIMIT MODAL =====
     window.showGuestLimitModal = function() {
         const existing = document.getElementById('guestLimitModal');
         if (existing) existing.remove();
@@ -5374,7 +5485,6 @@ nav {
             }
             
             try {
-                // Get current user
                 const user = await getCurrentUser();
                 
                 if (!user) {
@@ -5383,13 +5493,11 @@ nav {
                     return;
                 }
                 
-                // Check if user is trying to subscribe to their own channel
                 if (user.uid === channelUserId) {
                     showNotification('You cannot subscribe to your own channel', 'info');
                     return;
                 }
                 
-                // Get channel ID from user ID
                 const channelResponse = await fetch(`/api/channel-exists/${channelUserId}`);
                 const channelData = await channelResponse.json();
                 
@@ -5402,12 +5510,10 @@ nav {
                 const isSubscribed = btn.classList.contains('subscribed');
                 const action = isSubscribed ? 'unsubscribe' : 'subscribe';
                 
-                // Show loading state
                 btn.disabled = true;
                 const originalHTML = btn.innerHTML;
                 btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> ' + (action === 'subscribe' ? 'Subscribing...' : 'Unsubscribing...');
                 
-                // Make API call
                 const idToken = await user.getIdToken();
                 const response = await fetch(`/api/channel/${channelId}/subscribe`, {
                     method: 'POST',
@@ -5421,7 +5527,6 @@ nav {
                 const result = await response.json();
                 
                 if (result.success) {
-                    // Update button state
                     if (action === 'subscribe') {
                         btn.classList.add('subscribed');
                         btn.innerHTML = '<i class="fas fa-check"></i> <span class="subscribe-text">Subscribed</span> <span class="subscribe-count">' + result.subscribers + '</span>';
@@ -5432,7 +5537,6 @@ nav {
                         showNotification('Unsubscribed from ' + channelName, 'info');
                     }
                     
-                    // Update all buttons for this channel
                     document.querySelectorAll(`.subscribe-channel-btn[data-channel-user-id="${channelUserId}"]`).forEach(otherBtn => {
                         if (action === 'subscribe') {
                             otherBtn.classList.add('subscribed');
@@ -5455,13 +5559,11 @@ nav {
 
         window.handleSubscribeFromCard = handleSubscribeFromCard;
 
-        // Check subscription status for all prompt cards on load
         document.addEventListener('DOMContentLoaded', async function() {
             try {
                 const user = await getCurrentUser();
                 if (!user) return;
                 
-                // Get user's subscriptions
                 const idToken = await user.getIdToken();
                 const response = await fetch('/api/my-subscriptions', {
                     headers: { 'Authorization': `Bearer ${idToken}` }
@@ -5469,10 +5571,8 @@ nav {
                 const data = await response.json();
                 
                 if (data.success && data.subscriptions && data.subscriptions.length > 0) {
-                    // Build a set of subscribed channel IDs
                     const subscribedChannelIds = new Set(data.subscriptions.map(sub => sub.userId));
                     
-                    // Update all subscribe buttons
                     document.querySelectorAll('.subscribe-channel-btn').forEach(btn => {
                         const channelUserId = btn.getAttribute('data-channel-user-id');
                         if (subscribedChannelIds.has(channelUserId)) {

@@ -1,4 +1,4 @@
-﻿﻿// ============================================================
+﻿﻿﻿// ============================================================
 //  script.js – Complete file with channel system + share function
 // ============================================================
 
@@ -3147,6 +3147,16 @@ async function handleUploadSubmit(e) {
     const mediaFile = document.getElementById('imageUpload')?.files[0];
     const thumbnailFile = document.getElementById('videoThumbnailUpload')?.files[0];
     const pricingType = document.querySelector('input[name="pricingType"]:checked')?.value;
+
+    // ✅ NEW: Read the optional "Customize Prompt Page" fields
+    const customPlatformComparison = document.getElementById('customPlatformComparison')?.value || '';
+    const customTopTools            = document.getElementById('customTopTools')?.value || '';
+    const customModelTips           = document.getElementById('customModelTips')?.value || '';
+    const customHowTo               = document.getElementById('customHowTo')?.value || '';
+    const customExpertTips          = document.getElementById('customExpertTips')?.value || '';
+    const customUsageTips           = document.getElementById('customUsageTips')?.value || '';
+    const customOptimizationTips    = document.getElementById('customOptimizationTips')?.value || '';
+
     let price = 0;
     if (pricingType === 'paid') {
         const priceInput = document.getElementById('promptPrice')?.value;
@@ -3192,6 +3202,16 @@ async function handleUploadSubmit(e) {
         formData.append('userId', firebaseUser.uid);
         formData.append('price', price);
         formData.append('isPaid', isPaid);
+
+        // ✅ NEW: Send the optional customize fields to the server
+        formData.append('customPlatformComparison', customPlatformComparison);
+        formData.append('customTopTools',            customTopTools);
+        formData.append('customModelTips',           customModelTips);
+        formData.append('customHowTo',               customHowTo);
+        formData.append('customExpertTips',          customExpertTips);
+        formData.append('customUsageTips',           customUsageTips);
+        formData.append('customOptimizationTips',    customOptimizationTips);
+
         const response = await fetch('/api/upload', {
             method: 'POST',
             headers: { 'Authorization': `Bearer ${idToken}` },
@@ -3212,6 +3232,13 @@ async function handleUploadSubmit(e) {
             uploadModal.classList.remove('active');
             document.body.style.overflow = '';
             uploadForm.reset();
+
+            // ✅ Also collapse the customize section so the next upload starts clean
+            const customizeSection = document.getElementById('customizeSection');
+            const customizeToggle  = document.getElementById('customizeToggle');
+            if (customizeSection) customizeSection.style.display = 'none';
+            if (customizeToggle)  customizeToggle.classList.remove('expanded');
+
             if (imagePreview) imagePreview.style.display = 'none';
             if (videoThumbnailPreview) videoThumbnailPreview.style.display = 'none';
             if (videoThumbnailSection) videoThumbnailSection.style.display = 'none';
